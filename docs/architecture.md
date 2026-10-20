@@ -81,7 +81,8 @@ crates/
   hpmc/  lattice/  kinetics/
   instruments/             reductions → observables, ledgers, profiles
   scenarios/               scenario + protocol schema (serde), presets
-  validate/                headless validation suite + benchmarks (native wgpu)
+  validate/                headless physics validation suite (native wgpu)
+  bench/                   benchmark harness; JSON results per commit and device
   wasm/                    wasm-bindgen API for the web
 web/
   pages/                   one directory per question page
@@ -92,6 +93,32 @@ docs/
 WGSL needs 2D/3D variants and per-scenario specializations. Use `override` constants where
 possible and a small build-time templating step otherwise. Evaluate WESL (WGSL extended with
 imports and conditionals) [memory] before writing our own.
+
+## Toolchain and build
+
+| | Native (dev machine, CI, benchmarks) | Browser |
+|---|---|---|
+| Rust | `cargo build` / `cargo test` | `wasm32-unknown-unknown` + `wasm-bindgen` JS glue |
+| GPU API | `wgpu` → Metal / Vulkan / DX12 | `wgpu` → the browser's WebGPU |
+| WGSL compiled by | **naga** → MSL / SPIR-V / HLSL, then the driver | the **browser's** compiler (Tint in Chrome) → MSL / HLSL / SPIR-V, then the driver |
+| Pages | — | TypeScript + Vite import the wasm package |
+
+- WGSL source ships inside the wasm (`include_str!`). Shaders are compiled **at runtime** when
+  pipelines are created (use `createComputePipelineAsync`; Chrome caches compiled pipelines on
+  disk). At build time we only **validate** shaders, with naga, and in CI also with Tint if
+  practical.
+- **Two different shader compilers.** naga and Tint may reassociate and fuse f32 operations
+  differently, so `gpu-int-f32` hashes are not expected to match between native and browser
+  (consistent with Tier 1). `gpu-int-int` hashes must match everywhere, which makes the
+  all-integer path a check that the compilers agree.
+- **All readbacks are asynchronous.** The browser cannot block on a buffer map, so the core API
+  is async from the start; native code drives the same futures with `pollster`.
+- **No f64 in WGSL.** GPU float forces are f32; the f32/f64 switch lives in the CPU engines.
+  Double-float emulation on the GPU is a possible experiment, not a planned mode.
+- With the WebGPU backend, `wgpu` passes WGSL straight to the browser. Confirm that naga is not
+  bundled into the wasm when only WGSL is used, to keep the download small [verify].
+- Threads in wasm need cross-origin isolation (COOP/COEP headers). Avoid depending on them; the
+  GPU does the work, and the CPU engines in the browser are only for small demos.
 
 ## Numerics
 
@@ -204,32 +231,91 @@ temperature, piston speed, seed), following ALCHEMI. Uses: Carnot efficiency vs 
 temperature. A single grid shared across replicas with group IDs is an alternative (Warp
 `HashGrid` groups).
 
-## Correctness strategy
-1. **Bitwise reproducibility and cross-configuration tests**, as listed under "Cross-checks
-   between configurations" above.
-2. **`cpu-float` in f64** as the reference for integrator and precision error and for
-   observables.
-3. **Force-kernel unit tests** against NIST SRSW sample configurations (reference energies and
-   virials).
-4. **Statistical validation suite** (`validate`), run natively with headless `wgpu`:
-   Maxwell–Boltzmann, equipartition, barometric profile, B₂(T), NIST coexistence and
-   Clausius–Clapeyron, Smit–Frenkel 2D, Engel et al. hard-disk pressure (βP(2σ)² = 9.1706 at
-   η = 0.698), van 't Hoff, Izumida–Okuda Carnot, Yeh–Hummer-corrected diffusion.
-5. **Browser parity tests:** Playwright with headless Chrome, plus manual Safari and Firefox
-   checks, comparing against native `wgpu`.
+## Testing
 
-## Performance strategy
-- Everything GPU resident; many steps per command buffer; asynchronous readback of small
-  summaries only.
-- Autotune workgroup size and items per thread at startup using `timestamp-query`, falling back
-  to defaults (catalog #14, HOOMD `Autotuner`).
+Almost everything runs under `cargo test` without a browser. Every run is seeded and
+deterministic, so tests are reproducible, including the statistical ones.
+
+1. **CPU unit and property tests** (no GPU; run everywhere, including plain CI): fixed-point
+   arithmetic, periodic wrap and minimum image, two-word carry logic, pair-table interpolation
+   error bounds, Threefry against Random123 known-answer vectors, and the CPU engines themselves.
+   Use `proptest` for randomized inputs.
+2. **GPU primitive tests** (native `wgpu`): scan, sort, reduce and compaction against CPU
+   results. Include edge sizes (0, 1, 255, 256, 257, 2^20 + 3) and adversarial inputs (all
+   particles in one cell; a liquid–vapor density contrast).
+3. **Engine cross-checks:** everything under "Cross-checks between configurations" above, and
+   force-kernel tests against NIST SRSW sample configurations (reference energies and virials).
+4. **Physics validation** (`validate`; slow, nightly or on demand): Maxwell–Boltzmann,
+   equipartition, barometric profile, B₂(T), NIST coexistence and Clausius–Clapeyron,
+   Smit–Frenkel 2D, Engel et al. hard-disk pressure (βP(2σ)² = 9.1706 at η = 0.698),
+   van 't Hoff, Izumida–Okuda Carnot, Yeh–Hummer-corrected diffusion. Error bars come from block
+   averaging; assert agreement within ~4σ. `cpu-float` in f64 is the reference for integrator
+   and precision error.
+5. **Scenario and parameter tests:** every scenario is a data file. A smoke test runs each one
+   briefly and checks invariants: no overflow flags, no NaN, energy drift within bounds,
+   temperature in range. Each page's sliders are tested at their extremes and at random
+   combinations, so users can't drive a page into a blowup. Scenarios run the engine's stability
+   checks at load time: Δt against the fastest vibration period, and the skin against the largest
+   per-step displacement.
+6. **Browser tests:**
+   - `wasm-bindgen-test` runs layers 2–3 **inside headless Chrome**, so the suites run under Tint
+     as well as naga.
+   - **Playwright** drives the real pages in Chrome, WebKit (Safari) and Firefox: load, run N
+     steps, then compare `gpu-int-int` hashes with the native golden hashes (exact), `gpu-int-f32`
+     forces with the reference (within tolerance), and a few screenshots (rendering only).
+   - CI without a GPU: software Vulkan (lavapipe) on Linux, WARP on Windows, SwiftShader for
+     Chrome. Good enough for correctness, not for speed. Whether GitHub's macOS runners expose a
+     usable GPU is unverified, so GPU and performance runs will likely be local or on a
+     self-hosted runner.
+
+## Performance and benchmarking
+
+**Metrics:** timesteps per second at fixed N, ns per particle-step, pair interactions per second,
+and per-kernel time against the **memory-bandwidth roofline**. Pair-list MD is usually bandwidth
+bound, so a fraction of peak bandwidth (e.g., 60–70%) is a target that doesn't depend on other
+engines.
+
+**Workloads:**
+- LAMMPS `bench/in.lj`: 3D LJ liquid, ρ = 0.8442, cutoff 2.5σ, skin 0.3σ, 32k atoms, scaled up
+  to millions.
+- HOOMD benchmark equivalents.
+- Our 2D liquid–vapor slab, where uniform-density cost models break.
+- Many small replicas, where dispatch latency dominates.
+
+**Comparison on the same hardware, with matched settings** (N, density, cutoff, skin, precision):
+- Mac: OpenMM (OpenCL, or the community Metal plugin) and the LAMMPS GPU package (OpenCL).
+- NVIDIA machine (rented is fine): HOOMD, LAMMPS-KOKKOS and OpenMM CUDA, against our engine
+  natively on Vulkan and in Chrome.
+
+**Goal:** within ~1.5–2× of HOOMD for plain LJ on the same NVIDIA GPU; equal or better on
+non-uniform density and on many small replicas. The structural costs are no subgroups in
+baseline WebGPU, a portable scan without forward-progress guarantees, and browser submit
+overhead.
+
+**Rules:**
+- Everything GPU resident; many timesteps per command submission; no readback mid-run, only
+  asynchronous readback of small summaries.
+- Decide neighbor-list rebuilds on the GPU. WebGPU has no conditional dispatch, so either the
+  kernels always run and exit early, or the host checks an asynchronous flag every K steps.
+- Autotune workgroup size and items per thread per device at startup using `timestamp-query`,
+  falling back to defaults (catalog #14, HOOMD `Autotuner`).
 - Respect the default limits (research §13): 16 KB workgroup storage, 256 invocations per
   workgroup, 128 MiB per storage binding. Request higher limits when the adapter allows.
 - Three device classes: discrete GPU, integrated laptop GPU, phone.
 
+**Workflow:**
+- Profile natively, where the tools are good: Xcode Metal capture, Nsight, RenderDoc.
+- Confirm in the browser with timestamp queries. Chrome quantizes them by default; a Dawn toggle
+  disables that for development [verify flag name].
+- A browser benchmark page, to collect numbers from phones and Windows laptops.
+- **Regression tracking:** `bench` writes JSON per commit and per device. Take the median of
+  many runs after warm-up, and flag regressions beyond each device's measured noise. Start with a
+  committed results file; add a dashboard later if it earns its keep.
+
 ## Milestones (thin vertical slices first)
-- **M0, gpu-prims:** reduce-then-scan, counting sort, segmented reduce, two-word atomics,
-  Threefry. Tests run natively and in the browser.
+- **M0, toolchain + gpu-prims:** the workspace skeleton and an end-to-end toolchain (native
+  tests, wasm build, a browser smoke test, benchmark JSON). Then reduce-then-scan, counting sort,
+  segmented reduce, two-word atomics and Threefry, tested natively and in the browser.
 - **M1, minimal 2D MD:** `gpu-int-f32` with WCA/LJ in NVE, a cell list, a skin list and
   integer positions, plus `cpu-int-float` and `cpu-float` (f32/f64). Run-to-run, reversal and
   permutation hash tests. **First page: exact reversal (Loschmidt) with the one-bit
