@@ -447,3 +447,40 @@ Open questions (third round):
   now wait for the frame in flight and run one at a time.
 
 Still to do (fourth round): `osmosis` classic U-tube panel; `saline` big-cell panel.
+
+### Fifth round: done (to confirm)
+
+- [ ] `osmosis` U-tube temperature: plotted as energy books (lift m g h, heat, interactions, total)
+  with a temperature readout and "the cooling the lift alone causes". The prediction is right but
+  tiny: lifting 15 σ stores ~8 ε, a drop in kT of ~0.002 (0.3%), below the reading's jiggle and
+  below the liquid's own slow drift (a control with no solute cools as much). The total is flat to
+  1 ε. The liquid now settles 200 τ as pure water before 30% of the right arm becomes solute (zero
+  energy cost). Notes explain where the energy comes from (the heat, driven by the solute's entropy).
+- [ ] `osmosis` U-tube 10×: a size menu (33,000 molecules). Runs at ~1,800–3,300 steps/s in Chrome
+  (10–16 frames/s at 200 steps/frame); it settles slowly (still warm and compacting after 300 τ)
+  and rises slowly. Usable, not yet good.
+- [ ] Bugs found on the way: a U-tube wall bead placed on the box's top edge was bounced at
+  100 σ/τ (scenario builds now reject particles outside the box); wall beads inside the soft walls'
+  range held a constant 64,000 ε; `set_view` takes corners (saline and U-tube views were off).
+- [ ] `atmosphere` fluid panel: it started paused (Sunshine alone did nothing); now Sunshine, Warm
+  bubble and stirring set it running, an hour a second. The wind across the top was 2D convection
+  building a horizontal mean flow (a known 2D artefact); it is now damped, and the plumes rise
+  upright (8.9 K/km at 10 h, against 9.8).
+- [ ] `atmosphere`: notes on why a sunny plateau is still cold (less greenhouse blanket above,
+  air borrowed from the free atmosphere, thin air), with the mass elevation effect.
+- [ ] `atmosphere` MD: a hot plate under the floor (off by default) at a chosen kT; a molecule
+  count menu (1,500–48,000). With only a plate, the column warms from the bottom and ends at the
+  plate's temperature (said in the notes).
+- [ ] `boiling`: heat with a bulk bath or a hot plate under the floor (insulating lid); a molecule
+  count menu, with the box growing to match; a measured-temperature readout. On the plate, bubbles
+  nucleate at the floor.
+- [ ] `saline`: the water does interact (it repels the membrane beads) but passes through, so the
+  push is the salt's. Measured with the water made invisible (a new `water` 0 option): big-cell
+  tension 5.3 instead of 5.9 in pure water, 3.9 instead of 4.2 in saline. Notes added.
+- [ ] `saline` brush: strokes are queued and applied in the frame's readout; 60 frames/s while
+  dragging. Adding salt picks only water molecules with room for a salt molecule, so it costs no
+  energy (public API `set_species(ids, species)`).
+- [ ] The hybrid idea (continuum solvent, particle solute with two-way drag) is in
+  `docs/fluid-engine.md` §4, item 4.
+
+Still to do: a molecule-count control on the other pages.
