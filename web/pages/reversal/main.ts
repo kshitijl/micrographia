@@ -31,6 +31,7 @@ let observing = false;
 let paused = false; // the UI loop yields to test hooks
 let mix0: number | null = null; // raw mixing of the starting blob (coarse bins straddle its edge)
 let nudged = ""; // what was nudged since the last reversal, for the arrival message
+let picked = -1; // the molecule "One molecule" nudges (−1: the central cream one)
 
 // Four traced molecules (two cream, two coffee). Their outward path is a stack of samples; on
 // the way back the page lands on the same step counts and compares positions bit for bit (f64
@@ -69,6 +70,7 @@ async function create() {
   nudged = "";
   traced = [];
   path = [];
+  picked = -1;
   plot.clear();
   updateButtons();
   overlay.style.display = "grid";
@@ -260,6 +262,31 @@ function nudge(what: string, f: (s: DiscSim) => void) {
   plot.mark(elapsed * sim.dt(), "nudge");
   setStatus(`Nudged ${what} by 2⁻³² σ.${sim.steps() > 0 ? " Now reverse time." : ""}`);
 }
+// Click a molecule to choose the one "One molecule" nudges.
+canvas.addEventListener("click", async (e) => {
+  if (!sim) return;
+  const s = sim;
+  const r = canvas.getBoundingClientRect();
+  const v = Array.from(s.view());
+  const [x, y] = [v[0] + ((e.clientX - r.left) / r.width) * (v[2] - v[0]), v[3] - ((e.clientY - r.top) / r.height) * (v[3] - v[1])];
+  const { pos } = (await s.all_positions()) as { pos: Float32Array };
+  let best = -1;
+  let d = Infinity;
+  for (let i = 0; i < pos.length / 2; i++) {
+    const e2 = (pos[2 * i] - x) ** 2 + (pos[2 * i + 1] - y) ** 2;
+    if (e2 < d) [best, d] = [i, e2];
+  }
+  if (d > 4) return;
+  picked = best;
+  s.set_highlight(best);
+  setStatus("Chosen: the red molecule. Press “One molecule” to nudge it.");
+});
+$("nudge-one").onclick = () =>
+  nudge("one molecule", (s) => {
+    const i = picked >= 0 ? picked : s.central_marked();
+    s.flip_bit(i);
+    s.set_highlight(i);
+  });
 $("nudge-traced").onclick = () => nudge("the 4 traced molecules", (s) => traced.forEach((i) => s.flip_bit(i)));
 $("nudge-cream").onclick = () => nudge("all the cream", (s) => s.flip_species_bit(1 << 1));
 $("nudge-all").onclick = () => nudge("every molecule", (s) => s.flip_species_bit(0b11));

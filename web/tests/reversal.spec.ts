@@ -58,3 +58,22 @@ test("an exact return erases the traced paths; a nudged one leaves them", async 
   expect(nudged.kept).toBeGreaterThan(20);
   await page.screenshot({ path: "test-results/reversal-nudged.png" });
 });
+
+test("nudging a single molecule is enough to spoil the return", async ({ page }) => {
+  test.setTimeout(300_000);
+  await page.goto("pages/reversal/index.html");
+  await page.evaluate(() => window.reversalTest!.ready);
+  await expect(page.locator("#overlay")).toBeHidden();
+  await page.locator("#speed").fill("64");
+  await page.locator("#run").click();
+  // The disturbance takes ~20 τ to reach every molecule (the notes; crates/md/tests): run 25 τ out.
+  await expect.poll(async () => Number(await page.locator("#time").textContent()), { timeout: 120_000 }).toBeGreaterThan(25);
+  await page.locator("#nudge-one").click();
+  await expect(page.locator("#status")).toContainText("Nudged one molecule");
+  await page.locator("#reverse").click();
+  await expect(page.locator("#status")).toContainText("somewhere else", { timeout: 120_000 });
+  const status = await page.locator("#status").innerText();
+  console.log(`reversal (one molecule nudged): ${status}`);
+  const differ = Number(status.match(/([\d,]+) of/)![1].replace(/,/g, ""));
+  expect(differ).toBeGreaterThan(4000);
+});

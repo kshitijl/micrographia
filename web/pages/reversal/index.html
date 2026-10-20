@@ -32,8 +32,10 @@
             <button id="reset">Reset</button>
           </div>
           <div class="legend"><span><i style="background: var(--trace-1)"></i><i style="background: var(--trace-2)"></i>two cream and</span><span><i style="background: var(--trace-3)"></i><i style="background: var(--trace-4)"></i>two coffee molecules' paths</span><span><i style="background: var(--trace-back); box-shadow: 0 0 0 1px var(--muted)"></i>where the way back strays</span></div>
-          <div class="sub">Nudge by 2<sup>−32</sup> of a diameter (0.0000000002&nbsp;σ):</div>
+          <div class="sub">Nudge by 2<sup>−32</sup> of a diameter (0.0000000002&nbsp;σ). Click a molecule to choose
+            which one (it turns red); otherwise "One molecule" nudges the cream molecule at the centre:</div>
           <div class="buttons">
+            <button id="nudge-one">One molecule</button>
             <button id="nudge-traced">The 4 traced</button>
             <button id="nudge-cream">All cream</button>
             <button id="nudge-all">Every molecule</button>
@@ -79,8 +81,9 @@
 
         <h2>Then why doesn't it happen?</h2>
         <p>
-          Reset, run forward again, and this time press a nudge button before reversing. It moves the
-          four traced molecules, all the cream, or every molecule by 2<sup>−32</sup> of a diameter,
+          Reset, run forward again, and this time press a nudge button before reversing. It moves one
+          molecule (click one to choose it), the four traced molecules, all the cream, or every molecule
+          by 2<sup>−32</sup> of a diameter,
           about a ten-billionth. For a while the reversed run still heads back toward the blob, and the
           paths seem to be retraced. But the page compares every bit: once a molecule's position differs at
           all, its path is no longer erased, and a white dot marks where it really is. But collisions amplify small differences: each time a molecule
