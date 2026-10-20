@@ -1,0 +1,179 @@
+//! `gpu-int-f32` against the CPU configurations, and its exactness properties.
+
+use gpu_prims::{Gpu, Prims};
+use md::GpuEngine;
+use md_core::{init, Pair, State, System};
+use md_ref::{FloatEngine, IntEngine};
+use pollster::block_on;
+
+fn prims() -> Prims {
+    Prims::new(&block_on(Gpu::new()).expect("a GPU adapter is required"))
+}
+
+fn fluid(n: usize, density: f64, pair: Pair, seed: u64) -> (System, State) {
+    let sys = System::new(init::box_for(n, density, 1.0), init::DT, pair, vec![1.0]);
+    let s = init::fluid(&sys, n, 1.0, seed);
+    (sys, s)
+}
+
+/// A state that has been run for a while, so particles are in fluid-like contact.
+fn equilibrated(n: usize, density: f64, pair: Pair, seed: u64) -> (System, State) {
+    let (sys, s) = fluid(n, density, pair, seed);
+    let mut e = IntEngine::<f32>::new(sys.clone(), s);
+    e.step(200);
+    (sys, e.state)
+}
+
+#[test]
+fn kicks_match_the_cpu_twin() {
+    let p = prims();
+    for pair in [Pair::wca(), Pair::lj(2.5)] {
+        let (sys, s) = equilibrated(3000, 0.7, pair, 1);
+        let gpu = GpuEngine::new(&p, sys.clone(), &s);
+        let (kg, peg) = block_on(gpu.kicks());
+        let (k32, pe32) = IntEngine::<f32>::new(sys.clone(), s.clone()).kicks();
+        let (k64, _) = IntEngine::<f64>::new(sys, s).kicks();
+        let mut identical = 0;
+        let mut max_diff = 0;
+        let (mut num, mut den) = (0.0, 0.0);
+        for i in 0..kg.len() {
+            if kg[i] == k32[i] {
+                identical += 1;
+            }
+            for a in 0..2 {
+                max_diff = max_diff.max((kg[i][a] - k32[i][a]).abs());
+                num += ((kg[i][a] - k64[i][a]) as f64).powi(2);
+                den += (k64[i][a] as f64).powi(2);
+            }
+        }
+        let rel64 = (num / den).sqrt();
+        eprintln!(
+            "rc={:.3}: GPU vs CPU f32 twin: {identical}/{} kicks identical, max diff {max_diff} units; \
+             rms rel. diff vs f64 {rel64:.2e}; PE {peg:.5} vs {pe32:.5}",
+            pair.rc,
+            kg.len()
+        );
+        assert!(rel64 < 1e-5);
+        assert!(identical as f64 > 0.5 * kg.len() as f64);
+        assert!(((peg - pe32) / pe32).abs() < 1e-5);
+    }
+}
+
+#[test]
+fn run_to_run_identical() {
+    let p = prims();
+    let (sys, s) = fluid(5000, 0.6, Pair::wca(), 2);
+    let mut a = GpuEngine::new(&p, sys.clone(), &s);
+    let mut b = GpuEngine::new(&p, sys, &s);
+    a.step(1000);
+    b.step(1000);
+    let (sa, sb) = (block_on(a.read_state()), block_on(b.read_state()));
+    assert_ne!(sa, s);
+    assert_eq!(sa.hash(), sb.hash());
+}
+
+#[test]
+fn reversal_is_exact() {
+    let p = prims();
+    let (sys, s0) = fluid(5000, 0.6, Pair::wca(), 3);
+    let mut e = GpuEngine::new(&p, sys, &s0);
+    e.step(2000);
+    e.reverse();
+    e.step(2000);
+    e.reverse();
+    let s = block_on(e.read_state());
+    assert_eq!(s.hash(), s0.hash(), "state after forward + reverse differs from the start");
+    assert_eq!(e.steps, 0);
+}
+
+#[test]
+fn one_bit_flip_breaks_reversal() {
+    let p = prims();
+    let (sys, s0) = fluid(5000, 0.6, Pair::wca(), 4);
+    let mut e = GpuEngine::new(&p, sys.clone(), &s0);
+    e.step(3000);
+    e.flip_bit(17, 0, 0);
+    e.reverse();
+    e.step(3000);
+    e.reverse();
+    let s = block_on(e.read_state());
+    let (differ, max) = s.position_difference(&s0, &sys);
+    eprintln!("GPU, one bit flipped: {differ}/5000 particles differ, max {max:.2} σ");
+    assert!(differ > 4000);
+}
+
+#[test]
+fn storage_order_does_not_matter() {
+    let p = prims();
+    let (sys, s0) = fluid(4000, 0.6, Pair::wca(), 5);
+    let mut rng = gpu_prims::checks::SplitMix(5);
+    let mut perm: Vec<usize> = (0..s0.n()).collect();
+    for i in (1..perm.len()).rev() {
+        perm.swap(i, rng.below(i as u32 + 1) as usize);
+    }
+    let mut a = GpuEngine::new(&p, sys.clone(), &s0);
+    let mut b = GpuEngine::new(&p, sys, &s0.permuted(&perm));
+    a.step(1000);
+    b.step(1000);
+    let sa = block_on(a.read_state());
+    let sb = block_on(b.read_state()).unpermuted(&perm);
+    assert_eq!(sa.hash(), sb.hash());
+}
+
+#[test]
+fn momentum_is_exactly_conserved() {
+    let p = prims();
+    let (sys, s0) = fluid(4000, 0.6, Pair::lj(2.5), 6);
+    let mut e = GpuEngine::new(&p, sys, &s0);
+    e.step(2000);
+    assert_eq!(block_on(e.read_state()).velocity_sum(), [0, 0]);
+}
+
+#[test]
+fn trajectory_tracks_the_cpu_twin() {
+    let p = prims();
+    let (sys, s0) = fluid(2000, 0.6, Pair::wca(), 7);
+    let mut g = GpuEngine::new(&p, sys.clone(), &s0);
+    let mut c = IntEngine::<f32>::new(sys.clone(), s0.clone());
+    let mut f = FloatEngine::<f64>::from_state(sys.clone(), &s0);
+    let mut first_divergence = None;
+    let mut report = Vec::new();
+    for block in 1..=20 {
+        g.step(50);
+        c.step(50);
+        f.step(50);
+        let sg = block_on(g.read_state());
+        if first_divergence.is_none() && sg != c.state {
+            first_divergence = Some(block * 50);
+        }
+        let b = sys.box_f64();
+        let mut worst = 0.0f64;
+        for (p, q) in sg.pos.iter().zip(f.positions_f64()) {
+            for a in 0..2 {
+                let mut d = (md_core::fixed::to_f64(p[a]) - q[a]).abs();
+                d = d.min(b[a] - d);
+                worst = worst.max(d);
+            }
+        }
+        report.push(format!("{}:{worst:.1e}", block * 50));
+    }
+    eprintln!("GPU first differs from the CPU f32 twin at step {first_divergence:?}");
+    eprintln!("GPU vs cpu-float<f64>, max |Δx| (σ) by step: {}", report.join(" "));
+}
+
+#[test]
+fn energy_is_conserved() {
+    let p = prims();
+    let (sys, s0) = fluid(4000, 0.6, Pair::wca(), 8);
+    let mut e = GpuEngine::new(&p, sys.clone(), &s0);
+    e.step(500);
+    let energy = |s: &State| IntEngine::<f64>::new(sys.clone(), s.clone()).energy().total() / s.n() as f64;
+    let e0 = energy(&block_on(e.read_state()));
+    let mut worst = 0.0f64;
+    for _ in 0..10 {
+        e.step(1000);
+        worst = worst.max((energy(&block_on(e.read_state())) - e0).abs());
+    }
+    eprintln!("energy per particle {e0:.5}; max deviation over 10 000 steps {worst:.2e}");
+    assert!(worst < 2e-3, "worst {worst}");
+}
