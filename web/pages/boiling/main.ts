@@ -76,6 +76,7 @@ const host = new SimHost({
   overlay: $("overlay"),
   scenario: "boiling",
   options: () => ({ n: 6000, width: 200, height: 160, temperature: temperature(), seed: 13 }),
+  names: ["molecules"],
   colors: ["--species-2"],
   stepsPerFrame: () => 100,
   afterSteps: (sim) => readout(sim),

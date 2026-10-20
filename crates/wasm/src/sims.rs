@@ -379,6 +379,12 @@ impl DiscSim {
         self.engine.kick_region([x0.min(x1), y0.min(y1)], [x0.max(x1), y0.max(y1)], scale, [vx, vy]);
     }
 
+    /// "About this simulation": plain-language bullet points (method, forces, boundaries,
+    /// ensemble). `names` are the page's names for the species.
+    pub fn describe(&self, names: Vec<String>) -> Vec<String> {
+        self.engine.sys.describe(self.engine.n() as usize, &names)
+    }
+
     /// The region of the box drawn on the canvas: [x0, y0, x1, y1] in σ, y upwards.
     pub fn view(&self) -> Vec<f32> {
         let p = &self.renderer.params;

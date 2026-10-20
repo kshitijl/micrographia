@@ -111,6 +111,7 @@ const host = new SimHost({
   overlay: $("overlay"),
   scenario: "binding",
   options: () => ({ boxes_x: BOXES[0], boxes_y: BOXES[1], log2_box: 3, eps_a: 1.6, eps_b: 1.6, temperature: temperature(), seed: 23 }),
+  names: ["solvent", "molecule", "pocket", "molecule"],
   colors: ["--species-2", "--cream", "--accent", "--cream"],
   stepsPerFrame: () => EVERY,
   afterSteps: (sim) => readout(sim),

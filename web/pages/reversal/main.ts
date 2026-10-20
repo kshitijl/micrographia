@@ -1,6 +1,7 @@
 import { DiscSim, loadWasm, webgpuProblem } from "../../src/lib/wasm";
 import { TimePlot } from "../../src/lib/plot";
 import { cssColor, onThemeChange } from "../../src/lib/theme";
+import { showAbout } from "../../src/lib/host";
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 const canvas = $<HTMLCanvasElement>("canvas");
@@ -76,6 +77,7 @@ async function create() {
   const n = Number(size.value);
   sim = await DiscSim.create(canvas, "cream", { n, density: 0.5, temperature: 1.0, seed: 7, warmup: 1000, blob: 0.2, aspect: canvas.width / canvas.height });
   applyColors();
+  showAbout(sim, ["coffee", "cream"]);
   traced = await pickTraced(sim);
   path = [];
   kept = traced.map(() => []);

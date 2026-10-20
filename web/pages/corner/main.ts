@@ -134,6 +134,7 @@ const host = new SimHost({
   overlay: $("overlay"),
   scenario: "corner",
   options: () => ({ per_box: perBox(), boxes_x: BOXES[0], boxes_y: BOXES[1], size: size(), seed: 3 }),
+  names: ["molecules"],
   colors: ["--cream"],
   // About one box-crossing time between snapshots, so they are roughly independent.
   stepsPerFrame: () => 200,

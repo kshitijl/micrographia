@@ -82,6 +82,7 @@ const host = new SimHost({
   overlay: $("overlay"),
   scenario: "lipids",
   options: () => ({ lipids: 800, tail: TAIL, density: 0.25, temperature: Number(tIn.value), attraction: Number(epsIn.value), head: Number(headIn.value), seed: 14 }),
+  names: ["heads", "tails"],
   colors: ["--species-2", "--cream"],
   stepsPerFrame: () => 200,
   afterSteps: (sim) => readout(sim),

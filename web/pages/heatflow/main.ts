@@ -120,6 +120,7 @@ const host = new SimHost({
   overlay: $("overlay"),
   scenario: "heatflow",
   options: () => ({ columns: COLS, per_box: 12, log2_width: 3, hot: th(), cold: TC, seed: 4 }),
+  names: ["molecules"],
   colors: ["--cream"],
   stepsPerFrame: () => 50,
   afterSteps: (sim) => readout(sim),

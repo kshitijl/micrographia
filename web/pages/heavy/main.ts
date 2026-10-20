@@ -74,6 +74,7 @@ const host = new SimHost({
   overlay: $("overlay"),
   scenario: "heavy",
   options: () => ({ n: 6000, density: 0.4, heavy: 16, balls: 3, ball_size: 6, ball_mass: ballMass(), seed: 2 }),
+  names: ["light", "heavy", "balls"],
   colors: ["--cream", "--species-2", "--species-3"],
   stepsPerFrame: () => 20,
   afterSteps: (sim) => readout(sim),
@@ -97,6 +98,7 @@ $<HTMLInputElement>("ballmass").oninput = () => {
   $("bmv").textContent = String(ballMass());
   $("bm").textContent = String(ballMass());
 };
+$<HTMLInputElement>("ballmass").dispatchEvent(new Event("input"));
 $<HTMLInputElement>("ballmass").onchange = () => {
   const run = host.running;
   void host.create().then(() => (host.running = run));

@@ -20,6 +20,10 @@ export interface HostConfig {
   afterSteps?: (sim: DiscSim) => Promise<void> | void;
   /** Called once a sim exists (and after every reset). */
   onCreate?: (sim: DiscSim) => Promise<void> | void;
+  /** The species' names, for the "About this simulation" section. */
+  names?: string[];
+  /** Which simulation this is, if the page has more than one (for its "About" section). */
+  label?: string;
 }
 
 /**
@@ -83,6 +87,7 @@ export class SimHost {
     this.applyColors();
     this.cfg.overlay.style.display = "none";
     await this.cfg.onCreate?.(sim);
+    showAbout(sim, this.cfg.names, this.cfg.label);
     sim.render();
   }
 
@@ -123,6 +128,26 @@ export class SimHost {
     }
     sim.render();
   }
+}
+
+/**
+ * Write (or rewrite) the page's "About this simulation" section at the end of its notes: the
+ * method, forces, boundaries and ensemble, as the engine describes the system it is running.
+ */
+export function showAbout(sim: DiscSim, names: string[] = [], label = "") {
+  const notes = document.querySelector("article.notes");
+  if (!notes) return;
+  const id = `about-sim${label ? `-${label.replace(/\W+/g, "-")}` : ""}`;
+  let sec = document.getElementById(id);
+  if (!sec) {
+    sec = document.createElement("section");
+    sec.id = id;
+    sec.className = "about-sim";
+    notes.appendChild(sec);
+  }
+  const esc = (t: string) => t.replace(/&/g, "&amp;").replace(/</g, "&lt;");
+  const lines = sim.describe(names) as string[];
+  sec.innerHTML = `<h2>About this simulation${label ? `: ${esc(label)}` : ""}</h2><ul>${lines.map((l) => `<li>${esc(l)}</li>`).join("")}</ul>`;
 }
 
 /** A tiny DOM helper. */

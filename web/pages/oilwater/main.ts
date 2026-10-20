@@ -37,6 +37,7 @@ const host = new SimHost({
   overlay: $("overlay"),
   scenario: "oilwater",
   options: () => ({ n: 8000, density: 0.7, temperature: Number(temp.value), cross: Number(cross.value), seed: 6 }),
+  names: ["water", "oil"],
   colors: ["--species-2", "--cream"],
   stepsPerFrame: () => 50,
   afterSteps: (sim) => readout(sim),

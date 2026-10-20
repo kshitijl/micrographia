@@ -136,6 +136,7 @@ const host = new SimHost({
   overlay: $("overlay"),
   scenario: "buffer",
   options: () => ({ eps: Number(epsIn.value), columns: COLS, buffered_rows: BUFFERED, water_rows: WATER, anions: ANIONS, step: STEP, warmup: 20000, seed: 29 }),
+  names: ["protons", "buffer anions"],
   colors: ["--cream", "--accent"],
   stepsPerFrame: () => EVERY,
   afterSteps: (sim) => readout(sim),

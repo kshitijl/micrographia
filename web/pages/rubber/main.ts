@@ -55,6 +55,7 @@ const host = new SimHost({
   overlay: $("overlay"),
   scenario: "rubber",
   options: () => ({ chains: CHAINS, length: 40, stretch: Number(xIn.value), temperature: Number(tIn.value), seed: 10 }),
+  names: ["beads", "left anchor", "end bead", "right anchor"],
   colors: ["--cream", "--species-3", "--cream", "--species-3"],
   stepsPerFrame: () => 25,
   afterSteps: (sim) => readout(sim),

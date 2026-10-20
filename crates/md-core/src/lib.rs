@@ -5,6 +5,7 @@
 //! Units are reduced Lennard-Jones units: lengths in σ, energies in ε, masses in m, time in
 //! τ = σ √(m/ε), and k_B = 1.
 
+pub mod describe;
 pub mod fixed;
 pub mod init;
 pub mod pair;

@@ -80,6 +80,7 @@ const host = new SimHost({
   overlay: $("overlay"),
   scenario: "atmosphere",
   options: () => ({ n: 6000, heavy: Number(heavyIn.value), heavy_share: 0.3, scale: 0.35, temperature: 1, bath: bath.checked ? 1 : 0, seed: 11 }),
+  names: ["light gas", "heavy gas"],
   colors: ["--cream", "--species-3"],
   stepsPerFrame: () => 100,
   afterSteps: (sim) => readout(sim),

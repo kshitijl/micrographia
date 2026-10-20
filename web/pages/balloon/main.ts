@@ -50,6 +50,7 @@ const host = new SimHost({
   overlay: $("overlay"),
   scenario: "balloon",
   options: () => ({ n: 1000, heavy: Number(heavyIn.value), pore: 0.6, seed: 15 }),
+  names: ["helium", "air"],
   colors: ["--cream", "--species-2"],
   stepsPerFrame: () => 100,
   afterSteps: (sim) => readout(sim),

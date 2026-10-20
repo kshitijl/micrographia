@@ -84,6 +84,7 @@ const host = new SimHost({
   overlay: $("overlay"),
   scenario: "compress",
   options: () => ({ n: 3000, density: 0.05, thermal: thermal.checked ? 1 : 0, seed: 9 }),
+  names: ["gas"],
   colors: ["--cream"],
   stepsPerFrame: () => 40,
   afterSteps: (sim) => readout(sim),

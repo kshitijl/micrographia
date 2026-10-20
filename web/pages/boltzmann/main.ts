@@ -154,6 +154,7 @@ const host = new SimHost({
   // Half the usual time step: the hot starts have fast molecules, and the total energy should
   // hold to a fraction of a percent (crates/md/tests/ensemble.rs).
   options: () => ({ boxes_x: BOXES[0], boxes_y: BOXES[1], per_box: 64, start: Number(startSel.value), dt: 0.0025, seed: 41 }),
+  names: ["molecules"],
   colors: ["--cream"],
   stepsPerFrame: () => Number(speedIn.value),
   afterSteps: (sim) => readout(sim),

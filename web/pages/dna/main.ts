@@ -134,6 +134,7 @@ const host = new SimHost({
   overlay: $("overlay"),
   scenario: "dna",
   options: () => ({ columns: COLS, rows: ROWS, lengths: Number(LENGTHS.join("")), temperature: temperature(), eps: 1.5, seed: 37 }),
+  names: ["A beads", "B beads"],
   colors: ["--accent", "--species-2"],
   stepsPerFrame: () => EVERY,
   afterSteps: (sim) => readout(sim),

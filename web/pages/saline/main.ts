@@ -42,6 +42,7 @@ const host = new SimHost({
   overlay: $("overlay"),
   scenario: "cell",
   options: () => ({ inside: 0.35, outside: Number(outsideSel.value), stiffness: 2, bend: 20, seed: 19 }),
+  names: ["water", "salt", "membrane beads"],
   colors: ["--species-2", "--cream", "--accent"],
   stepsPerFrame: () => 100,
   afterSteps: (sim) => readout(sim),

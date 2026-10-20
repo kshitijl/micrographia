@@ -126,6 +126,7 @@ const host = new SimHost({
   overlay: $("overlay"),
   scenario: "carnot",
   options: () => ({ n: 800, width: 64, start: H1, top: 4 * H1 * ISO, hot: th(), contact: contact(), seed: 12 }),
+  names: ["gas"],
   colors: ["--cream"],
   stepsPerFrame: () => 60,
   afterSteps: (sim) => readout(sim),

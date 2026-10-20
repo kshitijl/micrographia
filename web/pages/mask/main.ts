@@ -114,6 +114,7 @@ const host = new SimHost({
   overlay: $("overlay"),
   scenario: "mask",
   options: () => ({ width: W, height: H, fiber: FIBER, gap: GAP, rows: ROWS, size: size(), aerosols: aerosols(size()), fan: 1, seed: 31 }),
+  names: ["air", "fibres", "aerosols"],
   colors: ["--species-2", "--accent", "--cream"],
   stepsPerFrame: () => 250,
   // Count every fourth frame (one snapshot per EVERY steps).

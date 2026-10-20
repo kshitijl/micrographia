@@ -58,6 +58,7 @@ const host = new SimHost({
   overlay: $("overlay"),
   scenario: "smell",
   options: () => ({ n: 2400, width: 300, height: 40, blob: 10, draught: Number(draughtIn.value), seed: 16 }),
+  names: ["air", "scent"],
   colors: ["--species-2", "--cream"],
   stepsPerFrame: () => 100,
   afterSteps: (sim) => readout(sim),

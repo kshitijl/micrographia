@@ -59,6 +59,7 @@ const host = new SimHost({
   overlay: $("overlay"),
   scenario: "osmosis",
   options: () => ({ n: 16000, density: 0.5, solute: Number(cIn.value), temperature: temperature(), attraction: attract.checked ? 1 : 0, seed: 8 }),
+  names: ["water", "solute"],
   colors: ["--species-2", "--cream"],
   stepsPerFrame: () => 40,
   afterSteps: (sim) => readout(sim),
