@@ -32,6 +32,10 @@
             <button id="stop">Stop</button>
             <button id="reset">Reset</button>
           </div>
+          <div class="buttons">
+            <button id="slam">Slam in (shock)</button>
+            <button id="yank">Yank out</button>
+          </div>
           <label class="row">Piston speed <span id="uv">0.3 σ/τ</span>
             <input type="range" id="u" min="0.02" max="1.5" step="0.02" value="0.3" />
           </label>
@@ -44,6 +48,8 @@
           </div>
           <canvas class="plot tall" id="plot" aria-label="Temperature against area, with the adiabatic and isothermal curves"></canvas>
           <div class="legend"><span><i style="background: var(--accent)"></i>this gas</span><span><i style="background: var(--plot-back)"></i>adiabatic T·A = const</span></div>
+          <canvas class="plot tall" id="profile" aria-label="Density and temperature against height, up to the piston"></canvas>
+          <div class="legend"><span><i style="background: var(--accent)"></i>density (relative to average)</span><span><i style="background: var(--species-3)"></i>temperature</span></div>
           <div class="status" id="status">Press Compress. Try slow and fast, with and without heat-conducting walls.</div>
         </aside>
       </section>
@@ -56,6 +62,18 @@
           slower. Compressing a gas means every bounce adds a little speed, so the temperature rises;
           expanding it means every bounce takes some away. The energy comes from whoever pushes the
           piston: the work done on the gas shows up, collision by collision, as faster molecules.
+        </p>
+        <h2>Shocks</h2>
+        <p>
+          Press <b>Slam in</b> and the piston drives down at 4 σ/τ, faster than sound travels in this gas
+          (about 1.4 σ/τ). The molecules ahead of it cannot get out of the way in time, so they pile up in
+          a thin, dense, hot layer, a shock wave, that runs down the cylinder ahead of the piston: watch
+          the step in the density and temperature profile travel toward the floor, bounce, and come back.
+          It is far from equilibrium: different parts of the gas have very different temperatures, and
+          the gas ends up hotter than the slow-compression adiabat for the same squeeze, because shocks
+          make entropy. <b>Yank out</b> pulls the piston away faster than the molecules can follow: a
+          thin, cold gap opens under it, which the gas fills only as fast as its molecules move, and
+          the work the gas does on the piston is less than in a slow expansion.
         </p>
         <h2>The adiabat</h2>
         <p>

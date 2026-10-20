@@ -1,4 +1,5 @@
 import { $, cssVar, SimHost } from "../../src/lib/host";
+import { LinesPlot } from "../../src/lib/plot";
 import { cssColor } from "../../src/lib/theme";
 import type { DiscSim } from "../../src/lib/wasm";
 
@@ -12,6 +13,30 @@ let lastT = NaN;
 let lastA = NaN;
 
 const speed = () => Number(uIn.value);
+/** The piston's height now, and where a slam or yank should stop it. */
+let height = 0;
+let stopAt: { below?: number; above?: number } | null = null;
+const SHOCK = 4; // σ/τ: about three times the speed of sound here
+const profile = new LinesPlot($<HTMLCanvasElement>("profile"), { xLabel: "height (σ)", yLabel: "density, temperature", yMin: 0, ink: () => cssVar("--muted"), rule: () => cssVar("--rule") });
+
+/** Density (relative to the average below the piston) and temperature in slices of height. */
+async function drawProfile(sim: DiscSim) {
+  const [{ pos }, { ke }] = (await Promise.all([sim.all_positions(), sim.kinetic_energies()])) as [{ pos: Float32Array }, { ke: Float32Array }];
+  const bins = 30;
+  const dh = height / bins;
+  const n = new Float64Array(bins);
+  const e = new Float64Array(bins);
+  for (let i = 0; i < ke.length; i++) {
+    const b = Math.min(bins - 1, Math.floor(pos[2 * i + 1] / dh));
+    n[b]++;
+    e[b] += ke[i];
+  }
+  const mean = ke.length / bins;
+  profile.set([
+    { points: Array.from(n, (c, b) => ({ x: (b + 0.5) * dh, y: c / mean })), color: cssVar("--accent") },
+    { points: Array.from(n, (c, b) => ({ x: (b + 0.5) * dh, y: c > 3 ? e[b] / c : NaN })), color: cssVar("--species-3") },
+  ]);
+}
 
 function drawPlot() {
   const c = $<HTMLCanvasElement>("plot");
@@ -65,6 +90,11 @@ async function readout(sim: DiscSim) {
   const l = (await sim.ledger(1)) as { energy: Float64Array };
   const heat = l.energy[0] + l.energy[1] + l.energy[2] - heat0;
   const a = width * (h - 1);
+  height = h;
+  if (stopAt && ((stopAt.below !== undefined && h <= stopAt.below) || (stopAt.above !== undefined && h >= stopAt.above))) {
+    sim.set_piston_speed(0);
+    stopAt = null;
+  }
   lastT = r.temperature;
   lastA = a;
   start ??= { a, t: r.temperature };
@@ -77,6 +107,7 @@ async function readout(sim: DiscSim) {
   const c = cssColor("--accent");
   sim.set_overlay(new Float32Array([0, h, width, h + 2.5, c[0], c[1], c[2], 1]));
   drawPlot();
+  await drawProfile(sim);
 }
 
 const host = new SimHost({
@@ -109,7 +140,23 @@ function move(sign: number) {
 
 $("down").onclick = () => move(-1);
 $("up").onclick = () => move(1);
-$("stop").onclick = () => host.sim?.set_piston_speed(0);
+$("stop").onclick = () => {
+  host.sim?.set_piston_speed(0);
+  stopAt = null;
+};
+// Faster than sound: a quarter of the way down, or 30% further up (the piston stops at the top).
+$("slam").onclick = () => {
+  if (!host.sim) return;
+  stopAt = { below: 0.75 * height };
+  host.sim.set_piston_speed(-SHOCK);
+  host.running = true;
+};
+$("yank").onclick = () => {
+  if (!host.sim) return;
+  stopAt = { above: 1.3 * height };
+  host.sim.set_piston_speed(SHOCK);
+  host.running = true;
+};
 $("reset").onclick = () => void host.create().then(() => (host.running = true));
 uIn.oninput = () => ($("uv").textContent = `${speed().toFixed(2)} σ/τ`);
 thermal.onchange = () => {
