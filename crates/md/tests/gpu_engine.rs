@@ -292,3 +292,36 @@ fn flip_species_bit_moves_exactly_that_species() {
         }
     }
 }
+
+/// A region command touches exactly the particles inside the rectangle.
+#[test]
+fn kick_region_touches_only_the_region() {
+    let p = prims();
+    let (sys, s0) = fluid(3000, 0.5, Pair::wca(), 12);
+    let b = sys.box_f64();
+    let (lo, hi) = ([b[0] * 0.25, b[1] * 0.25], [b[0] * 0.5, b[1] * 0.75]);
+    let inside = |q: [i64; 2]| {
+        let (x, y) = (md_core::fixed::to_f64(q[0]), md_core::fixed::to_f64(q[1]));
+        x >= lo[0] && x < hi[0] && y >= lo[1] && y < hi[1]
+    };
+    let mut e = GpuEngine::new(&p, sys.clone(), &s0);
+    e.kick_region(lo, hi, 0.0, [0.0, 0.0]);
+    let s = block_on(e.read_state());
+    let mut frozen = 0;
+    for i in 0..3000 {
+        if inside(s0.pos[i]) {
+            assert_eq!(s.vel[i], [0, 0]);
+            frozen += 1;
+        } else {
+            assert_eq!(s.vel[i], s0.vel[i]);
+        }
+    }
+    e.kick_region(lo, hi, 1.0, [2.0, 0.0]);
+    let s = block_on(e.read_state());
+    for i in 0..3000 {
+        if inside(s0.pos[i]) {
+            assert_eq!(s.vel[i], [sys.to_step_displacement(2.0), 0]);
+        }
+    }
+    assert!(frozen > 300, "only {frozen} particles in the region");
+}

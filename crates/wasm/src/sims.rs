@@ -371,6 +371,19 @@ impl DiscSim {
         self.renderer.params.highlight = if i < 0 { NO_HIGHLIGHT } else { i as u32 };
     }
 
+    /// Kick, freeze or shove the unpinned particles in the rectangle (x0, y0)–(x1, y1) (σ):
+    /// velocities are multiplied by `scale`, then (vx, vy) σ/τ is added.
+    #[allow(clippy::too_many_arguments)]
+    pub fn kick_region(&mut self, x0: f64, y0: f64, x1: f64, y1: f64, scale: f64, vx: f64, vy: f64) {
+        self.engine.kick_region([x0.min(x1), y0.min(y1)], [x0.max(x1), y0.max(y1)], scale, [vx, vy]);
+    }
+
+    /// The region of the box drawn on the canvas: [x0, y0, x1, y1] in σ, y upwards.
+    pub fn view(&self) -> Vec<f32> {
+        let p = &self.renderer.params;
+        vec![p.view_lo[0], p.view_lo[1], p.view_hi[0], p.view_hi[1]]
+    }
+
     /// Show only the region (x0, y0)–(x1, y1) of the box, in σ.
     pub fn set_view(&mut self, x0: f32, y0: f32, x1: f32, y1: f32) {
         self.renderer.set_view([x0, y0], [x1, y1]);

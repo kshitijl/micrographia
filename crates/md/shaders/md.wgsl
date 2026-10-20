@@ -200,6 +200,32 @@ fn flip_species(@builtin(global_invocation_id) gid: vec3<u32>) {
     }
 }
 
+// A command on the particles in a region: scale their velocities, then add a velocity (pinned
+// particles are left alone). Used by pages to kick, freeze or shove a selection.
+struct RegionCmd {
+    lo: vec2<f32>,
+    hi: vec2<f32>,
+    scale: f32,
+    _pad: u32,
+    add: vec2<i32>,
+}
+@group(0) @binding(12) var<uniform> C: RegionCmd;
+
+@compute @workgroup_size(256)
+fn kick_region(@builtin(global_invocation_id) gid: vec3<u32>) {
+    let i = gid.x;
+    if (i >= P.n || is_pinned(species[i])) {
+        return;
+    }
+    let p = pos[i];
+    let x = coord_f32(p.xy);
+    let y = coord_f32(p.zw);
+    if (x < C.lo.x || x >= C.hi.x || y < C.lo.y || y >= C.hi.y) {
+        return;
+    }
+    vel[i] = vec2<i32>(round(vec2<f32>(vel[i]) * C.scale)) + C.add;
+}
+
 // All-integer variant of `force`: bit-identical on every device (pairs only).
 @compute @workgroup_size(256)
 fn force_int(@builtin(global_invocation_id) gid: vec3<u32>) {

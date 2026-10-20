@@ -292,6 +292,17 @@ impl Params {
     }
 }
 
+/// Arguments of the `kick_region` kernel.
+#[repr(C)]
+#[derive(Clone, Copy, Debug, Default, bytemuck::Pod, bytemuck::Zeroable)]
+struct RegionCmd {
+    lo: [f32; 2],
+    hi: [f32; 2],
+    scale: f32,
+    _pad: u32,
+    add: [i32; 2],
+}
+
 /// Positions as the GPU stores them: (x.lo, x.hi, y.lo, y.hi).
 pub fn pack_positions(pos: &[[i64; 2]]) -> Vec<[u32; 4]> {
     pos.iter()
@@ -332,6 +343,8 @@ pub struct Buffers {
     pub slot_of: wgpu::Buffer,
     /// All-integer force tables (a placeholder unless `Arith::Int`).
     pub itab: wgpu::Buffer,
+    /// Arguments of the region command (`kick_region`).
+    pub cmd: wgpu::Buffer,
 }
 
 /// Put per-slot values into id order.
@@ -532,6 +545,7 @@ pub struct GpuEngine {
     d_reverse: Dispatch,
     d_flip: Dispatch,
     d_flip_species: Dispatch,
+    d_kick_region: Dispatch,
     /// Advances the clock for stochastic boundaries (only when there are any).
     d_tick: Option<Dispatch>,
     d_set_velocity: Dispatch,
@@ -593,6 +607,7 @@ impl GpuEngine {
                 Some(t) => util::storage_init(gpu, "int tables", &t.data),
                 None => util::storage(gpu, "int tables", 4),
             },
+            cmd: util::uniform_init(gpu, "region command", &RegionCmd::default()),
         };
         let g = util::groups(n, WG);
         let b = &buf;
@@ -700,6 +715,7 @@ impl GpuEngine {
             }),
             d_flip: Dispatch::new_at(gpu, &pl("flip"), &[(0, &b.params), (1, &b.pos), (10, &b.ids)], g),
             d_flip_species: Dispatch::new_at(gpu, &pl("flip_species"), &[(0, &b.params), (1, &b.pos), (3, &b.species)], g),
+            d_kick_region: Dispatch::new_at(gpu, &pl("kick_region"), &[(0, &b.params), (1, &b.pos), (2, &b.vel), (3, &b.species), (12, &b.cmd)], g),
             d_set_velocity: Dispatch::new_at(gpu, &pl("set_species_velocity"), &[(0, &b.params), (2, &b.vel), (3, &b.species)], g),
             reorder,
             path,
@@ -909,6 +925,20 @@ impl GpuEngine {
         self.gpu().queue.write_buffer(&self.buf.params, 0, bytemuck::bytes_of(&p));
         self.submit(|pass| self.d_flip_species.encode(pass));
         self.gpu().queue.write_buffer(&self.buf.params, 0, bytemuck::bytes_of(&self.params));
+    }
+
+    /// For every unpinned particle inside the rectangle `lo`–`hi` (σ): multiply its velocity by
+    /// `scale`, then add `add` (σ/τ). A kick (scale > 1), a freeze (scale 0) or a shove.
+    pub fn kick_region(&mut self, lo: [f64; 2], hi: [f64; 2], scale: f64, add: [f64; 2]) {
+        let c = RegionCmd {
+            lo: lo.map(|x| x as f32),
+            hi: hi.map(|x| x as f32),
+            scale: scale as f32,
+            _pad: 0,
+            add: add.map(|v| self.sys.to_step_displacement(v)),
+        };
+        self.gpu().queue.write_buffer(&self.buf.cmd, 0, bytemuck::bytes_of(&c));
+        self.submit(|pass| self.d_kick_region.encode(pass));
     }
 
     /// Give every particle of `species` the velocity `v` (σ/τ). For pinned species this sets a
