@@ -41,6 +41,8 @@ pub struct Renderer {
     pub params: RParams,
     pub background: wgpu::Color,
     n: u32,
+    /// The region the page asked to see; the drawn view is widened to the canvas's shape.
+    requested_view: Option<([f32; 2], [f32; 2])>,
 }
 
 impl Renderer {
@@ -137,6 +139,7 @@ impl Renderer {
             params,
             background: wgpu::Color { r: 0.1, g: 0.08, b: 0.06, a: 1.0 },
             n: engine.n(),
+            requested_view: None,
         };
         me.update_min_radius();
         me
@@ -146,6 +149,9 @@ impl Renderer {
         self.config.width = width.max(1);
         self.config.height = height.max(1);
         self.surface.configure(&self.gpu.device, &self.config);
+        if let Some((lo, hi)) = self.requested_view {
+            self.set_view(lo, hi);
+        }
         self.update_min_radius();
     }
 
@@ -155,8 +161,22 @@ impl Renderer {
         self.params.min_radius = 0.7 / px_per_sigma;
     }
 
-    /// Show the region [lo, hi] of the box (σ).
+    /// Show the region [lo, hi] of the box (σ), widened in one direction (about its centre) to
+    /// the canvas's aspect ratio so discs stay round.
     pub fn set_view(&mut self, lo: [f32; 2], hi: [f32; 2]) {
+        self.requested_view = Some((lo, hi));
+        let (w, h) = (hi[0] - lo[0], hi[1] - lo[1]);
+        let canvas = self.config.width as f32 / self.config.height as f32;
+        let (mut lo, mut hi) = (lo, hi);
+        if w / h < canvas {
+            let extra = 0.5 * (h * canvas - w);
+            lo[0] -= extra;
+            hi[0] += extra;
+        } else {
+            let extra = 0.5 * (w / canvas - h);
+            lo[1] -= extra;
+            hi[1] += extra;
+        }
         self.params.view_lo = lo;
         self.params.view_hi = hi;
         self.update_min_radius();

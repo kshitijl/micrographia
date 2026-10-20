@@ -131,7 +131,8 @@ const host = new SimHost({
   afterSteps: (sim) => readout(sim),
   onCreate: (sim) => {
     width = sim.box_size()[0];
-    sim.set_view(-2, -2, width + 2, 4 * H1 * ISO);
+    // The cylinder up to the piston's highest point.
+    sim.set_view(-2, -2, width + 2, H1 * ISO * 3.2);
     sim.set_speed_colors(new Float32Array([...cssColor("--species-2"), ...cssColor("--species-3")]));
     sim.color_by_speed(3);
     plan();
