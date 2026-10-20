@@ -17,8 +17,18 @@ impl Pair {
         Self { eps: 1.0, sigma: 1.0, rc }
     }
 
+    /// No interaction at all: a zero cutoff, so the pair never enters the force (an ε = 0 pair
+    /// with a cutoff would still evaluate 0 × ∞ = NaN for coincident particles, e.g. a tethered
+    /// particle on its anchor).
+    pub fn none() -> Self {
+        Self { eps: 0.0, sigma: 1.0, rc: 0.0 }
+    }
+
     /// Unshifted LJ energy at the cutoff; subtracted so the energy is continuous there.
     pub fn shift(&self) -> f64 {
+        if self.eps == 0.0 || self.rc == 0.0 {
+            return 0.0;
+        }
         let s6 = (self.sigma / self.rc).powi(6);
         4.0 * self.eps * s6 * (s6 - 1.0)
     }

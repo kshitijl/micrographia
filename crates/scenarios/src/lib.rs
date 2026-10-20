@@ -59,7 +59,7 @@ pub struct Scenario {
     pub radii: Vec<f64>,
 }
 
-pub const NAMES: &[&str] = &["cream", "corner", "boltzmann", "heavy", "oilwater", "heatflow", "osmosis", "compress", "rubber", "atmosphere", "carnot", "boiling", "lipids", "balloon", "smell", "binding", "fep", "cell", "buffer", "mask", "dna"];
+pub const NAMES: &[&str] = &["cream", "corner", "boltzmann", "heavy", "oilwater", "heatflow", "osmosis", "compress", "rubber", "atmosphere", "carnot", "boiling", "lipids", "balloon", "smell", "binding", "fep", "cell", "buffer", "mask", "dna", "demon"];
 
 pub fn build(name: &str, o: &Options) -> Result<Scenario, String> {
     match name {
@@ -84,6 +84,7 @@ pub fn build(name: &str, o: &Options) -> Result<Scenario, String> {
         "buffer" => Ok(buffer(o)),
         "mask" => Ok(mask(o)),
         "dna" => Ok(dna(o)),
+        "demon" => Ok(demon(o)),
         _ => Err(format!("unknown scenario {name}")),
     }
 }
@@ -657,7 +658,7 @@ pub fn fep(o: &Options) -> Scenario {
     let t = o.get("temperature", 1.0);
     let lj = |eps: f64| Pair { eps, sigma: 1.0, rc: 2.5 };
     let wca = Pair::wca();
-    let none = Pair { eps: 0.0, sigma: 1.0, rc: 1.1 };
+    let none = Pair::none();
     let sys = System::new([fixed::to_fixed(2.0 * side), fixed::to_fixed(side)], init::DT, lj(0.5), vec![1.0, 1.0, 1.0, 1.0])
         .with_walls(0, Wall::Hard, Wall::Hard)
         .with_walls(1, Wall::Hard, Wall::Hard)
@@ -1003,4 +1004,84 @@ pub fn dna(o: &Options) -> Scenario {
     let vel = init::maxwell(&sys, &species, t, seed);
     let state = State { pos: pos.iter().map(|p| [fixed::to_fixed(p[0]), fixed::to_fixed(p[1])]).collect(), vel, species };
     Scenario { warmup: o.get("warmup", 0.0) as usize, finish: Finish::None, marked: 0, grid: [8, 8], radii: vec![0.5, 0.5], sys, state }
+}
+
+/// Smoluchowski's trapdoor (Maxwell's demon without a demon): a wall across the middle of a box
+/// of gas (species 0) with a pore every 16 σ, each closed by a door (species 1, a heavy disc)
+/// tethered by a spring to an invisible pinned anchor (species 3) just right of the pore. Two
+/// pinned stops (species 2) at the pore's edges keep the door from swinging left, so gas from
+/// the left can push it open and gas from the right only pushes it shut. A bath acts on the
+/// doors alone (at `door_t`); the gas is heated only by the end walls, if at all. Options: width, height, density,
+/// door (diameter), pore (width), door_t, gas_t (temperature of the end walls; 0 for
+/// insulating), door_mass, spring, seed.
+pub fn demon(o: &Options) -> Scenario {
+    let (w, h) = (o.get("width", 96.0), o.get("height", 64.0));
+    let wca = |sigma: f64| Pair { eps: 1.0, sigma, rc: sigma * 2f64.powf(1.0 / 6.0) };
+    let none = Pair::none();
+    let (door, stop, pore) = (o.get("door", 2.5), 0.5, o.get("pore", 2.4));
+    let xm = w / 2.0;
+    // The end walls are heat baths for the gas at `gas_t` (0: insulating).
+    let gt = o.get("gas_t", 0.0);
+    let end = if gt > 0.0 { Wall::Thermal(gt) } else { Wall::Hard };
+    let mut sys = System::new([fixed::to_fixed(w), fixed::to_fixed(h)], init::DT, wca(1.0), vec![1.0, o.get("door_mass", 10.0), 1.0, 1.0])
+        .with_walls(0, end, end)
+        .with_pair(0, 1, wca((1.0 + door) / 2.0))
+        .with_pair(0, 2, wca((1.0 + stop) / 2.0))
+        .with_pair(1, 1, wca(door))
+        .with_pair(1, 2, wca((door + stop) / 2.0))
+        .with_pair(2, 2, none);
+    for s in 0..4 {
+        sys = sys.with_pair(s, 3, none);
+    }
+    let sys = sys
+        .with_membrane(0, xm, &[0, 1])
+        .with_pores(4, pore)
+        .with_pinned(2)
+        .with_pinned(3)
+        .with_thermostat(o.get("door_t", 1.0), 1.0)
+        .with_fan(1 << 1, 0.0, w, 0.0);
+    // Per pore: stops at its edges just left of the wall, the door resting against them.
+    let contact = (door + stop) / 2.0 * 2f64.powf(1.0 / 6.0);
+    let mut pos = Vec::new();
+    let mut species = Vec::new();
+    let mut bonds = Vec::new();
+    let pores = (h / 16.0) as usize;
+    for k in 0..pores {
+        let yc = 16.0 * k as f64 + pore / 2.0;
+        let sx = xm - 0.3;
+        let dx = sx + (contact * contact - (pore / 2.0) * (pore / 2.0)).sqrt();
+        for y in [yc - pore / 2.0, yc + pore / 2.0] {
+            pos.push([sx, y]);
+            species.push(2);
+        }
+        let id = pos.len() as u32;
+        pos.push([dx, yc]);
+        species.push(1);
+        pos.push([dx, yc]);
+        species.push(3);
+        bonds.push([id, id + 1, 0]);
+    }
+    // Gas on a lattice on both sides, clear of the wall and the doors.
+    let a = (1.0 / o.get("density", 0.1)).sqrt();
+    let (nx, ny) = ((w / a) as usize, (h / a) as usize);
+    for j in 0..ny {
+        for i in 0..nx {
+            let q = [(i as f64 + 0.5) * a, (j as f64 + 0.5) * a];
+            // Symmetric about the wall, so both sides start with the same number.
+            if (q[0] - xm).abs() > door + 1.5 {
+                pos.push(q);
+                species.push(0);
+            }
+        }
+    }
+    let sys = sys.with_bonds(vec![md_core::BondType::Harmonic { k: o.get("spring", 5.0), r0: 0.0 }], bonds);
+    let seed = o.get("seed", 1.0) as u64;
+    let mut vel = init::maxwell(&sys, &species, 1.0, seed);
+    for (v, s) in vel.iter_mut().zip(&species) {
+        if *s >= 2 {
+            *v = [0, 0];
+        }
+    }
+    let state = State { pos: pos.iter().map(|p| [fixed::to_fixed(p[0]), fixed::to_fixed(p[1])]).collect(), vel, species };
+    Scenario { warmup: 0, finish: Finish::None, marked: 0, grid: [2, 1], radii: vec![0.5, door / 2.0, stop / 2.0, 0.0], sys, state }
 }
