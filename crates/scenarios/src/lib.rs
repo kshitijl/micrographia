@@ -1214,33 +1214,53 @@ pub fn osmosis_free(o: &Options) -> Scenario {
 
 /// An osmometer (the U-tube): a Lennard-Jones liquid under gravity in two arms separated by a
 /// fixed membrane down the middle that lets the solvent (species 0) through but not the solute
-/// (species 1, in the right arm). Vapour above the liquid. A heat bath holds the temperature.
+/// (species 1, in the right arm). Solute and solvent are identical apart from the membrane (an
+/// ideal solution: a solute that repelled itself made the osmotic pressure ~1.5× van 't Hoff's). Vapour above the liquid. A heat bath holds the temperature.
 /// Options: width (of the box; each arm is half), height, depth (initial liquid depth), solute
-/// (share of the right arm's molecules), gravity, temperature, cutoff, seed.
+/// (share of the right arm's molecules), gravity, temperature, cutoff, wetting (the wall beads'
+/// attraction), seed.
 pub fn osmometer(o: &Options) -> Scenario {
     // Narrow arms and fairly strong gravity: the level settles within ~1500 τ.
     let (w, h) = (o.get("width", 32.0), o.get("height", 112.0));
-    let t = o.get("temperature", 0.45);
-    // A longer cutoff than the usual 2.5 σ raises the critical point (to about 0.5 in 2D), so the
-    // liquid at kT 0.45 is well clear of it: denser, with a sharp surface.
-    let lj = Pair::lj(o.get("cutoff", 4.0));
-    let sys = System::new([fixed::to_fixed(w), fixed::to_fixed(h)], init::DT, lj, vec![1.0, 1.0])
+    let t = o.get("temperature", 0.5);
+    // A longer cutoff than the usual 2.5 σ raises the critical point (towards 0.53 in 2D), so the
+    // liquid at kT 0.5 is clear of it: denser, with a sharper surface.
+    let rc = o.get("cutoff", 4.0);
+    let lj = Pair::lj(rc);
+    // The side walls are lined with fixed beads (species 2) that attract the liquid (a bit less than
+    // it attracts itself), so it wets them with a nearly flat surface; bare hard walls repel it and
+    // it pulls away into a blob.
+    let sys = System::new([fixed::to_fixed(w), fixed::to_fixed(h)], init::DT, lj, vec![1.0, 1.0, 1.0])
         .with_walls(0, Wall::Hard, Wall::Hard)
         .with_walls(1, Wall::Soft, Wall::Soft)
-        .with_pair(1, 1, Pair::wca())
+        .with_pair(2, 2, Pair::none())
+        .with_pair(0, 2, Pair { eps: o.get("wetting", 0.7), sigma: 1.0, rc })
+        .with_pair(1, 2, Pair { eps: o.get("wetting", 0.7), sigma: 1.0, rc })
+        .with_pinned(2)
         .with_gravity([0.0, -o.get("gravity", 0.006)])
         .with_thermostat(t, 0.5)
         .with_membrane(0, w / 2.0, &[1]);
     let depth = o.get("depth", 40.0);
     let a = (1.0f64 / 0.72).sqrt();
-    let (nx, ny) = (((w - 2.0) / a) as usize, (depth / a) as usize);
+    let (nx, ny) = (((w - 2.8) / a) as usize, (depth / a) as usize);
     let seed = o.get("seed", 1.0) as u64;
-    let f = o.get("solute", 0.18);
+    let f = o.get("solute", 0.3);
     let mut pos = vec![];
     let mut species = vec![];
+    let mut y = 0.5;
+    while y < h {
+        for x in [0.3, w - 0.3] {
+            pos.push([x, y]);
+            species.push(2);
+        }
+        y += 1.0;
+    }
     for j in 0..ny {
         for i in 0..nx {
-            let p = [0.6 + (i as f64 + 0.5) * a, 1.0 + (j as f64 + 0.5) * a];
+            let p = [1.4 + (i as f64 + 0.5) * a, 1.0 + (j as f64 + 0.5) * a];
+            if p[0] > w - 1.4 {
+                continue;
+            }
             if (p[0] - w / 2.0).abs() < 0.7 {
                 continue;
             }
@@ -1249,7 +1269,12 @@ pub fn osmometer(o: &Options) -> Scenario {
             species.push((p[0] > w / 2.0 + 0.7 && u < f) as u32);
         }
     }
-    let vel = init::maxwell(&sys, &species, t, seed);
+    let mut vel = init::maxwell(&sys, &species, t, seed);
+    for (v, s) in vel.iter_mut().zip(&species) {
+        if *s == 2 {
+            *v = [0, 0];
+        }
+    }
     let state = State { pos: pos.iter().map(|p| [fixed::to_fixed(p[0]), fixed::to_fixed(p[1])]).collect(), vel, species };
-    Scenario { warmup: 0, finish: Finish::None, marked: 1, grid: [2, 56], radii: vec![0.5, 0.5], sys, state }
+    Scenario { warmup: 0, finish: Finish::None, marked: 1, grid: [2, 56], radii: vec![0.5, 0.5, 0.5], sys, state }
 }

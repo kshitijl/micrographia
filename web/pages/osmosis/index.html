@@ -21,6 +21,65 @@
         </p>
       </header>
 
+      <h2>1. A membrane that can move</h2>
+      <section class="lab">
+        <div class="stage" id="stageA" style="aspect-ratio: 2 / 1">
+          <canvas id="canvasA" aria-label="A flexible membrane of beads between pure water on the left and a solution on the right"></canvas>
+          <div class="overlay" id="overlayA">Starting the GPU…</div>
+        </div>
+        <aside class="panel">
+          <div class="buttons">
+            <button class="primary" id="runA">Run</button>
+            <button id="resetA">Reset</button>
+          </div>
+          <div class="legend"><span><i style="background: var(--species-2)"></i>water</span><span><i style="background: var(--cream)"></i>solute</span><span><i style="background: var(--accent)"></i>membrane</span></div>
+          <div class="readouts">
+            <div class="readout"><div class="k">membrane position</div><div class="v" id="xm">–</div></div>
+            <div class="readout"><div class="k">time (τ)</div><div class="v" id="tA">0</div></div>
+          </div>
+          <canvas class="plot" id="plotA" aria-label="The membrane's position over time"></canvas>
+          <div id="toolsA"></div>
+          <div class="status">
+            The membrane is a chain of beads with gaps big enough for water but not for solute. Pure
+            water on the left, a solution on the right. Nothing pulls on the membrane, yet it is pushed
+            steadily to the left: water keeps flowing into the solution, and the solution side grows.
+          </div>
+        </aside>
+      </section>
+
+      <h2>2. Water climbing a tube</h2>
+      <section class="lab">
+        <div class="stage" id="stageB" style="aspect-ratio: 4 / 5">
+          <canvas id="canvasB" aria-label="Two arms of a liquid under gravity separated by a membrane; the right arm holds a solution"></canvas>
+          <div class="overlay" id="overlayB">Starting the GPU…</div>
+        </div>
+        <aside class="panel">
+          <div class="buttons">
+            <button class="primary" id="runB">Run</button>
+            <button id="resetB">Reset</button>
+          </div>
+          <div class="legend"><span><i style="background: var(--species-2)"></i>water (a Lennard-Jones liquid)</span><span><i style="background: var(--cream)"></i>solute</span><span><i style="background: var(--accent)"></i>membrane</span><span><i style="background: var(--muted)"></i>wall</span><span><i style="background: var(--highlight)"></i>levels</span></div>
+          <label class="row">Speed <span id="speedBv">100 steps/frame</span>
+            <input type="range" id="speedB" min="10" max="400" step="10" value="100" />
+          </label>
+          <div class="readouts">
+            <div class="readout"><div class="k">level, pure water</div><div class="v" id="hl">–</div></div>
+            <div class="readout"><div class="k">level, solution</div><div class="v" id="hr">–</div></div>
+            <div class="readout"><div class="k">height difference</div><div class="v" id="dh">–</div></div>
+            <div class="readout"><div class="k">van 't Hoff predicts</div><div class="v" id="dhp">–</div></div>
+          </div>
+          <canvas class="plot" id="plotB" aria-label="Height difference over time, with van 't Hoff's prediction"></canvas>
+          <div class="legend"><span><i style="background: var(--accent)"></i>height difference</span><span><i style="background: var(--muted)"></i>van 't Hoff</span></div>
+          <div class="status">
+            The classic osmometer: a U-tube with a membrane at the bottom, here drawn as two arms side by
+            side with the membrane between them. Both start at the same level. Water seeps into the
+            solution until the extra weight of the taller column pushes back as hard as osmosis pushes
+            in: that height difference measures the osmotic pressure, ρ g Δh = Π.
+          </div>
+        </aside>
+      </section>
+
+      <h2>3. Where the push comes from</h2>
       <section class="lab">
         <div class="stage wide" id="stage">
           <canvas id="canvas" aria-label="Solvent and solute molecules on two sides of a semi-permeable membrane"></canvas>
@@ -51,6 +110,27 @@
       </section>
 
       <article class="notes">
+        <h2>Seeing the push</h2>
+        <p>
+          In the first demo the solute pushes the free membrane to the left, and water flows the other
+          way through it: the pure water has nothing holding it back, while on the solution side the
+          solute molecules keep kicking the membrane. With nothing to resist, the membrane would go all
+          the way to the wall. In the second, gravity resists: the solution side rises until its extra
+          height Δh of liquid weighs exactly as much, per unit width, as the osmotic push. Measure Δh and
+          you have measured Π = ρ g Δh; van 't Hoff predicts Π = c kT, where c is the solute
+          concentration. Real osmometers do exactly this, and in plants osmosis pushes sap upward
+          the same way.
+        </p>
+        <p>
+          The levels jitter by a few σ: a liquid only 16 molecules wide has a ragged, wavy surface, so
+          the plotted height difference is averaged over the last stretch of time. In this small 2D
+          tube the rise is unmistakable but falls short of van 't Hoff's prediction, settling at
+          roughly half to three quarters of it: films of liquid creep up the walls and the membrane,
+          and a ragged surface 16 molecules wide is hard to pin down. (Part 3 below measures the
+          osmotic push directly and does match van 't Hoff.) The walls are lined with fixed molecules that attract
+          the liquid (bare walls repel it and it pulls away from them), and the solute is the same as
+          water except that the membrane stops it: an ideal solution.
+        </p>
         <h2>The push is solute molecules bouncing off the membrane</h2>
         <p>
           Solvent molecules pass through the membrane as if it were not there, so they cannot push on it.
