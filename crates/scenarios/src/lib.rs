@@ -62,6 +62,20 @@ pub struct Scenario {
 pub const NAMES: &[&str] = &["cream", "corner", "boltzmann", "heavy", "oilwater", "heatflow", "osmosis", "compress", "rubber", "atmosphere", "carnot", "boiling", "lipids", "balloon", "smell", "binding", "fep", "cell", "buffer", "mask", "dna", "demon", "ensemble", "osmosis_free", "osmometer"];
 
 pub fn build(name: &str, o: &Options) -> Result<Scenario, String> {
+    let sc = build_unchecked(name, o)?;
+    // Positions live in the half-open box [0, L) on each axis; one placed on the far edge sits
+    // outside it (a wall bead there was once bounced by the wall at 100 σ/τ).
+    for (i, p) in sc.state.pos.iter().enumerate() {
+        for a in 0..2 {
+            if p[a] < 0 || p[a] >= sc.sys.box_len[a] {
+                return Err(format!("scenario {name}: particle {i} starts outside the box on axis {a} ({})", fixed::to_f64(p[a])));
+            }
+        }
+    }
+    Ok(sc)
+}
+
+fn build_unchecked(name: &str, o: &Options) -> Result<Scenario, String> {
     match name {
         "cream" => Ok(cream(o)),
         "corner" => Ok(corner(o)),
@@ -890,6 +904,19 @@ mod tests {
         }
     }
 
+    /// The U-tube's wall beads (pinned) stay exactly where they start.
+    #[test]
+    fn utube_walls_stay_put() {
+        let sc = build("osmometer", &Options::default().with("width", 24.0).with("height", 60.0).with("depth", 30.0).with("channel", 10.0).with("bath", 0.0)).unwrap();
+        let mut e = md_ref::IntEngine::<f32>::new(sc.sys.clone(), sc.state.clone());
+        e.step(300);
+        for i in 0..sc.state.n() {
+            if sc.state.species[i] == 2 {
+                assert_eq!(e.state.pos[i], sc.state.pos[i], "wall bead {i} moved");
+            }
+        }
+    }
+
     #[test]
     fn every_scenario_builds_and_runs_briefly_on_the_cpu() {
         for name in NAMES {
@@ -1355,7 +1382,7 @@ pub fn osmometer(o: &Options) -> Scenario {
     let channel = o.get("channel", 0.0);
     if channel > 0.0 {
         let mut y = channel;
-        while y < h {
+        while y < h - 0.4 {
             pos.push([w / 2.0, y]);
             species.push(2);
             y += 0.8;

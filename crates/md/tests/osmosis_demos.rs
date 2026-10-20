@@ -83,10 +83,11 @@ fn osmometer_rises() {
 }
 
 /// The classic U-tube (`channel` > 0): the arms meet only through a passage at the bottom.
-/// Measured (24 σ arms, 90 σ deep, a 30 σ passage, g 0.008, 30% solute, 3339 molecules): with no
-/// heat bath Δh reaches ~9 σ by 1000 τ and then sits at 11–15 σ, against van 't Hoff's ~16 σ.
-/// With the Andersen bath it is ~1 σ at 2000 τ and ~12 σ only by 6000 τ: redrawing velocities
-/// destroys the momentum the flow through the passage needs.
+/// Measured (24 σ arms, 90 σ deep, a 30 σ passage, g 0.008, 30% solute, ~3300 molecules): with
+/// no heat bath Δh reaches ~11 σ by 1000 τ and then wanders between 12 and 21 σ, against van 't
+/// Hoff's ~16 σ. With the Andersen bath it is ~2 σ at 1000 τ and ~4 σ at 2000 τ: redrawing
+/// velocities destroys the momentum the flow through the passage needs. (Earlier numbers were
+/// spoiled by a wall bead placed on the box's top edge, which the wall bounced at 100 σ/τ.)
 /// Env: WIDTH, HEIGHT, DEPTH, CHANNEL, G, SOLUTE, BATH (0 = constant energy), STEPS (per report).
 #[test]
 #[ignore]
@@ -117,6 +118,17 @@ fn utube_rises() {
         let sol = (0..s.n()).filter(|&i| s.species[i] == 1 && fixed::to_f64(s.pos[i][1]) < hr + 3.0).count() as f64;
         let c = sol / (hr * (w / 2.0 - 1.0));
         let pred = c * t / (0.5 * (rl + rr) * g);
+        let ke = |i: usize| 0.5 * (sc.sys.velocity(s.vel[i][0]).powi(2) + sc.sys.velocity(s.vel[i][1]).powi(2));
+        let fast = (0..s.n()).max_by(|&a, &b| ke(a).total_cmp(&ke(b))).unwrap();
+        let mobile = (0..s.n()).filter(|&i| s.species[i] != 2).count() as f64;
+        eprintln!(
+            "  kT {:.3}; fastest: id {fast} species {} at ({:.1}, {:.1}), KE {:.1}",
+            s.half_step_kinetic(&sc.sys) / mobile,
+            s.species[fast],
+            fixed::to_f64(s.pos[fast][0]),
+            fixed::to_f64(s.pos[fast][1]),
+            ke(fast)
+        );
         eprintln!(
             "{:.0} τ ({:.0} s): left {hl:.1}, right {hr:.1}, Δh {:.1}; van 't Hoff {pred:.1}",
             ((k + 1) * steps) as f64 * sc.sys.dt,
