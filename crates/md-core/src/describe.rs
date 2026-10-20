@@ -36,6 +36,22 @@ fn wall_phrase(w: &Wall) -> String {
 }
 
 impl System {
+    /// How energy can enter or leave, for a total-energy plot's legend ("" if it is conserved).
+    pub fn energy_note(&self) -> String {
+        let bath_walls = self.walls.iter().flatten().flatten().any(|w| matches!(w, Wall::Thermal(_)));
+        let mut notes = vec![];
+        if self.thermostat.is_some() {
+            notes.push("a heat bath adds and removes energy");
+        }
+        if bath_walls {
+            notes.push("heat-bath walls exchange energy");
+        }
+        if self.piston.is_some() {
+            notes.push("the piston does work");
+        }
+        notes.join("; ")
+    }
+
     /// Bullet points describing the method, forces, boundaries and ensemble, for `n` particles.
     /// `names` are the species' names on the page, if it has them.
     pub fn describe(&self, n: usize, names: &[String]) -> Vec<String> {

@@ -126,6 +126,8 @@ const host = new SimHost({
   overlay: $("overlay"),
   scenario: "carnot",
   options: () => ({ n: 800, width: 64, start: H1, top: 4 * H1 * ISO, hot: th(), contact: contact(), seed: 12 }),
+  // Work done on the gas by the piston = −(work done by the gas).
+  energy: { work: async (sim) => -Array.from((await sim.piston()) as Float64Array)[3] },
   names: ["gas"],
   colors: ["--cream"],
   stepsPerFrame: () => 60,

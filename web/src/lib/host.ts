@@ -1,5 +1,6 @@
 import { DiscSim, loadWasm, webgpuProblem } from "./wasm";
 import { cssColor, onThemeChange } from "./theme";
+import { EnergyPanel } from "./interact";
 
 export type Options = Record<string, number>;
 
@@ -24,6 +25,11 @@ export interface HostConfig {
   names?: string[];
   /** Which simulation this is, if the page has more than one (for its "About" section). */
   label?: string;
+  /**
+   * The total-energy and entropy plots, added to the simulation's panel unless `false`. `work`
+   * returns the work done on the system so far, if something (a piston) does work on it.
+   */
+  energy?: false | { work?: (sim: DiscSim) => Promise<number> };
 }
 
 /**
@@ -38,8 +44,20 @@ export class SimHost {
   private busy = false;
   private paused = false;
   readonly ready: Promise<void>;
+  /** The energy and entropy plots (unless the page turned them off). */
+  energy: EnergyPanel | null = null;
+  private lastEnergy = 0;
 
   constructor(private cfg: HostConfig) {
+    if (cfg.energy !== false) {
+      const panel = cfg.canvas.closest(".lab")?.querySelector("aside.panel");
+      if (panel) {
+        const box = document.createElement("div");
+        box.className = "energy-panel";
+        panel.appendChild(box);
+        this.energy = new EnergyPanel(box, cfg.energy ?? {});
+      }
+    }
     this.ready = this.init();
   }
 
@@ -88,6 +106,11 @@ export class SimHost {
     this.cfg.overlay.style.display = "none";
     await this.cfg.onCreate?.(sim);
     showAbout(sim, this.cfg.names, this.cfg.label);
+    if (this.energy) {
+      this.energy.clear();
+      this.energy.setNote(sim.energy_note());
+      await this.energy.sample(sim);
+    }
     sim.render();
   }
 
@@ -120,9 +143,12 @@ export class SimHost {
       const k = Math.max(1, Math.round(this.cfg.stepsPerFrame()));
       sim.step(k);
       this.elapsed += k;
-      // Wait for the page's readout, or at least for the GPU, before stepping again.
+      // Wait for the page's readout, or at least for the GPU, before stepping again. The energy
+      // plots are sampled a few times a second.
       const after = this.cfg.afterSteps?.(sim);
-      const wait = after instanceof Promise ? after : (sim.sync() as Promise<void>);
+      const now = performance.now();
+      const energy = this.energy && now - this.lastEnergy > 150 ? ((this.lastEnergy = now), this.energy.sample(sim)) : null;
+      const wait = Promise.all([after instanceof Promise ? after : (sim.sync() as Promise<void>), energy]);
       this.busy = true;
       wait.finally(() => (this.busy = false));
     }

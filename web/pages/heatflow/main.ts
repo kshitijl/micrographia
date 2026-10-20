@@ -180,6 +180,7 @@ const hostA = new SimHost({
   options: () => ({ n: 600, density: 0.3, temperature: 1, seed: 8 }),
   names: ["molecules", "molecules"],
   label: "colour means speed",
+  energy: false,
   colors: ["--cream", "--cream"],
   stepsPerFrame: () => 4,
   onCreate: (sim) => speedColors(sim, 3),
@@ -262,6 +263,7 @@ const hostB = new SimHost({
   options: () => ({ columns: 1, per_box: 40, log2_width: 4, hot: HOT_B, cold: COLD_B, seed: 9 }),
   names: ["molecules"],
   label: "what the walls do",
+  energy: false,
   colors: ["--cream"],
   // Few steps per frame: a molecule moves under 0.1 σ between readings, so a turn at a wall is
   // seen near the wall.

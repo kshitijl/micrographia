@@ -116,7 +116,7 @@ export class Tools {
     if (!sim || !this.rect) return;
     const r = this.rect;
     sim.kick_region(r.x0, r.y0, r.x1, r.y1, a.scale, a.add?.[0] ?? 0, a.add?.[1] ?? 0);
-    await this.cfg.after?.(sim, a);
+    await Promise.all([this.cfg.after?.(sim, a), this.cfg.host.energy?.sample(sim)]);
     sim.render();
   }
 
@@ -169,17 +169,22 @@ export function entropy(ke: ArrayLike<number>, de = 0.05): number {
 
 /**
  * Total energy and entropy over time, on two small plots added to `container`. Call `sample`
- * from the page's readout (it reads kinetic and potential energies from the GPU).
+ * from the page's readout (it reads kinetic and potential energies from the GPU); SimHost does
+ * this by itself unless the page opts out.
  */
 export class EnergyPanel {
   t: number[] = [];
   total: number[] = [];
+  /** Total energy minus the work done on the system so far (flat if energy is conserved). */
+  balance: number[] = [];
   s: number[] = [];
   smax: number[] = [];
   private energyPlot: LinesPlot;
   private entropyPlot: LinesPlot;
+  private note: HTMLSpanElement;
 
-  constructor(container: HTMLElement, opts: { bath?: string } = {}) {
+  /** `work`, if given, returns the work done on the system so far (ε), e.g. by a piston. */
+  constructor(container: HTMLElement, private opts: { work?: (sim: DiscSim) => Promise<number> } = {}) {
     const mk = (label: string, items: [string, string][]) => {
       const c = document.createElement("canvas");
       c.className = "plot";
@@ -189,50 +194,59 @@ export class EnergyPanel {
       legend.className = "legend";
       legend.innerHTML = items.map(([color, text]) => `<span><i style="background: var(${color})"></i>${text}</span>`).join("");
       container.appendChild(legend);
-      return c;
+      return { c, legend };
     };
-    this.energyPlot = new LinesPlot(mk("Total energy per molecule over time", [["--accent", `total energy per molecule${opts.bath ? ` (${opts.bath})` : ""}`]]), {
-      xLabel: "time (τ)",
-      yLabel: "energy per molecule",
-      yMin: 0,
-      ink: () => cssVar("--muted"),
-      rule: () => cssVar("--rule"),
-    });
+    const items: [string, string][] = [["--accent", "total energy per molecule"]];
+    if (opts.work) items.push(["--plot-back", "total minus the work done on it"]);
+    const e = mk("Total energy per molecule over time", items);
+    this.note = document.createElement("span");
+    this.note.className = "sub";
+    e.legend.appendChild(this.note);
+    this.energyPlot = new LinesPlot(e.c, { xLabel: "time (τ)", yLabel: "energy per molecule", yMin: 0, ink: () => cssVar("--muted"), rule: () => cssVar("--rule") });
     this.entropyPlot = new LinesPlot(
       mk("Entropy per molecule over time, and its maximum for the current energy", [
-        ["--accent", "entropy per molecule (k)"],
+        ["--accent", "entropy of the energies, per molecule (k; positions not counted)"],
         ["--muted", "the most it can be"],
-      ]),
+      ]).c,
       { xLabel: "time (τ)", yLabel: "entropy per molecule", ink: () => cssVar("--muted"), rule: () => cssVar("--rule") },
     );
+  }
+
+  /** Say how energy can change (e.g. "a heat bath adds and removes energy"). */
+  setNote(text: string) {
+    this.note.textContent = text ? `(${text})` : "(conserved: nothing adds or removes energy)";
   }
 
   clear() {
     this.t = [];
     this.total = [];
+    this.balance = [];
     this.s = [];
     this.smax = [];
     this.draw();
   }
 
   async sample(sim: DiscSim) {
-    const [{ ke }, pe] = (await Promise.all([sim.kinetic_energies(), sim.potential_energy()])) as [{ ke: Float32Array }, number];
+    const [{ ke }, pe, work] = (await Promise.all([sim.kinetic_energies(), sim.potential_energy(), this.opts.work?.(sim) ?? 0])) as [{ ke: Float32Array }, number, number];
     let kin = 0;
     for (let i = 0; i < ke.length; i++) kin += ke[i];
     const n = ke.length;
     this.t.push(sim.steps() * sim.dt());
     this.total.push((kin + pe) / n);
+    this.balance.push((kin + pe - work) / n);
     this.s.push(entropy(ke));
     this.smax.push(1 + Math.log(kin / n));
     // Keep the plots light.
-    if (this.t.length > 2000) for (const a of [this.t, this.total, this.s, this.smax]) a.splice(0, 1);
+    if (this.t.length > 2000) for (const a of [this.t, this.total, this.balance, this.s, this.smax]) a.splice(0, 1);
     this.draw();
     return { ke, total: (kin + pe) / n };
   }
 
   private draw() {
     const pts = (ys: number[]) => ys.map((y, k) => ({ x: this.t[k], y }));
-    this.energyPlot.set([{ points: pts(this.total), color: cssVar("--accent") }]);
+    const lines = [{ points: pts(this.total), color: cssVar("--accent") }];
+    if (this.opts.work) lines.push({ points: pts(this.balance), color: cssVar("--plot-back") });
+    this.energyPlot.set(lines);
     this.entropyPlot.set([
       { points: pts(this.smax), color: cssVar("--muted"), dashed: true },
       { points: pts(this.s), color: cssVar("--accent") },

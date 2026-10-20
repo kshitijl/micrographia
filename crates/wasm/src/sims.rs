@@ -385,6 +385,11 @@ impl DiscSim {
         self.engine.sys.describe(self.engine.n() as usize, &names)
     }
 
+    /// How energy can enter or leave the system ("" if it is conserved).
+    pub fn energy_note(&self) -> String {
+        self.engine.sys.energy_note()
+    }
+
     /// The region of the box drawn on the canvas: [x0, y0, x1, y1] in σ, y upwards.
     pub fn view(&self) -> Vec<f32> {
         let p = &self.renderer.params;

@@ -84,6 +84,8 @@ const host = new SimHost({
   overlay: $("overlay"),
   scenario: "compress",
   options: () => ({ n: 3000, density: 0.05, thermal: thermal.checked ? 1 : 0, seed: 9 }),
+  // Work done on the gas by the piston = −(work done by the gas).
+  energy: { work: async (sim) => -Array.from((await sim.piston()) as Float64Array)[3] },
   names: ["gas"],
   colors: ["--cream"],
   stepsPerFrame: () => 40,

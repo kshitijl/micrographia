@@ -1,7 +1,7 @@
 import { $, cssVar, SimHost } from "../../src/lib/host";
 import { BarPlot } from "../../src/lib/plot";
 import { cssColor } from "../../src/lib/theme";
-import { EnergyPanel, Tools } from "../../src/lib/interact";
+import { Tools } from "../../src/lib/interact";
 import type { DiscSim } from "../../src/lib/wasm";
 
 const NAMES = ["light", "heavy", "ball"];
@@ -28,10 +28,7 @@ function clear() {
   count = [0, 0, 0];
 }
 
-const energy = new EnergyPanel($("energy"));
-
 async function readout(sim: DiscSim) {
-  await energy.sample(sim);
   const { ke, species } = (await sim.kinetic_energies()) as { ke: Float32Array; species: Uint32Array };
   const balls = (await sim.positions(2)) as Float32Array;
   let total = 0;
@@ -82,7 +79,6 @@ const host = new SimHost({
     masses = Array.from(sim.masses());
     trails = [];
     clear();
-    energy.clear();
   },
 });
 

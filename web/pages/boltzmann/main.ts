@@ -155,6 +155,8 @@ const host = new SimHost({
   // hold to a fraction of a percent (crates/md/tests/ensemble.rs).
   options: () => ({ boxes_x: BOXES[0], boxes_y: BOXES[1], per_box: 64, start: Number(startSel.value), dt: 0.0025, seed: 41 }),
   names: ["molecules"],
+  // The page draws its own energy and entropy plots under the simulation.
+  energy: false,
   colors: ["--cream"],
   stepsPerFrame: () => Number(speedIn.value),
   afterSteps: (sim) => readout(sim),
