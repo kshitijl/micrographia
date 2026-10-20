@@ -161,6 +161,15 @@ impl DiscSim {
         })
     }
 
+    /// Resolves to the total potential energy (ε) at the last force evaluation.
+    pub fn potential_energy(&self) -> js_sys::Promise {
+        let fut = self.engine.buf.read_kicks();
+        future_to_promise(async move {
+            let (_, pe) = fut.await;
+            Ok(pe.iter().map(|&x| x as f64).sum::<f64>().into())
+        })
+    }
+
     /// Resolves to `{energy, impulse, hits}`, each `4 × per_wall` long (wall-major; walls are
     /// x-low, x-high, y-low, y-high), split by compartment along each wall.
     pub fn ledger(&self, per_wall: u32) -> js_sys::Promise {

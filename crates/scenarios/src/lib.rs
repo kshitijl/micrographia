@@ -131,61 +131,53 @@ pub fn boltzmann(o: &Options) -> Scenario {
 
 /// Light and heavy molecules at the same temperature, plus a few large heavy "bowling balls".
 /// Species: 0 light (m = 1), 1 heavy (m = heavy), 2 ball (m = ball_mass, σ = ball_size).
-/// Options: n, density, heavy, balls, ball_size, ball_mass, seed.
+/// Options: n (molecules, besides the balls), density (of molecules in the free area), heavy,
+/// balls, ball_size, ball_mass, seed.
 pub fn heavy(o: &Options) -> Scenario {
     let n = o.get("n", 6000.0) as usize;
     let heavy = o.get("heavy", 16.0);
     let balls = o.get("balls", 3.0) as usize;
     let size = o.get("ball_size", 6.0);
     let ball_mass = o.get("ball_mass", 400.0);
+    let density = o.get("density", 0.4);
     let wca = |sigma: f64| Pair { eps: 1.0, sigma, rc: sigma * 2f64.powf(1.0 / 6.0) };
     let mix = 0.5 * (1.0 + size);
-    let sys = System::new(init::box_for(n, o.get("density", 0.4), o.get("aspect", 4.0 / 3.0)), init::DT, Pair::wca(), vec![1.0, heavy, ball_mass])
+    let ball_area = balls as f64 * std::f64::consts::PI * mix * mix;
+    let area = n as f64 / density + ball_area;
+    let aspect = o.get("aspect", 4.0 / 3.0);
+    let ly = (area / aspect).sqrt();
+    let box_len = [fixed::to_fixed(ly * aspect), fixed::to_fixed(ly)];
+    let sys = System::new(box_len, init::DT, Pair::wca(), vec![1.0, heavy, ball_mass])
         .with_pair(0, 2, wca(mix))
         .with_pair(1, 2, wca(mix))
         .with_pair(2, 2, wca(size));
     let seed = o.get("seed", 1.0) as u64;
-    let mut state = init::fluid(&sys, n, 1.0, seed);
-    for i in (1..n).step_by(2) {
-        state.species[i] = 1;
-    }
-    // Balls replace the molecules around a few well-separated sites.
     let b = sys.box_f64();
-    let mut taken = vec![false; n];
-    for k in 0..balls {
-        let c = [b[0] * (k as f64 + 0.5) / balls as f64, b[1] * (0.3 + 0.4 * (k % 2) as f64)];
-        let mut best = (f64::MAX, 0);
-        for i in 0..n {
-            let dx = fixed::to_f64(state.pos[i][0]) - c[0];
-            let dy = fixed::to_f64(state.pos[i][1]) - c[1];
-            let d = dx * dx + dy * dy;
-            if d < best.0 && !taken[i] {
-                best = (d, i);
-            }
+    // Balls first, spread out; then molecules on lattice sites clear of every ball.
+    let centers: Vec<[f64; 2]> = (0..balls).map(|k| [b[0] * (k as f64 + 0.5) / balls as f64, b[1] * (0.3 + 0.4 * (k % 2) as f64)]).collect();
+    let clear = |p: [i64; 2]| {
+        centers.iter().all(|c| {
+            let dx = fixed::to_f64(fixed::min_image(fixed::to_fixed(c[0]), p[0], sys.box_len[0]));
+            let dy = fixed::to_f64(fixed::min_image(fixed::to_fixed(c[1]), p[1], sys.box_len[1]));
+            dx * dx + dy * dy > (mix * 1.1).powi(2)
+        })
+    };
+    let mut sites = n;
+    let pos = loop {
+        let free: Vec<[i64; 2]> = init::lattice(sites, sys.box_len, 0.1, seed).into_iter().filter(|&p| clear(p)).collect();
+        if free.len() >= n {
+            break free;
         }
-        state.species[best.1] = 2;
-        taken[best.1] = true;
-    }
-    // Push molecules that overlap a ball out to just beyond contact.
-    let balls_at: Vec<[i64; 2]> = (0..n).filter(|&i| state.species[i] == 2).map(|i| state.pos[i]).collect();
-    for i in 0..n {
-        if state.species[i] == 2 {
-            continue;
-        }
-        for c in &balls_at {
-            let dx = fixed::to_f64(fixed::min_image(c[0], state.pos[i][0], sys.box_len[0]));
-            let dy = fixed::to_f64(fixed::min_image(c[1], state.pos[i][1], sys.box_len[1]));
-            let r = (dx * dx + dy * dy).sqrt();
-            let min = 0.5 * (1.0 + size) * 1.05;
-            if r < min {
-                let f = min / r.max(1e-6);
-                state.pos[i][0] = fixed::wrap(c[0] + fixed::to_fixed(dx * f), sys.box_len[0]);
-                state.pos[i][1] = fixed::wrap(c[1] + fixed::to_fixed(dy * f), sys.box_len[1]);
-            }
-        }
+        sites += sites / 20 + 1;
+    };
+    let mut state = State { pos: pos[..n].to_vec(), vel: vec![], species: (0..n).map(|i| (i % 2) as u32).collect() };
+    for c in &centers {
+        state.pos.push([fixed::to_fixed(c[0]), fixed::to_fixed(c[1])]);
+        state.species.push(2);
     }
     state.vel = init::maxwell(&sys, &state.species, 1.0, seed);
-    Scenario { warmup: 3000, finish: Finish::Temperature(1.0), marked: 2, grid: grid_for(n, b, 64.0), radii: vec![0.5, 0.5, 0.5 * size], sys, state }
+    let total = state.n();
+    Scenario { warmup: 3000, finish: Finish::Temperature(1.0), marked: 2, grid: grid_for(total, b, 64.0), radii: vec![0.5, 0.5, 0.5 * size], sys, state }
 }
 
 /// Two kinds of LJ molecules ("water" 0 and "oil" 1) that attract each other more weakly than
@@ -247,6 +239,9 @@ mod tests {
             assert!(en.total().is_finite(), "{name}: energy not finite");
             let t = s.half_step_kinetic(&sc.sys) / s.n() as f64;
             assert!(t > 0.2 && t < 5.0, "{name}: temperature {t} after a short run");
+            // No blow-ups from overlapping initial positions.
+            let vmax = s.vel.iter().map(|v| sc.sys.velocity(v[0]).abs().max(sc.sys.velocity(v[1]).abs())).fold(0.0, f64::max);
+            assert!(vmax < 20.0, "{name}: a particle reached {vmax} σ/τ");
         }
     }
 }

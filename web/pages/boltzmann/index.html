@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>One Molecule's Energy</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 16 16%22%3E%3Ccircle cx=%228%22 cy=%228%22 r=%227%22 fill=%22%239a4a1e%22/%3E%3C/svg%3E" />
+    <link rel="stylesheet" href="../../src/lib/style.css" />
+  </head>
+  <body>
+    <nav class="topbar"><div class="wrap"><a href="../../index.html">Statistical mechanics, simulated</a></div></nav>
+    <main class="wrap">
+      <header class="question">
+        <div class="eyebrow">The Boltzmann distribution</div>
+        <h1>Why is one molecule's energy distributed exponentially when the whole gas has a fixed total?</h1>
+        <p class="lede">
+          This gas is sealed off from everything: its total energy never changes. Yet any single
+          molecule's energy jumps around wildly as it collides, and over time it follows a precise rule:
+          the chance of having energy E falls off as e<sup>−E/kT</sup>. Watch that rule appear, then watch
+          it melt into a narrow bell curve as you track bigger groups of molecules.
+        </p>
+      </header>
+
+      <section class="lab">
+        <div class="stage" id="stage">
+          <canvas id="canvas" aria-label="A gas of 20,000 molecules with one highlighted"></canvas>
+          <div class="overlay" id="overlay">Starting the GPU…</div>
+        </div>
+        <aside class="panel">
+          <div class="buttons">
+            <button class="primary" id="run">Run</button>
+            <button id="clear">Clear histogram</button>
+          </div>
+          <label class="row">Track groups of <span id="kv">1 molecule</span>
+            <select id="k">
+              <option value="1" selected>1 molecule</option>
+              <option value="2">2 molecules</option>
+              <option value="5">5 molecules</option>
+              <option value="20">20 molecules</option>
+              <option value="100">100 molecules</option>
+              <option value="1000">1,000 molecules</option>
+            </select>
+          </label>
+          <label class="row">Show <span></span>
+            <select id="view">
+              <option value="energy" selected>energy per molecule in the group</option>
+              <option value="log">energy, log scale (a straight line means exponential)</option>
+              <option value="speed">speed of single molecules</option>
+            </select>
+          </label>
+          <canvas class="plot tall" id="hist" aria-label="Histogram of energies with the theoretical curve"></canvas>
+          <div class="legend"><span><i style="background: var(--accent)"></i>measured</span><span><i style="background: var(--plot-back)"></i>theory</span></div>
+          <div class="readouts">
+            <div class="readout"><div class="k">temperature kT</div><div class="v" id="temp">–</div></div>
+            <div class="readout"><div class="k">total energy</div><div class="v" id="etot">–</div></div>
+            <div class="readout"><div class="k">red molecule's energy</div><div class="v" id="eone">–</div></div>
+            <div class="readout"><div class="k">samples</div><div class="v" id="samples">0</div></div>
+          </div>
+          <canvas class="plot" id="trace" aria-label="The red molecule's kinetic energy over time"></canvas>
+        </aside>
+      </section>
+
+      <article class="notes">
+        <h2>Where the exponential comes from</h2>
+        <p>
+          Follow one molecule. The other 19,999 hold the rest of the energy, and they are vastly more
+          numerous. If our molecule has energy E, the others must share E<sub>total</sub> − E, and the number
+          of ways they can do that is what decides how likely it is. Taking a little energy from a huge
+          system shrinks its number of arrangements by the same factor each time you take another
+          slice: that factor is e<sup>−1/kT</sup> per unit of energy, which is in fact what temperature means.
+          So the chance of energy E goes as e<sup>−E/kT</sup>. Nothing told the molecule to follow this rule;
+          it is just counting, done by the collisions.
+        </p>
+        <p class="formula">P(E) ∝ Ω<sub>rest</sub>(E<sub>total</sub> − E) ∝ e<sup>−E/kT</sup></p>
+        <h2>Bigger groups: from Boltzmann to thermodynamics</h2>
+        <p>
+          Now track groups of molecules. A group's energy is a sum of many nearly independent pieces, so
+          it piles up near the average and its spread shrinks like 1/√(group size): for 1,000 molecules
+          it is about 3% of the mean. For the 10<sup>23</sup> molecules in a glass of water the spread
+          is about one part in 10<sup>11</sup>, which is why everyday objects seem to have one definite
+          energy and temperature. The theory curve is the gamma distribution, the exact result for a sum
+          of exponential pieces.
+        </p>
+        <h2>So why does Maxwell's speed distribution peak away from zero?</h2>
+        <p>
+          Switch the view to speeds. The most likely energy is zero, yet the most likely speed is not.
+          The difference is how many ways there are to have a given speed: in two dimensions a velocity
+          can point anywhere on a circle of radius v, and that circle grows with v. Multiply the
+          shrinking Boltzmann factor by the growing circle and you get a peak at v = √(kT/m). In 2D
+          that growth exactly cancels the change of variables, so the energy distribution is a pure
+          exponential with no peak at all. (In 3D the energy distribution itself has a peak, because
+          the sphere of velocities grows faster.)
+        </p>
+        <div class="caveat">
+          <h3>Caveats</h3>
+          <ul>
+            <li>Kinetic energies only; the molecules also have potential energy from their neighbours,
+              which is part of the fixed total. The kinetic part follows the Boltzmann rule exactly in
+              classical physics, whatever the forces.</li>
+            <li>Groups are fixed sets of molecules scattered through the box, not a region of space.</li>
+            <li>Velocities are the integrator's half-step values, accurate to about 0.01%.</li>
+          </ul>
+        </div>
+      </article>
+    </main>
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>

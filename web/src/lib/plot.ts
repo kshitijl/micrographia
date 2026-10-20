@@ -130,6 +130,10 @@ export class BarPlot {
     new ResizeObserver(() => this.draw()).observe(canvas);
   }
 
+  configure(opts: Partial<BarOpts>) {
+    Object.assign(this.opts, opts);
+  }
+
   set(values: number[], theory: number[] | null = null, labels?: string[]) {
     this.values = values;
     this.theory = theory;

@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Heavy and Light Molecules</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 16 16%22%3E%3Ccircle cx=%228%22 cy=%228%22 r=%227%22 fill=%22%239a4a1e%22/%3E%3C/svg%3E" />
+    <link rel="stylesheet" href="../../src/lib/style.css" />
+  </head>
+  <body>
+    <nav class="topbar"><div class="wrap"><a href="../../index.html">Statistical mechanics, simulated</a></div></nav>
+    <main class="wrap">
+      <header class="question">
+        <div class="eyebrow">Equipartition</div>
+        <h1>At the same temperature, does a heavy molecule have less energy than a light one?</h1>
+        <p class="lede">
+          Here light molecules, molecules sixteen times heavier, and a few “bowling balls”, each as wide
+          as six molecules and hundreds of times heavier, all share one box. They trade energy with every
+          collision. Which ones end up with more?
+        </p>
+      </header>
+
+      <section class="lab">
+        <div class="stage" id="stage">
+          <canvas id="canvas" aria-label="A gas of light and heavy molecules with a few large heavy balls leaving trails"></canvas>
+          <div class="overlay" id="overlay">Starting the GPU…</div>
+        </div>
+        <aside class="panel">
+          <div class="buttons">
+            <button class="primary" id="run">Run</button>
+            <button id="clear">Restart averages</button>
+            <button id="reset">Reset</button>
+          </div>
+          <div class="legend">
+            <span><i style="background: var(--cream)"></i>light (m = 1)</span>
+            <span><i style="background: var(--species-2)"></i>heavy (m = 16)</span>
+            <span><i style="background: var(--species-3)"></i>ball (m = <span id="bm">400</span>)</span>
+          </div>
+          <label class="row">Ball mass <span id="bmv">400</span>
+            <input type="range" id="ballmass" min="1" max="4" step="0.25" value="2.602" />
+          </label>
+          <canvas class="plot" id="ke" aria-label="Average kinetic energy per species"></canvas>
+          <canvas class="plot" id="speed" aria-label="Typical speed per species"></canvas>
+          <div class="status" id="status">Press Run. The averages need a while to settle, especially for the balls.</div>
+        </aside>
+      </section>
+
+      <article class="notes">
+        <h2>Same energy, different speeds</h2>
+        <p>
+          The top chart is each kind's average kinetic energy, with the line at kT. All three settle
+          to the same value: on average every molecule carries ½kT of kinetic energy for each direction
+          it can move, whatever its mass. This is equipartition. Collisions keep passing energy around
+          until no kind has more than its share, because a fast heavy ball hitting a slow light molecule
+          tends to give energy away, and the reverse tends to take it.
+        </p>
+        <p>
+          Since energy is ½mv², the same energy means a heavier molecule moves more slowly: the typical
+          speed goes as 1/√m (lower chart). The balls amble around at a fraction of the light molecules'
+          speed, kicked this way and that by thousands of tiny collisions.
+        </p>
+        <h2>Brownian motion</h2>
+        <p>
+          That jittery wandering of the balls is Brownian motion, first seen in pollen grains in water in
+          1827. In 1905 Einstein showed that it is exactly this: big particles with a share kT of energy
+          like everything else, buffeted by unseen molecules. From how fast the grains wander, Jean Perrin
+          then measured the size of molecules and Avogadro's number. The trails show the balls' recent
+          paths; make a ball heavier and it slows down, but its average energy stays the same.
+        </p>
+        <div class="caveat">
+          <h3>Caveats</h3>
+          <ul>
+            <li>2D, soft repulsive molecules: no attraction, no rotation or vibration (real molecules
+              store energy in those too, ½kT per quadratic term).</li>
+            <li>With only a few balls their average converges slowly; restart the averages after
+              changing the mass.</li>
+          </ul>
+        </div>
+      </article>
+    </main>
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>
