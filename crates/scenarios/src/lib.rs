@@ -59,7 +59,7 @@ pub struct Scenario {
     pub radii: Vec<f64>,
 }
 
-pub const NAMES: &[&str] = &["cream", "corner", "boltzmann", "heavy", "oilwater", "heatflow", "osmosis", "compress", "rubber", "atmosphere", "carnot", "boiling", "lipids", "balloon", "smell", "binding", "fep", "cell", "buffer", "mask", "dna", "demon", "ensemble"];
+pub const NAMES: &[&str] = &["cream", "corner", "boltzmann", "heavy", "oilwater", "heatflow", "osmosis", "compress", "rubber", "atmosphere", "carnot", "boiling", "lipids", "balloon", "smell", "binding", "fep", "cell", "buffer", "mask", "dna", "demon", "ensemble", "osmosis_free", "osmometer"];
 
 pub fn build(name: &str, o: &Options) -> Result<Scenario, String> {
     match name {
@@ -86,6 +86,8 @@ pub fn build(name: &str, o: &Options) -> Result<Scenario, String> {
         "dna" => Ok(dna(o)),
         "demon" => Ok(demon(o)),
         "ensemble" => Ok(ensemble(o)),
+        "osmosis_free" => Ok(osmosis_free(o)),
+        "osmometer" => Ok(osmometer(o)),
         _ => Err(format!("unknown scenario {name}")),
     }
 }
@@ -1158,4 +1160,96 @@ pub fn ensemble(o: &Options) -> Scenario {
         state.vel[i] = [sys.to_step_displacement(speed * a.cos()), sys.to_step_displacement(speed * a.sin())];
     }
     Scenario { warmup: 0, finish: Finish::None, marked: 0, grid: [bx as u32, by as u32], radii: vec![0.5], sys, state }
+}
+
+/// A movable semi-permeable membrane: a straight chain of beads (species 2) across a box that is
+/// periodic top to bottom, joined by springs (stiffened by next-nearest springs), with gaps that
+/// let water (species 0, small) through but not solute (species 1). Pure water on the left,
+/// solution on the right; the membrane is free to move. A heat bath holds the temperature.
+/// Options: width, height, density, solute (share of sites on the right), stiffness, seed.
+pub fn osmosis_free(o: &Options) -> Scenario {
+    let (w, h) = (o.get("width", 96.0), o.get("height", 48.0));
+    let small = |sigma: f64| Pair { eps: 1.0, sigma, rc: sigma * 2f64.powf(1.0 / 6.0) };
+    let sys = System::new([fixed::to_fixed(w), fixed::to_fixed(h)], init::DT, small(0.5), vec![1.0, 1.0, 1.0])
+        .with_walls(0, Wall::Hard, Wall::Hard)
+        .with_pair(0, 1, small(0.75))
+        .with_pair(1, 1, small(1.0))
+        .with_pair(0, 2, small(0.5))
+        .with_pair(1, 2, small(1.5))
+        .with_pair(2, 2, small(1.0))
+        .with_thermostat(1.0, 0.5);
+    let beads = (h / 1.43).round() as usize;
+    let spacing = h / beads as f64;
+    let xm = w / 2.0;
+    let mut pos: Vec<[f64; 2]> = (0..beads).map(|k| [xm, (k as f64 + 0.5) * spacing]).collect();
+    let mut species = vec![2u32; beads];
+    let n = beads as u32;
+    let mut bonds: Vec<[u32; 3]> = (0..n).map(|k| [k, (k + 1) % n, 0]).collect();
+    bonds.extend((0..n).map(|k| [k, (k + 2) % n, 1]));
+    let density = o.get("density", 0.8);
+    let a = (1.0 / density).sqrt();
+    let (nx, ny) = ((w / a) as usize, (h / a) as usize);
+    let seed = o.get("seed", 1.0) as u64;
+    let f = o.get("solute", 0.5);
+    let mut draw = 0u32;
+    for j in 0..ny {
+        for i in 0..nx {
+            let p = [(i as f64 + 0.5) * a, (j as f64 + 0.5) * h / ny as f64];
+            if (p[0] - xm).abs() < 1.2 || p[0] < 0.4 || p[0] > w - 0.4 {
+                continue;
+            }
+            let u = gpu_prims::threefry::uniform(seed, 5, draw);
+            draw += 1;
+            let solute = p[0] > xm + 1.8 && u < f && (i + j) % 2 == 0;
+            pos.push(p);
+            species.push(solute as u32);
+        }
+    }
+    let k = o.get("stiffness", 20.0);
+    let sys = sys.with_bonds(vec![md_core::BondType::Harmonic { k, r0: spacing }, md_core::BondType::Harmonic { k: 0.5 * k, r0: 2.0 * spacing }], bonds);
+    let vel = init::maxwell(&sys, &species, 1.0, seed);
+    let state = State { pos: pos.iter().map(|p| [fixed::to_fixed(p[0]), fixed::to_fixed(p[1])]).collect(), vel, species };
+    Scenario { warmup: 0, finish: Finish::None, marked: 1, grid: [8, 8], radii: vec![0.25, 0.5, 0.85], sys, state }
+}
+
+/// An osmometer (the U-tube): a Lennard-Jones liquid under gravity in two arms separated by a
+/// fixed membrane down the middle that lets the solvent (species 0) through but not the solute
+/// (species 1, in the right arm). Vapour above the liquid. A heat bath holds the temperature.
+/// Options: width (of the box; each arm is half), height, depth (initial liquid depth), solute
+/// (share of the right arm's molecules), gravity, temperature, cutoff, seed.
+pub fn osmometer(o: &Options) -> Scenario {
+    // Narrow arms and fairly strong gravity: the level settles within ~1500 τ.
+    let (w, h) = (o.get("width", 32.0), o.get("height", 112.0));
+    let t = o.get("temperature", 0.45);
+    // A longer cutoff than the usual 2.5 σ raises the critical point (to about 0.5 in 2D), so the
+    // liquid at kT 0.45 is well clear of it: denser, with a sharp surface.
+    let lj = Pair::lj(o.get("cutoff", 4.0));
+    let sys = System::new([fixed::to_fixed(w), fixed::to_fixed(h)], init::DT, lj, vec![1.0, 1.0])
+        .with_walls(0, Wall::Hard, Wall::Hard)
+        .with_walls(1, Wall::Soft, Wall::Soft)
+        .with_pair(1, 1, Pair::wca())
+        .with_gravity([0.0, -o.get("gravity", 0.006)])
+        .with_thermostat(t, 0.5)
+        .with_membrane(0, w / 2.0, &[1]);
+    let depth = o.get("depth", 40.0);
+    let a = (1.0f64 / 0.72).sqrt();
+    let (nx, ny) = (((w - 2.0) / a) as usize, (depth / a) as usize);
+    let seed = o.get("seed", 1.0) as u64;
+    let f = o.get("solute", 0.18);
+    let mut pos = vec![];
+    let mut species = vec![];
+    for j in 0..ny {
+        for i in 0..nx {
+            let p = [0.6 + (i as f64 + 0.5) * a, 1.0 + (j as f64 + 0.5) * a];
+            if (p[0] - w / 2.0).abs() < 0.7 {
+                continue;
+            }
+            let u = gpu_prims::threefry::uniform(seed, 6, (j * nx + i) as u32);
+            pos.push(p);
+            species.push((p[0] > w / 2.0 + 0.7 && u < f) as u32);
+        }
+    }
+    let vel = init::maxwell(&sys, &species, t, seed);
+    let state = State { pos: pos.iter().map(|p| [fixed::to_fixed(p[0]), fixed::to_fixed(p[1])]).collect(), vel, species };
+    Scenario { warmup: 0, finish: Finish::None, marked: 1, grid: [2, 56], radii: vec![0.5, 0.5], sys, state }
 }
