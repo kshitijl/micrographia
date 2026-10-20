@@ -90,6 +90,7 @@ fn big_cell_tension() {
             .with("stiffness", k)
             .with("bend", env("BEND", 0.5 * k))
             .with("bath", env("BATH", 1.0))
+            .with("water", env("WATER", 1.0))
             .with("seed", 19.0);
         let sc = build("cell", &o).unwrap();
         let r0 = rest * std::f64::consts::TAU * radius / beads as f64;

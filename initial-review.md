@@ -392,6 +392,24 @@ Open questions (third round):
 3. `atmosphere` fluid panel: something seems wrong; nothing happens, or nothing is rendered.
 4. `saline` big cell: smoothly add or remove salt and watch the change spread: a slider, a button,
    or clicking to put salt in, then see the effect.
+5. `saline`: wouldn't the red-cell result be the same with no water at all? Do the water and the
+   membrane interact in this simulation?
+6. `saline`: clicking and dragging to add or remove salt makes it very slow (the frame rate drops).
+7. `atmosphere` fluid panel: a strange left-to-right wind blows at the top; it is very chaotic.
+   Something seems wrong.
+8. `atmosphere`: how does the explanation square with the cold at the top of a mountain or a big
+   flat plateau? The sunlit plateau warms the air above it too, so why does height above sea level,
+   rather than height above the nearby land, predict temperature?
+9. `osmosis` U-tube: if there's no appreciable cooling, where did the energy to lift the liquid
+   come from?
+10. A hybrid model: water as a continuum, solute as particles that feel drag from the water and
+   push momentum back into it. Does it exist? Can osmosis be seen in it? Note it in the fluid report
+   for later.
+11. `boiling` (pressure cooker): try a hot plate at the bottom instead of the thermostat.
+12. `atmosphere` MD: a hot plate at the bottom, off by default, which can be turned on at a chosen
+   temperature.
+13. A control for the number of particles, on every page really, but at least `atmosphere` and
+   `boiling`, to find a count that looks good and still runs fast.
 
 ### Fourth round: done (to confirm)
 

@@ -130,10 +130,84 @@ fn utube_rises() {
             ke(fast)
         );
         eprintln!(
-            "{:.0} τ ({:.0} s): left {hl:.1}, right {hr:.1}, Δh {:.1}; van 't Hoff {pred:.1}",
+            "{:.0} τ ({:.0} s): left {hl:.1}, right {hr:.1}, Δh {:.1}; van 't Hoff {pred:.1}; liquid densities {rl:.3} {rr:.3}",
             ((k + 1) * steps) as f64 * sc.sys.dt,
             start.elapsed().as_secs_f64(),
             hr - hl
+        );
+    }
+}
+
+/// Debug: where the U-tube's potential energy sits, by species.
+#[test]
+#[ignore]
+fn utube_energy_breakdown() {
+    let p = Prims::new(&block_on(Gpu::new()).unwrap());
+    let o = Options::default().with("width", 50.0).with("height", 150.0).with("depth", 90.0).with("channel", 30.0).with("gravity", 0.008).with("bath", 0.0);
+    let sc = build("osmometer", &o).unwrap();
+    let e = GpuEngine::new(&p, sc.sys.clone(), &sc.state);
+    e.compute_forces();
+    let (_, pe) = block_on(e.buf.read_kicks());
+    let s = block_on(e.read_state());
+    let mut by = [0.0f64; 3];
+    for (k, &u) in pe.iter().enumerate() {
+        by[s.species[k] as usize] += u as f64; // storage order == id order before any sort
+    }
+    let worst = (0..pe.len()).max_by(|&a, &b| pe[a].total_cmp(&pe[b])).unwrap();
+    eprintln!("PE by species {by:?}; worst slot {worst}: {} species {} at ({:.2}, {:.2})", pe[worst], s.species[worst], fixed::to_f64(s.pos[worst][0]), fixed::to_f64(s.pos[worst][1]));
+}
+
+/// The U-tube's energy books with no heat bath, after settling as pure water for `SETTLE` τ:
+/// changes in m g h, kinetic and interaction energy (each averaged over 100 readings 0.5 τ
+/// apart), with SOLUTE (0.3) and without (0, the control). Env: SOLUTE, SETTLE, REPORTS.
+#[test]
+#[ignore]
+fn utube_energy_books() {
+    let p = Prims::new(&block_on(Gpu::new()).unwrap());
+    let env = |k: &str, d: f64| std::env::var(k).map_or(d, |v| v.parse().unwrap());
+    let g = 0.008;
+    let o = Options::default()
+        .with("width", 50.0)
+        .with("height", 150.0)
+        .with("depth", 90.0)
+        .with("channel", 30.0)
+        .with("gravity", g)
+        .with("bath", 0.0)
+        .with("solute", env("SOLUTE", 0.3))
+        .with("settle", env("SETTLE", 200.0));
+    let sc = build("osmometer", &o).unwrap();
+    let w = fixed::to_f64(sc.sys.box_len[0]);
+    let h = fixed::to_f64(sc.sys.box_len[1]);
+    let mut e = GpuEngine::new(&p, sc.sys.clone(), &sc.state);
+    e.step(sc.warmup);
+    let mut s = block_on(e.read_state());
+    sc.finish.apply(&mut s, &sc.sys);
+    e.upload(&s);
+    let mobile: Vec<usize> = (0..s.n()).filter(|&i| s.species[i] != 2).collect();
+    let mut first: Option<[f64; 3]> = None;
+    for k in 0..env("REPORTS", 10.0) as usize {
+        let mut acc = [0.0; 3];
+        let mut dh = 0.0;
+        for _ in 0..100 {
+            e.step(100);
+            let (_, pe) = block_on(e.buf.read_kicks());
+            let s = block_on(e.read_state());
+            let lift: f64 = mobile.iter().map(|&i| g * fixed::to_f64(s.pos[i][1])).sum();
+            let kin = s.half_step_kinetic(&sc.sys);
+            acc[0] += lift / 100.0;
+            acc[1] += kin / 100.0;
+            acc[2] += pe.iter().map(|&u| u as f64).sum::<f64>() / 100.0;
+            dh += (surface(&s, w / 2.0 + 1.0, w - 2.0, h).0 - surface(&s, 2.0, w / 2.0 - 1.0, h).0) / 100.0;
+        }
+        let f = *first.get_or_insert(acc);
+        eprintln!(
+            "{} τ: Δh {dh:.1}; lift {:+.1}, heat {:+.1}, interactions {:+.1}, total {:+.1}; kT {:.4}",
+            (k + 1) * 50,
+            acc[0] - f[0],
+            acc[1] - f[1],
+            acc[2] - f[2],
+            acc[0] + acc[1] + acc[2] - f[0] - f[1] - f[2],
+            acc[1] / mobile.len() as f64
         );
     }
 }

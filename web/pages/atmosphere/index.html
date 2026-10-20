@@ -57,6 +57,19 @@
               <option value="0">already settled</option>
             </select>
           </label>
+          <label class="row">Molecules <span></span>
+            <select id="nmol">
+              <option value="1500">1,500</option>
+              <option value="3000">3,000</option>
+              <option value="6000" selected>6,000</option>
+              <option value="12000">12,000</option>
+              <option value="24000">24,000</option>
+              <option value="48000">48,000</option>
+            </select>
+          </label>
+          <label class="row"><span><input type="checkbox" id="plate" /> Hot plate under the floor, at kT =</span> <span id="platev">2.0</span>
+            <input type="range" id="plateT" min="0.3" max="5" step="0.1" value="2" />
+          </label>
           <label class="row">Gravity <span id="gv">1.0×</span>
             <input type="range" id="gravity" min="0" max="3" step="0.1" value="1" />
           </label>
@@ -152,7 +165,11 @@
           argued the opposite in the 1870s, and Boltzmann and Maxwell argued back; this is the answer.)
           Start the gas squeezed against the ceiling and watch it fall: the fall turns potential energy
           into heat, and the column settles much hotter. Start it against the floor and it cools as it
-          spreads upward, doing work against gravity.
+          spreads upward, doing work against gravity. Turn on the hot plate and the floor warms the
+          gas from below: the lower layers heat first, and the temperature falls with height for a while. But with only a
+          hot plate and nothing cold, the column ends up at the plate's temperature all the way up. A
+          steady fall of temperature with height needs somewhere for the heat to go; the real
+          atmosphere radiates it to space.
         </p>
         <p>
           The real atmosphere is colder aloft because it is not in equilibrium. Sunlight heats the
@@ -172,6 +189,33 @@
           layer the air is still in its old, isothermal state, and the layer eats upward into it as the
           day goes on. At night the ground cools the air touching it, and cold air under warm air is
           stable: nothing stirs, and whatever is released near the ground stays there (smog).
+        </p>
+        <h2>Then why is a sunny plateau cold?</h2>
+        <p>
+          A high plateau is sunlit and warms the air touching it, just as the low ground does. So why
+          does height above sea level, and not height above the local ground, predict the temperature?
+          Three reasons, the first the biggest:
+        </p>
+        <ul>
+          <li><b>Less air above means less blanket.</b> The ground's warmth is mostly set by radiation:
+            sunlight in, infrared out. The air above the ground absorbs much of the outgoing infrared and
+            sends some back down (the greenhouse effect), and the more air there is above you, the more
+            of that blanket you have. A plateau at 4 km has 40% of the atmosphere below it, missing from
+            its blanket, so it loses heat to space much faster, above all at night under clear skies.</li>
+          <li><b>The air is borrowed.</b> Wind keeps bringing air in at that height from the open sky
+            around the plateau, air that is cold because of the lapse rate set over the whole planet's
+            low ground. A plateau warms its own boundary layer by day, but it is small next to the air
+            streaming over it.</li>
+          <li><b>Thin air heats and cools easily.</b> At low pressure there is less air per cubic metre to
+            hold heat, so plateau air warms fast in the sun and chills fast at night: the daily swings are
+            huge.</li>
+        </ul>
+        <p>
+          So the local ground does matter a little: big plateaus are measurably warmer than the open air
+          at the same height (the “mass elevation effect”; the Tibetan plateau even heats the air above it
+          enough to help drive the Asian monsoon). But they are much colder than sea level, because the
+          whole atmosphere's temperature profile, set by convection over the planet as a whole, is the
+          backdrop they sit in.
         </p>
         <h2>The same thing with slabs</h2>
         <p>

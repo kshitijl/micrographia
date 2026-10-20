@@ -135,6 +135,36 @@ multiphase with known, published schemes. It cannot do shocks; MD does those alr
    This is a few lines on top of any fluid engine, and it gives the mask page its real answer:
    the filtration curve, with its most-penetrating particle size.
 
+4. **Solute particles in a continuum solvent (two-way coupling). An idea for later.** The
+   solvent is a fluid on a grid (lattice Boltzmann with thermal noise), and the solute molecules
+   are particles. Each particle feels drag towards the local fluid velocity, F = γ (u − v), plus
+   random kicks, and the equal and opposite force goes back into the fluid where the particle is,
+   so momentum is conserved. This exists and is well established:
+   - Ahlrichs and Dünweg (1999) coupled point particles (polymer beads) to lattice Boltzmann this
+     way, and it is a standard feature of codes like ESPResSo;
+   - immersed-boundary and force-coupling methods, and fluctuating hydrodynamics with particles
+     (Donev and co-workers), are cousins.
+
+   **Osmosis in it.** The membrane would be a force that acts on solute particles only (like
+   Rahman's species-selective membrane), with the fluid passing freely. The membrane pushes the
+   solute back; the solute, through drag, pushes the fluid; a pressure difference builds in the
+   fluid, and in a U-tube under gravity the solution side rises until ρ g Δh = c kT. This is the
+   bombardment picture of osmosis with nothing else in it. (I have not checked the literature for
+   osmosis done exactly this way; it is a natural test of such a code, and diffusio-osmosis is
+   studied with these models.)
+
+   **Why it fits.**
+   - It answers the red-cell question cleanly. Measured on the saline page, the cell's membrane
+     tension is nearly the same with the water made invisible (5.3 against 5.9 with real water).
+     The push is the solute's; the solvent supplies volume and flow, not force.
+   - It is cheap: thousands of solute particles in a fluid of 10⁵–10⁶ cells, so U-tubes and cells
+     hundreds of σ across, with less noise than an all-molecule liquid.
+   - It shows where the energy goes: the drag dissipates, and the noise feeds it back.
+
+   **Against.** It is canonical by construction: the drag and the noise are a thermostat
+   (fluctuation–dissipation), not the microcanonical ensemble we prefer, and the page must say so.
+   It needs the LBM engine of §5 first; the coupling itself is perhaps 100 lines.
+
 ### Not worth doing (for now)
 
 - **Concurrent hybrid coupling**: an MD region embedded in a continuum, exchanging mass, momentum

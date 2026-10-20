@@ -19,6 +19,7 @@ const plot = new LinesPlot($<HTMLCanvasElement>("plot"), {
 });
 
 const temperature = () => Number(tIn.value);
+const plate = () => $<HTMLSelectElement>("heat").value === "plate";
 
 function clear() {
   sumV = 0;
@@ -66,6 +67,8 @@ async function readout(sim: DiscSim) {
   frames++;
   const rv = sumV / frames;
   lastP = rv * temperature();
+  const { ke } = (await sim.kinetic_energies()) as { ke: Float32Array };
+  $("tm").textContent = (ke.reduce((a, b) => a + b, 0) / ke.length).toFixed(3);
   $("nv").textContent = String(nv);
   $("pv").textContent = lastP.toExponential(2);
   $("rl").textContent = (sumL / frames).toFixed(3);
@@ -75,7 +78,12 @@ const host = new SimHost({
   canvas: $<HTMLCanvasElement>("canvas"),
   overlay: $("overlay"),
   scenario: "boiling",
-  options: () => ({ n: 6000, width: 200, height: 160, temperature: temperature(), seed: 13 }),
+  // The box grows with the number of molecules, keeping the pool's depth and the vapour space.
+  options: () => {
+    const n = Number($<HTMLSelectElement>("nmol").value);
+    const f = Math.sqrt(n / 6000);
+    return { n, width: 200 * f, height: 160 * f, temperature: temperature(), plate: plate() ? temperature() : 0, seed: 13 };
+  },
   names: ["molecules"],
   colors: ["--species-2"],
   stepsPerFrame: () => 100,
@@ -98,9 +106,16 @@ $("record").onclick = () => {
 };
 tIn.oninput = () => ($("tv").textContent = temperature().toFixed(3));
 tIn.onchange = () => {
-  host.sim?.set_thermostat(temperature(), 0.5);
+  if (plate()) host.sim?.set_wall(2, temperature());
+  else host.sim?.set_thermostat(temperature(), 0.5);
   clear();
 };
+function restart() {
+  const run = host.running;
+  void host.create().then(() => (host.running = run));
+}
+$("heat").onchange = restart;
+$("nmol").onchange = restart;
 
 declare global {
   interface Window {

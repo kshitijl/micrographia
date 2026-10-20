@@ -123,7 +123,7 @@ const host = new SimHost({
   overlay: $("overlay"),
   scenario: "atmosphere",
   // No heat bath: the column is sealed off. Half the usual time step, for the hot starts.
-  options: () => ({ n: 6000, heavy: 4, heavy_share: 0.3, scale: 0.35, gravity: Number(gravityIn.value), temperature: 1, start: Number(startSel.value), dt: 0.0025, seed: 11 }),
+  options: () => ({ n: Number($<HTMLSelectElement>("nmol").value), heavy: 4, heavy_share: 0.3, scale: 0.35, gravity: Number(gravityIn.value), temperature: 1, start: Number(startSel.value), dt: 0.0025, seed: 11 }),
   names: ["light gas", "heavy gas"],
   colors: ["--cream", "--species-3"],
   stepsPerFrame: () => 200,
@@ -132,9 +132,30 @@ const host = new SimHost({
     box = Array.from(sim.box_size());
     g1 = 1 / (0.35 * box[1]);
     g = Number(gravityIn.value) * g1;
+    applyPlate(sim);
     clear();
   },
 });
+
+// The hot plate: the floor becomes a heat bath (molecules leave it with velocities drawn at the
+// plate's temperature). Off, the floor is a plain bouncing (hard) wall, or the original soft one
+// until the plate is first switched on.
+const plateIn = $<HTMLInputElement>("plate");
+const plateT = $<HTMLInputElement>("plateT");
+function applyPlate(sim: DiscSim) {
+  if (plateIn.checked) sim.set_wall(2, Number(plateT.value));
+  else if (plateWasOn) sim.set_wall(2, 0);
+  host.refreshNotes();
+}
+let plateWasOn = false;
+plateIn.onchange = () => {
+  if (plateIn.checked) plateWasOn = true;
+  if (host.sim) applyPlate(host.sim);
+};
+plateT.oninput = () => {
+  $("platev").textContent = Number(plateT.value).toFixed(1);
+  if (host.sim && plateIn.checked) applyPlate(host.sim);
+};
 
 function restart() {
   const run = host.running;
@@ -148,6 +169,7 @@ $("run").onclick = () => {
 $("clear").onclick = clear;
 $("reset").onclick = restart;
 startSel.onchange = restart;
+$("nmol").onchange = restart;
 gravityIn.oninput = () => {
   $("gv").textContent = `${Number(gravityIn.value).toFixed(1)}×`;
   g = Number(gravityIn.value) * g1;

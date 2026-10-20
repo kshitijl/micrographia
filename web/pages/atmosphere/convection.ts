@@ -34,6 +34,7 @@ const SUN = 2000; // W/m², several times a real sunny afternoon's, so the hours
 const NIGHT = -100; // W/m²: the ground radiating to a clear night sky
 const RHO0 = 1.2; // kg/m³, near the ground
 const RADIATE = 12 * 3600; // s: the air radiates towards the starting temperature on this time scale
+const MEAN_WIND = 600; // s: the horizontal mean wind is damped on this time scale (see step)
 const DRAG = 3 * 3600; // s: a slow drag on the wind (2D flows otherwise pile up into giant eddies)
 
 const at = (i: number, j: number) => j * NX + ((i + NX) % NX);
@@ -239,6 +240,15 @@ function step() {
     for (let i = 0; i < NX; i++) omega[at(i, j)] += ((DT * G) / mean) * ((theta[at(i + 1, j)] - theta[at(i - 1, j)]) / (2 * D));
   }
   for (let i = 0; i < NX; i++) omega[at(i, 0)] = omega[at(i, NZ)] = 0;
+  // No mean wind: 2D convection between slippery plates feeds energy into a horizontal mean wind
+  // (a sheared "zonal" flow, a known 2D artefact that tilts the plumes and blows across the top);
+  // 3D turbulence does not build one. Damp the average spin at each height over ~10 minutes.
+  for (let j = 1; j < NZ; j++) {
+    let mean = 0;
+    for (let i = 0; i < NX; i++) mean += omega[at(i, j)];
+    mean /= NX;
+    for (let i = 0; i < NX; i++) omega[at(i, j)] -= (DT / MEAN_WIND) * mean;
+  }
   // A sponge under the lid: the real atmosphere has no lid, and waves set off by the plumes
   // travel up and away; here they would bounce back and fill the sky. Damp the wind and the
   // sideways differences in θ over the top 4 km (the average at each height is untouched).

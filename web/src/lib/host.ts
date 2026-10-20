@@ -127,6 +127,14 @@ export class SimHost {
     sim.render();
   }
 
+  /** Rewrite the ensemble line and the "About this simulation" section, after a change to the
+   * system (a wall made a heat bath, say). */
+  refreshNotes() {
+    if (!this.sim) return;
+    showAbout(this.sim, this.cfg.names, this.cfg.label);
+    this.energy?.setNote(this.sim.energy_note());
+  }
+
   applyColors() {
     if (!this.sim) return;
     const defaults = ["--coffee", "--cream", "--species-2", "--species-3"];

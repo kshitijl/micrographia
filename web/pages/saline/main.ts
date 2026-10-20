@@ -173,6 +173,7 @@ function tensionColor(t: number): number[] {
 }
 
 async function readoutB(sim: DiscSim) {
+  await applyJobs(sim);
   const p = (await sim.positions(2)) as Float32Array;
   ring = p;
   const len = (k: number) => {
@@ -246,7 +247,7 @@ const hostB = new SimHost({
     $("limitB").textContent = LIMIT_B.toFixed(1);
     // The box is square; show all of it, with margins, in the 4:3 stage.
     const [w, h] = Array.from(sim.box_size());
-    sim.set_view(-w / 6, 0, (4 / 3) * w, h);
+    sim.set_view(-w / 6, 0, w + w / 6, h); // corners
     await readoutB(sim);
   },
 });
@@ -305,30 +306,51 @@ async function changeSalt(sim: DiscSim, inside: (x: number, y: number) => boolea
   return picked.length;
 }
 
+// Strokes and pours wait in a queue and are applied in the next frame's readout, when the
+// simulation is between steps anyway (one read of all positions per frame at most, instead of
+// pausing the animation for every pointer event).
 const brushSel = $<HTMLSelectElement>("brushB");
 const canvasB = $<HTMLCanvasElement>("canvasB");
+type SaltJob = { kind: "brush"; x: number; y: number; add: boolean } | { kind: "pour"; add: boolean };
+let jobs: SaltJob[] = [];
+
+async function applyJobs(sim: DiscSim) {
+  if (!jobs.length) return;
+  const todo = jobs;
+  jobs = [];
+  for (const add of [true, false]) {
+    const strokes = todo.filter((j): j is Extract<SaltJob, { kind: "brush" }> => j.kind === "brush" && j.add === add);
+    if (strokes.length)
+      await changeSalt(sim, (a, b) => strokes.some((t) => (a - t.x) ** 2 + (b - t.y) ** 2 < BRUSH * BRUSH), add, add ? 0.5 : 0.6);
+    if (todo.some((j) => j.kind === "pour" && j.add === add)) await pour(sim, add);
+  }
+  void hostB.energy?.sample(sim);
+}
+
+/** Queue a job; if the simulation is paused, apply it now. */
+function queue(job: SaltJob) {
+  jobs.push(job);
+  if (!hostB.running && hostB.sim) void hostB.exclusive((sim) => applyJobs(sim).then(() => readoutB(sim))).then(() => hostB.sim?.render());
+}
+
 let painting = false;
-let busyB = false;
-async function paint(e: PointerEvent) {
+let lastStroke = 0;
+function paint(e: PointerEvent) {
   const sim = hostB.sim;
-  if (!sim || busyB) return;
-  busyB = true;
+  if (!sim || performance.now() - lastStroke < 30) return;
+  lastStroke = performance.now();
   const r = canvasB.getBoundingClientRect();
   const v = sim.view();
   const x = v[0] + ((e.clientX - r.left) / r.width) * (v[2] - v[0]);
   const y = v[3] - ((e.clientY - r.top) / r.height) * (v[3] - v[1]);
-  const add = brushSel.value === "add";
-  await hostB.exclusive((sim) => changeSalt(sim, (a, b) => (a - x) ** 2 + (b - y) ** 2 < BRUSH * BRUSH, add, add ? 0.5 : 0.6));
-  void hostB.energy?.sample(sim);
-  if (!hostB.running) sim.render();
-  busyB = false;
+  queue({ kind: "brush", x, y, add: brushSel.value === "add" });
 }
 canvasB.addEventListener("pointerdown", (e) => {
   canvasB.setPointerCapture(e.pointerId);
   painting = true;
-  void paint(e);
+  paint(e);
 });
-canvasB.addEventListener("pointermove", (e) => painting && void paint(e));
+canvasB.addEventListener("pointermove", (e) => painting && paint(e));
 canvasB.addEventListener("pointerup", () => (painting = false));
 
 /** Pour salt into (or take it out of) the water around the cell, away from it: it then spreads. */
@@ -337,8 +359,8 @@ function pour(sim: DiscSim, add: boolean) {
   const far = (x: number, y: number) => Math.hypot(x - w / 2, y - h / 2) > RADIUS_B + POUR;
   return changeSalt(sim, far, add, add ? 0.3 : 0.5);
 }
-$("saltB").onclick = () => void hostB.exclusive((sim) => pour(sim, true)).then(() => hostB.sim && hostB.energy?.sample(hostB.sim));
-$("freshB").onclick = () => void hostB.exclusive((sim) => pour(sim, false)).then(() => hostB.sim && hostB.energy?.sample(hostB.sim));
+$("saltB").onclick = () => queue({ kind: "pour", add: true });
+$("freshB").onclick = () => queue({ kind: "pour", add: false });
 
 $("runB").onclick = () => {
   hostB.running = !hostB.running;

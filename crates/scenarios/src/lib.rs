@@ -28,6 +28,9 @@ pub enum Finish {
     MarkDisc { temperature: f64, center: [f64; 2], radius: f64, species: u32 },
     /// Rescale to this temperature.
     Temperature(f64),
+    /// Rescale to `temperature`, then turn particles of species 0 beyond `x_min` (σ) into
+    /// species 1, each with probability `fraction` (by id and `seed`), keeping their positions.
+    Solute { temperature: f64, x_min: f64, fraction: f64, seed: u64 },
 }
 
 impl Finish {
@@ -39,6 +42,24 @@ impl Finish {
                 init::mark_disc(state, sys, center, radius, species);
             }
             Finish::Temperature(t) => init::set_temperature(state, sys, t),
+            Finish::Solute { temperature, x_min, fraction, seed } => {
+                // Rescale the moving particles only (pinned ones must keep zero velocity, and
+                // walls and gravity mean there is no momentum to keep at zero).
+                let moving: Vec<usize> = (0..state.n()).filter(|&i| sys.pinned & (1 << state.species[i]) == 0).collect();
+                let ke: f64 = moving
+                    .iter()
+                    .map(|&i| 0.5 * sys.masses[state.species[i] as usize] * (sys.velocity(state.vel[i][0]).powi(2) + sys.velocity(state.vel[i][1]).powi(2)))
+                    .sum();
+                let f = (temperature / (ke / moving.len() as f64)).sqrt();
+                for &i in &moving {
+                    state.vel[i] = state.vel[i].map(|v| (v as f64 * f).round() as i32);
+                }
+                for i in 0..state.n() {
+                    if state.species[i] == 0 && fixed::to_f64(state.pos[i][0]) > x_min && gpu_prims::threefry::uniform(seed, 6, i as u32) < fraction {
+                        state.species[i] = 1;
+                    }
+                }
+            }
         }
     }
 }
@@ -530,16 +551,18 @@ pub fn carnot(o: &Options) -> Scenario {
 }
 
 /// A pool of Lennard-Jones liquid (rc 2.5) with its vapour above, held at a temperature by a
-/// bulk bath; weak gravity keeps the liquid at the bottom (the vapour's scale height is far
-/// taller than the box). Options: n, width, height (σ), temperature, seed.
+/// bulk bath, or heated from below by a hot plate (`plate`, a heat-bath floor, with an
+/// insulating lid); weak gravity keeps the liquid at the bottom (the vapour's scale height is
+/// far taller than the box). Options: n, width, height (σ), temperature, plate, seed.
 pub fn boiling(o: &Options) -> Scenario {
     let n = o.get("n", 6000.0) as usize;
     let (w, h) = (o.get("width", 200.0), o.get("height", 160.0));
     let t = o.get("temperature", 0.42);
-    let sys = System::new([fixed::to_fixed(w), fixed::to_fixed(h)], init::DT, Pair::lj(2.5), vec![1.0])
-        .with_walls(1, Wall::Soft, Wall::Soft)
-        .with_gravity([0.0, -0.002])
-        .with_thermostat(t, 0.5);
+    // `plate` > 0: no bulk heat bath; instead the floor is a hot plate (a heat-bath wall) at that
+    // temperature, and the lid is insulating.
+    let plate = o.get("plate", 0.0);
+    let sys = System::new([fixed::to_fixed(w), fixed::to_fixed(h)], init::DT, Pair::lj(2.5), vec![1.0]).with_gravity([0.0, -0.002]);
+    let sys = if plate > 0.0 { sys.with_walls(1, Wall::Thermal(plate), Wall::Soft) } else { sys.with_walls(1, Wall::Soft, Wall::Soft).with_thermostat(t, 0.5) };
     // The liquid starts as a slab at density 0.75 on the floor.
     let depth = n as f64 / (0.75 * w);
     let pool = System::new([fixed::to_fixed(w), fixed::to_fixed(depth + 2.0)], init::DT, Pair::lj(2.5), vec![1.0]).with_walls(1, Wall::Soft, Wall::Soft);
@@ -819,7 +842,7 @@ pub fn fep(o: &Options) -> Scenario {
 /// square of side `width`), the membrane beads come first in id order: cell c's beads are ids
 /// c·beads … c·beads + beads − 1, in order round the ring. Options: cells_x, cells_y, width,
 /// radius, beads, density, inside, outside, stiffness, bend, rest (spring rest length over the
-/// starting spacing), bath, seed.
+/// starting spacing), bath, water (0: water interacts with nothing), seed.
 pub fn cell(o: &Options) -> Scenario {
     // A grid of cells, each in its own square of side `width` σ.
     let (cx_n, cy_n) = (o.get("cells_x", 1.0) as usize, o.get("cells_y", 1.0) as usize);
@@ -835,6 +858,8 @@ pub fn cell(o: &Options) -> Scenario {
         .with_pair(1, 2, small(1.5))
         .with_pair(2, 2, small(1.0));
     let sys = if o.get("bath", 1.0) > 0.0 { sys.with_thermostat(1.0, 0.5) } else { sys };
+    // `water` 0: the water feels nothing and nothing feels it (as if there were none).
+    let sys = if o.get("water", 1.0) > 0.0 { sys } else { sys.with_pair(0, 0, Pair::none()).with_pair(0, 1, Pair::none()).with_pair(0, 2, Pair::none()) };
     let centres: Vec<[f64; 2]> = (0..cy_n).flat_map(|j| (0..cx_n).map(move |i| [(i as f64 + 0.5) * side, (j as f64 + 0.5) * side])).collect();
     let spacing = std::f64::consts::TAU * radius / beads as f64;
     // Membrane beads first: cell by cell, in order round each ring (ids c·beads + k).
@@ -1339,7 +1364,13 @@ pub fn osmosis_free(o: &Options) -> Scenario {
 /// ideal solution: a solute that repelled itself made the osmotic pressure ~1.5× van 't Hoff's). Vapour above the liquid. A heat bath holds the temperature.
 /// Options: width (of the box; each arm is half), height, depth (initial liquid depth), solute
 /// (share of the right arm's molecules), gravity, temperature (bath: 0 for none, constant
-/// energy), cutoff, wetting (the wall beads' attraction), channel, seed.
+/// energy), cutoff, wetting (the wall beads' attraction), channel, settle, lattice, seed.
+/// With `settle` > 0 (τ) the liquid first settles as pure solvent for that long (it compacts
+/// under gravity and evaporates into the space above, which moves energy between heat and
+/// potential energy); then it is brought back to `temperature`, and only then do `solute` of the
+/// right arm's molecules become solute:
+/// solute and solvent are identical apart from the membrane, so the change costs no energy and
+/// what follows is osmosis alone.
 /// With `channel` > 0 it is the classic U-tube: a wall of fixed beads divides the arms from the
 /// top down to `channel` above the floor, so the arms meet only through the passage at the
 /// bottom, where the membrane is.
@@ -1365,14 +1396,18 @@ pub fn osmometer(o: &Options) -> Scenario {
         .with_membrane(0, w / 2.0, &[1]);
     let sys = if o.get("bath", 1.0) > 0.0 { sys.with_thermostat(t, 0.5) } else { sys };
     let depth = o.get("depth", 40.0);
-    let a = (1.0f64 / 0.72).sqrt();
+    // The liquid starts on a square lattice at density `lattice` (it compacts to ~0.75 under
+    // gravity at kT 0.5, slowly; but a start at 0.76 nearly froze it, and the U-tube barely rose).
+    let a = (1.0f64 / o.get("lattice", 0.72)).sqrt();
     let (nx, ny) = (((w - 2.8) / a) as usize, (depth / a) as usize);
     let seed = o.get("seed", 1.0) as u64;
     let f = o.get("solute", 0.3);
     let mut pos = vec![];
     let mut species = vec![];
-    let mut y = 0.5;
-    while y < h {
+    // Wall beads stay beyond the soft floor's and lid's range (1.12 σ): they are pinned, but the
+    // walls' push on them still counts as (constant) energy, ~16,000 ε per bead at 0.5 σ.
+    let mut y = 1.2;
+    while y < h - 1.2 {
         for x in [0.3, w - 0.3] {
             pos.push([x, y]);
             species.push(2);
@@ -1380,9 +1415,10 @@ pub fn osmometer(o: &Options) -> Scenario {
         y += 1.0;
     }
     let channel = o.get("channel", 0.0);
+    let settle = o.get("settle", 0.0);
     if channel > 0.0 {
         let mut y = channel;
-        while y < h - 0.4 {
+        while y < h - 1.2 {
             pos.push([w / 2.0, y]);
             species.push(2);
             y += 0.8;
@@ -1399,7 +1435,7 @@ pub fn osmometer(o: &Options) -> Scenario {
             }
             let u = gpu_prims::threefry::uniform(seed, 6, (j * nx + i) as u32);
             pos.push(p);
-            species.push((p[0] > w / 2.0 + 0.7 && u < f) as u32);
+            species.push((settle == 0.0 && p[0] > w / 2.0 + 0.7 && u < f) as u32);
         }
     }
     let mut vel = init::maxwell(&sys, &species, t, seed);
@@ -1409,5 +1445,6 @@ pub fn osmometer(o: &Options) -> Scenario {
         }
     }
     let state = State { pos: pos.iter().map(|p| [fixed::to_fixed(p[0]), fixed::to_fixed(p[1])]).collect(), vel, species };
-    Scenario { warmup: 0, finish: Finish::None, marked: 1, grid: [2, 56], radii: vec![0.5, 0.5, 0.5], sys, state }
+    let (warmup, finish) = if settle > 0.0 { ((settle / sys.dt) as usize, Finish::Solute { temperature: t, x_min: w / 2.0 + 0.7, fraction: f, seed }) } else { (0, Finish::None) };
+    Scenario { warmup, finish, marked: 1, grid: [2, 56], radii: vec![0.5, 0.5, 0.5], sys, state }
 }

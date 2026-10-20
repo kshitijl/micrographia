@@ -30,10 +30,27 @@
             <button class="primary" id="run">Run</button>
             <button id="record">Record point</button>
           </div>
+          <label class="row">Heat it with <span></span>
+            <select id="heat">
+              <option value="bath" selected>a heat bath throughout (a thermostat)</option>
+              <option value="plate">a hot plate under the floor</option>
+            </select>
+          </label>
+          <label class="row">Molecules <span></span>
+            <select id="nmol">
+              <option value="1500">1,500</option>
+              <option value="3000">3,000</option>
+              <option value="6000" selected>6,000</option>
+              <option value="12000">12,000</option>
+              <option value="24000">24,000</option>
+              <option value="48000">48,000</option>
+            </select>
+          </label>
           <label class="row">Temperature <span id="tv">0.420</span>
             <input type="range" id="t" min="0.38" max="0.47" step="0.005" value="0.42" />
           </label>
           <div class="readouts">
+            <div class="readout"><div class="k">measured temperature</div><div class="v" id="tm">–</div></div>
             <div class="readout"><div class="k">molecules in the vapour</div><div class="v" id="nv">–</div></div>
             <div class="readout"><div class="k">vapour pressure</div><div class="v" id="pv">–</div></div>
             <div class="readout"><div class="k">liquid density</div><div class="v" id="rl">–</div></div>
@@ -83,7 +100,10 @@
               small, and the vapour is very dilute.</li>
             <li>The vapour pressure is taken as vapour density × kT (the vapour is nearly ideal): counting
               the vapour molecules is far less noisy than timing their rare hits on the ceiling.</li>
-            <li>A weak gravity holds the liquid at the bottom; a heat bath keeps the temperature.</li>
+            <li>A weak gravity holds the liquid at the bottom; a heat bath keeps the temperature, or
+              (choose the hot plate) the floor heats the liquid from below through an insulating box,
+              which heats it until everything reaches the plate's temperature. Record points only once
+              the measured temperature has caught up.</li>
           </ul>
         </div>
       </article>

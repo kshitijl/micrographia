@@ -32,3 +32,17 @@ test("the solution climbs well above the pure water", async ({ page }) => {
   expect(median).toBeGreaterThan(4);
   expect(median).toBeLessThan(1.4 * r.pred);
 });
+
+test("the classic U-tube: the solution climbs through the passage, with the energy strictly conserved", async ({ page }) => {
+  test.setTimeout(600_000);
+  await page.goto("pages/osmosis/index.html");
+  await page.evaluate(() => window.osmosisDemos!.ready);
+  const r = await page.evaluate(() => window.osmosisDemos!.tube(200000, "C"));
+  const late = r.dh.slice(r.dh.length / 2).sort((a, b) => a - b);
+  const median = late[Math.floor(late.length / 2)];
+  const b = r.book;
+  console.log(`osmosis (U-tube): Δh median over the second half ${median.toFixed(1)} σ, van 't Hoff ${r.pred.toFixed(1)} σ; energy changes: lift ${b.lift.toFixed(1)}, heat ${b.heat.toFixed(1)}, interactions ${b.bonds.toFixed(1)} ε`);
+  expect(median).toBeGreaterThan(4);
+  expect(median).toBeLessThan(1.4 * r.pred);
+  expect(Math.abs(b.lift + b.heat + b.bonds)).toBeLessThan(3);
+});

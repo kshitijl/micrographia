@@ -337,6 +337,19 @@ impl DiscSim {
         future_to_promise(async move { Ok(Float64Array::from(&fut.await[..]).into()) })
     }
 
+    /// Make one wall (`which`: 0 x-low, 1 x-high, 2 y-low, i.e. the floor, 3 y-high) a heat bath
+    /// at `t` (`t` > 0), a hot or cold plate, or an insulating hard wall (`t` = 0). Thermal and hard
+    /// walls are planes, so switching between them (or from a soft wall to either) never puts a
+    /// molecule inside a wall's repulsive layer. The axis must have walls.
+    pub fn set_wall(&mut self, which: u32, t: f64) {
+        let mut sys = self.engine.sys.clone();
+        let (axis, side) = ((which / 2) as usize, (which % 2) as usize);
+        if let Some(ws) = sys.walls.get_mut(axis).and_then(|w| w.as_mut()) {
+            ws[side] = if t > 0.0 { Wall::Thermal(t) } else { Wall::Hard };
+            self.engine.update_system(sys);
+        }
+    }
+
     /// Make every wall a heat bath at `t` (`t` > 0) or insulating (`t` = 0). Insulating walls are
     /// hard (specular) planes like the thermal ones, so switching never puts a molecule inside a
     /// soft wall's repulsive layer. Pistons and membranes are unaffected.

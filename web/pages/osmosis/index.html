@@ -63,10 +63,10 @@
             <input type="range" id="speedB" min="10" max="400" step="10" value="100" />
           </label>
           <div class="readouts">
-            <div class="readout"><div class="k">level, pure water</div><div class="v" id="hl">–</div></div>
-            <div class="readout"><div class="k">level, solution</div><div class="v" id="hr">–</div></div>
-            <div class="readout"><div class="k">height difference</div><div class="v" id="dh">–</div></div>
-            <div class="readout"><div class="k">van 't Hoff predicts</div><div class="v" id="dhp">–</div></div>
+            <div class="readout"><div class="k">level, pure water</div><div class="v" id="hlB">–</div></div>
+            <div class="readout"><div class="k">level, solution</div><div class="v" id="hrB">–</div></div>
+            <div class="readout"><div class="k">height difference</div><div class="v" id="dhB">–</div></div>
+            <div class="readout"><div class="k">van 't Hoff predicts</div><div class="v" id="dhpB">–</div></div>
           </div>
           <canvas class="plot" id="plotB" aria-label="Height difference over time, with van 't Hoff's prediction"></canvas>
           <div class="legend"><span><i style="background: var(--accent)"></i>height difference</span><span><i style="background: var(--muted)"></i>van 't Hoff</span></div>
@@ -79,7 +79,63 @@
         </aside>
       </section>
 
-      <h2>3. Where the push comes from</h2>
+      <h2>3. The classic U-tube</h2>
+      <section class="lab">
+        <div class="stage" id="stageC" style="aspect-ratio: 4 / 5">
+          <canvas id="canvasC" aria-label="A U-tube: two arms of liquid divided by a wall, joined at the bottom through a membrane; the right arm holds a solution"></canvas>
+          <div class="overlay" id="overlayC">Starting the GPU…</div>
+        </div>
+        <aside class="panel">
+          <div class="buttons">
+            <button class="primary" id="runC">Run</button>
+            <button id="resetC">Reset</button>
+          </div>
+          <div class="legend"><span><i style="background: var(--species-2)"></i>water</span><span><i style="background: var(--cream)"></i>solute</span><span><i style="background: var(--accent)"></i>membrane</span><span><i style="background: var(--muted)"></i>walls</span><span><i style="background: var(--highlight)"></i>levels</span></div>
+          <label class="row">Size <span></span>
+            <select id="sizeC">
+              <option value="small" selected>3,300 molecules</option>
+              <option value="big">33,000 molecules (10×)</option>
+            </select>
+          </label>
+          <label class="row">Speed <span id="speedCv">200 steps/frame</span>
+            <input type="range" id="speedC" min="10" max="400" step="10" value="200" />
+          </label>
+          <div class="readouts">
+            <div class="readout"><div class="k">level, pure water</div><div class="v" id="hlC">–</div></div>
+            <div class="readout"><div class="k">level, solution</div><div class="v" id="hrC">–</div></div>
+            <div class="readout"><div class="k">height difference</div><div class="v" id="dhC">–</div></div>
+            <div class="readout"><div class="k">van 't Hoff predicts</div><div class="v" id="dhpC">–</div></div>
+          </div>
+          <canvas class="plot" id="plotC" aria-label="Height difference over time, with van 't Hoff's prediction"></canvas>
+          <div class="legend"><span><i style="background: var(--accent)"></i>height difference</span><span><i style="background: var(--muted)"></i>van 't Hoff</span></div>
+          <canvas class="plot tall" id="energyC" aria-label="Changes in the energy of the water's height, the heat and the attractions, since the start"></canvas>
+          <div class="legend"><span><i style="background: var(--accent)"></i>lifting the water (m g h)</span><span><i style="background: var(--species-3)"></i>heat (kinetic energy)</span><span><i style="background: var(--muted)"></i>attractions between molecules</span><span><i style="background: var(--text)"></i>total</span></div>
+          <div class="readouts">
+            <div class="readout"><div class="k">temperature kT (last ~200)</div><div class="v" id="ktC">–</div></div>
+            <div class="readout"><div class="k">cooling the lift alone causes</div><div class="v" id="ktdC">–</div></div>
+          </div>
+          <div class="status">
+            The real thing: a wall divides the two arms all the way down to a passage at the bottom, and
+            the membrane sits only in that passage. Four times as many molecules as above (3,300), in arms
+            24 σ wide, or 33,000 in arms 89 σ wide. The liquid first settles for 200 τ as pure water; then
+            30% of the right arm's molecules become solute. Water can only get across through the passage, and still the solution climbs
+            until the extra weight balances the osmotic push: in the measurements, to 11–15 σ, against
+            van 't Hoff's ~16 σ. It takes a minute or two at full speed.
+          </div>
+          <div class="ensemble">
+            No heat bath here: the energy is constant (the total line stays flat). So the energy that
+            lifts the water has to come out of the heat, and the water should cool. It does, but by
+            very little: the lift stores ~5 ε, which spread over ~2,900 molecules is a drop in kT of
+            ~0.002 (the readout). The slow cooling you will see is mostly something else: the liquid is
+            still settling after its start (a run with no solute at all cools just as much), with its
+            heat going into the attractions between molecules. A heat bath that redraws velocities at
+            random (as panel 2's does) would hide all this, and it also slows the flow through the
+            passage several times over.
+          </div>
+        </aside>
+      </section>
+
+      <h2>4. Where the push comes from</h2>
       <section class="lab">
         <div class="stage wide" id="stage">
           <canvas id="canvas" aria-label="Solvent and solute molecules on two sides of a semi-permeable membrane"></canvas>
@@ -154,6 +210,24 @@
           thermodynamic language, the solute molecules' entropy grows with the volume they can explore;
           the force that would let them expand is Π = T (∂S/∂V). Forces that come from entropy like this
           scale with temperature, unlike forces from attraction.
+        </p>
+        <h2>Where does the energy to lift the water come from?</h2>
+        <p>
+          From the heat. In the U-tube (panel 3) nothing adds or removes energy, so the m g h gained by
+          the risen column must come out of the molecules' motion, and the water must cool. It is just
+          very little: lifting the solution 15 σ above the pure water stores about 8 ε, and the water has
+          ~1,500 ε of kinetic energy and a heat capacity of a few thousand molecules, so its temperature
+          falls by about 0.3%. That is smaller than the jiggle of the temperature reading and smaller
+          than the slow drift as the liquid finishes settling (a run with no solute drifts as much), so
+          you can't see it on the plot. The energy books are exact, though: the total stays flat to
+          better than 1 ε.
+        </p>
+        <p>
+          Why would heat flow uphill into potential energy at all? Because energy is not what decides;
+          entropy is. Water moving into the solution dilutes the solute, and the solute's entropy rises
+          by much more than the tiny cooling costs. The column climbs until the next molecule of water
+          would cost more (in m g h, paid from the heat) than it gains in entropy: ρ g Δh = c kT. The
+          hotter the water, the more each bit of entropy is worth, and the higher it climbs.
         </p>
         <h2>And the solvent?</h2>
         <p>
