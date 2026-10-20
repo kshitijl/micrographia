@@ -61,6 +61,7 @@ struct Params {
     // 2^-24 σ² (see md_core::table).
     itab_len: u32,
     // Bit 0: there are soft walls (so integrate must read the per-particle wall forces).
+    // Bit 1: compartment walls are diathermal (particles interact across them).
     features: u32,
     // The thermostat's mean x velocity (position units per step): a fan.
     thermo_drift: i32,
@@ -201,9 +202,9 @@ struct Acc {
 
 // Add the pair (i, j) at positions pi, pj to `acc`. Same operations, in the same order, as
 // md-ref's PairConsts::eval and IntEngine::forces. Particles in different compartments do not
-// interact.
+// interact, unless the compartment walls are diathermal (features bit 1).
 fn add_pair(acc: ptr<function, Acc>, pi: vec4<u32>, pj: vec4<u32>, si: u32, sj: u32, c: f32) {
-    if (!same_compartment(pi, pj)) {
+    if ((P.features & 2u) == 0u && !same_compartment(pi, pj)) {
         return;
     }
     let f = sep2(pi, pj);

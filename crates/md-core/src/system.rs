@@ -39,10 +39,13 @@ pub struct System {
     /// Seed for stochastic boundaries.
     pub seed: u64,
     /// Per axis: 0 for none, or log2 of the compartment side in position units (≥ 32, i.e.
-    /// a power-of-two number of σ). Compartments are separated by hard walls, and particles in
-    /// different compartments do not interact: one simulation then holds many independent
-    /// replicas. The axis must have walls (the outer boundary).
+    /// a power-of-two number of σ). Compartments are separated by hard walls, and (unless the
+    /// walls are diathermal) particles in different compartments do not interact: one
+    /// simulation then holds many independent replicas. The axis must have walls (the outer
+    /// boundary).
     pub compartments: [u32; 2],
+    /// Whether particles interact across compartment walls.
+    pub compartment_walls: CompartmentWalls,
     /// A heat bath acting throughout the volume (Andersen): each step, each particle has
     /// probability `rate · Δt` of having its velocity redrawn at temperature `t`.
     pub thermostat: Option<Thermostat>,
@@ -137,6 +140,18 @@ impl Membrane {
     }
 }
 
+/// What the walls between compartments let through. Particles never cross them.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum CompartmentWalls {
+    /// Particles in different compartments do not interact: independent replicas.
+    #[default]
+    Insulating,
+    /// Particles interact across the walls as if they were not there, so energy flows between
+    /// neighbouring compartments by ordinary collisions (no thermostat): an ensemble of weakly
+    /// coupled boxes.
+    Diathermal,
+}
+
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Thermostat {
     pub t: f64,
@@ -165,7 +180,7 @@ impl System {
     pub fn new(box_len: [i64; 2], dt: f64, pair: Pair, masses: Vec<f64>) -> Self {
         assert!(!masses.is_empty() && masses.len() <= MAX_SPECIES);
         let ns = masses.len();
-        let s = Self { box_len, dt, pairs: vec![pair; ns * ns], masses, walls: [None, None], gravity: [0.0, 0.0], seed: 1, compartments: [0, 0], thermostat: None, membrane: None, piston: None, bond_types: vec![], bonds: Default::default(), pinned: 0 };
+        let s = Self { box_len, dt, pairs: vec![pair; ns * ns], masses, walls: [None, None], gravity: [0.0, 0.0], seed: 1, compartments: [0, 0], compartment_walls: CompartmentWalls::Insulating, thermostat: None, membrane: None, piston: None, bond_types: vec![], bonds: Default::default(), pinned: 0 };
         s.check();
         s
     }
@@ -202,6 +217,17 @@ impl System {
     /// Split `axis` into compartments of side 2^`log2_sigma` σ separated by hard walls. The box
     /// length along the axis must be a whole number of compartments, and the axis must have
     /// walls.
+    /// Let particles interact across compartment walls (see [`CompartmentWalls::Diathermal`]).
+    pub fn with_diathermal_compartments(mut self) -> Self {
+        self.compartment_walls = CompartmentWalls::Diathermal;
+        self
+    }
+
+    /// Do particles at these positions interact (not separated by an insulating compartment wall)?
+    pub fn interact_across(&self, a: [i64; 2], b: [i64; 2]) -> bool {
+        self.compartment_walls == CompartmentWalls::Diathermal || self.compartment_of(a) == self.compartment_of(b)
+    }
+
     pub fn with_compartments(mut self, axis: usize, log2_sigma: u32) -> Self {
         let shift = 32 + log2_sigma;
         assert!(self.walls[axis].is_some(), "compartments need walls on their axis");

@@ -15,7 +15,7 @@ fn int_q(d: vec2<u32>) -> i32 {
 }
 
 fn add_pair_int(acc: ptr<function, Acc>, pi: vec4<u32>, pj: vec4<u32>, si: u32, sj: u32) {
-    if (!same_compartment(pi, pj)) {
+    if ((P.features & 2u) == 0u && !same_compartment(pi, pj)) {
         return;
     }
     var dx = sub64(pj.xy, pi.xy);

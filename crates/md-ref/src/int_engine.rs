@@ -133,7 +133,7 @@ impl<F: Real> IntEngine<F> {
                     return;
                 }
                 let pj = s.pos[j];
-                if self.sys.compartment_of(pi) != self.sys.compartment_of(pj) {
+                if !self.sys.interact_across(pi, pj) {
                     return;
                 }
                 let dx = self.separation(pi[0], pj[0], 0);

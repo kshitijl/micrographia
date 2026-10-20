@@ -249,7 +249,7 @@ impl Params {
             piston_min: fixed64::split(sys.piston.map_or(0, |p| md_core::fixed::to_fixed(p.min))),
             piston_max: fixed64::split(sys.piston.map_or(0, |p| md_core::fixed::to_fixed(p.max))),
             itab_len: 0,
-            features: sys.has_soft_walls() as u32,
+            features: sys.has_soft_walls() as u32 | ((sys.compartment_walls == md_core::system::CompartmentWalls::Diathermal) as u32) << 1,
             thermo_drift: sys.thermostat.map_or(0, |t| sys.to_step_displacement(t.drift)),
             _p4: 0,
             itab_rc2: [0; 16],

@@ -415,3 +415,64 @@ fn fan_drives_a_flow() {
 }
 
 
+
+/// Diathermal compartment walls: molecules interact through them but never cross. Four boxes,
+/// one hot: their temperatures converge (on the GPU and the CPU twin), the total energy holds,
+/// and the run still reverses exactly. With insulating walls the hot box stays hot.
+#[test]
+fn diathermal_walls_share_energy() {
+    let p = prims();
+    let side = 16.0;
+    let mk = |diathermal: bool| {
+        let mut sys = System::new([md_core::fixed::to_fixed(2.0 * side); 2], init::DT, Pair::wca(), vec![1.0])
+            .with_walls(0, Wall::Hard, Wall::Hard)
+            .with_walls(1, Wall::Hard, Wall::Hard)
+            .with_compartments(0, 4)
+            .with_compartments(1, 4);
+        if diathermal {
+            sys = sys.with_diathermal_compartments();
+        }
+        sys
+    };
+    let sys = mk(true);
+    let mut s0 = init::compartment_fluid(&sys, 80, 0.5, 31);
+    // The box at the origin is hot: kT 3.5 against 0.5, so the average is 1.25.
+    for i in 0..s0.n() {
+        if sys.compartment_of(s0.pos[i]) == [0, 0] {
+            s0.vel[i] = s0.vel[i].map(|v| (v as f64 * 7f64.sqrt()).round() as i32);
+        }
+    }
+    let box_t = |sys: &System, s: &State| {
+        let mut t = [[0.0; 2]; 4];
+        for i in 0..s.n() {
+            let c = sys.compartment_of(s.pos[i]);
+            let v = s.vel[i].map(|x| sys.velocity(x));
+            let k = (c[1] * 2 + c[0]) as usize;
+            t[k][0] += 0.5 * (v[0] * v[0] + v[1] * v[1]);
+            t[k][1] += 1.0;
+        }
+        t.map(|[e, n]| e / n)
+    };
+    eprintln!("start: box kT {:?}", box_t(&sys, &s0));
+    let e0 = IntEngine::<f64>::new(sys.clone(), s0.clone()).energy().total();
+    let mut g = GpuEngine::new(&p, sys.clone(), &s0);
+    let mut c = IntEngine::<f32>::new(sys.clone(), s0.clone());
+    let mut ins = GpuEngine::new(&p, mk(false), &s0);
+    g.step(20000);
+    c.step(20000);
+    ins.step(20000);
+    let (tg, tc, ti) = (box_t(&sys, &block_on(g.read_state())), box_t(&sys, &c.state), box_t(&sys, &block_on(ins.read_state())));
+    let e1 = IntEngine::<f64>::new(sys.clone(), block_on(g.read_state())).energy().total();
+    eprintln!("after 100 τ: GPU {tg:?}, CPU {tc:?}, insulating {ti:?}; total energy {e0:.2} → {e1:.2}");
+    // With 80 molecules a box's kT fluctuates by ~±0.14 even in equilibrium.
+    for t in tg.iter().chain(&tc) {
+        assert!((t - 1.25).abs() < 0.4, "box kT {t:.3} has not approached 1.25");
+    }
+    assert!(ti[0] > 3.0, "insulated hot box cooled to {:.2}", ti[0]);
+    // Integration error (the hot box's fast molecules) moves the total by a few tenths of a percent.
+    assert!((e1 - e0).abs() < 1e-2 * e0.abs().max(1.0), "energy drifted {e0} → {e1}");
+    g.reverse();
+    g.step(20000);
+    g.reverse();
+    assert!(block_on(g.read_state()) == s0, "diathermal walls broke exact reversal");
+}
