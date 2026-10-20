@@ -12,6 +12,10 @@ engine. See `README.md`, `docs/status.md` and `docs/architecture.md`.
 
 ## Code
 
+- Before changing integrators, thermostats, walls, scenario set-up or measurements, read
+  `docs/research.md` §18 (lessons from the textbooks and from the bugs found so far, with
+  chapter and page citations).
+
 - Rahman will be published for others to use, so its API matters. Build the pages on the public
   API (the scenario builders, the engine's methods, the wasm `DiscSim` and `web/src/lib`), not on
   internals; when a page needs something new, add it to the public API properly.

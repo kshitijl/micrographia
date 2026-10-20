@@ -993,7 +993,348 @@ Ten Minute Physics (§14).
 - Whether any newer WebGPU MD engine has appeared (repeat the search periodically).
 ---
 
-## 18. Bibliography (consolidated)
+## 18. Lessons from the textbooks and from building the pages
+
+Written 2026-10-20, after five rounds of page review, from six textbooks (library loans; not in
+the repository) and from this repository's history. The aim is to save future humans and agents
+from repeating our mistakes, and to point at the passages that explain them.
+
+**Sources** (short tags used below; full entries in §19, "Textbooks"):
+
+| Tag | Book |
+|---|---|
+| [AT] | M. P. Allen and D. J. Tildesley, *Computer Simulation of Liquids*, 2nd ed. (Oxford, 2017) |
+| [FS] | D. Frenkel and B. Smit, *Understanding Molecular Simulation*, 3rd ed. (Academic Press/Elsevier, 2023) |
+| [TU] | M. E. Tuckerman, *Statistical Mechanics: Theory and Molecular Simulation*, 2nd ed. (Oxford, 2023) |
+| [HLW] | E. Hairer, C. Lubich and G. Wanner, *Geometric Numerical Integration*, 2nd ed. (Springer, 2006) |
+| [BY] | J. P. Boon and S. Yip, *Molecular Hydrodynamics* (McGraw-Hill, 1980; Dover, 1991) |
+| [FA] | G. Falkovich, *Fluid Mechanics*, 2nd ed. (Cambridge, 2018) |
+
+Page numbers are the books' printed page numbers.
+
+**What was read, and how closely.** All six tables of contents were read in full. The
+following were read closely:
+- [AT] §3.6 (checks on accuracy) and §3.8 (constant-temperature MD); §8.4–8.5 (errors,
+  recurrence, long-time tails); §9.4 (Gibbs ensemble and osmotic equilibria); §11.4–11.5
+  (reverse NEMD, flow in confined geometry); §14.1 (the planar gas–liquid interface).
+- [FS] §4.3 (equations of motion: Lyapunov instability, reversibility, phase-space volume);
+  §5.1.1 (temperature); §5.2.3 and Examples 6–7 (Green–Kubo, mean-squared displacement, block
+  averages); §6.5.4 (semigrand and osmotic ensembles); §7.1 (thermostats, including §7.1.4,
+  "Choose your thermostat carefully"); §8.5.1 (particle insertion).
+- [TU] §2.1 (Loschmidt's paradox); §3.10–3.11 (operator factorization, multiple time steps,
+  resonances); the start of §3.13 (shadow Hamiltonians).
+- [HLW] §I.4 (molecular dynamics experiment); §V.1 (reversible maps); §VIII.5 (rounding
+  errors); §IX.8 (long-time energy conservation).
+- [BY] the preface; §1.1–1.2; §3.4 (long-time tails); §6.2 (transverse current fluctuations).
+- [FA] §1.1.3 (hydrostatics and convective stability); §1.4 (viscosity and the reversibility
+  paradox); §1.5.1 (Stokes flow); §2.2.2 and §2.2.4 (cascade, mixing); the two-cascade passage
+  at the end of §3.3; the worked solution on convection (Rayleigh number) in the solutions to
+  Chapter 2.
+
+The rest was skimmed, or searched for specific topics: thermostats, two dimensions, osmosis,
+Widom insertion, reversibility, Jarzynski, configurational temperature and resonance. Where a
+claim below comes from memory rather than these pages, it is tagged [memory].
+
+### 18.1 Integration, reversibility and energy
+
+- **Why our energy is so flat, and when it stops being so.** Leapfrog (Störmer–Verlet) is
+  symmetric and symplectic, so it exactly conserves a nearby "shadow" Hamiltonian. The true
+  energy error is then O(Δt²) and stays bounded over exponentially long times: [HLW] §IX.8,
+  Theorem 8.1, p. 367 (Benettin and Giorgilli); [TU] §3.13, p. 124; [FS] §4.3.2–4.3.4,
+  pp. 110–118.
+  - The theorem needs an analytic Hamiltonian. Anything non-smooth is outside it: our hard
+    walls, the WCA cutoff (continuous in value and force, not in the second derivative), thermal
+    walls, membranes and pores.
+  - [FS] footnote 5, p. 112: "introducing a cut-off, even a smoothed cut-off, will undermine
+    this argument". [AT] p. 124 cites Toxvaerd et al. (2012): the potential and its first four
+    derivatives should be continuous at the cutoff for long-time conservation.
+  - We saw this ourselves: a hard wall under gravity gains or loses O(Δt) per bounce, which is
+    why gravity pages use `Wall::Soft`.
+  - **Lesson:** expect bounded, not perfect, energy conservation in any scenario with walls or
+    cutoffs, and measure it.
+- **The check we should run everywhere.** [AT] §3.6, p. 121: switch the thermostat off, then
+  plot the rms energy fluctuation against Δt² over the same trajectory length (Andersen's
+  suggestion, Berens et al. 1983). It should be a straight line. A drift that does not shrink
+  with Δt is physics or a bug; one that does is the integrator. The same section warns:
+  - an energy that "explodes in the first few steps" means overlapping starting positions or a
+    serious bug (both happened here, §18.8);
+  - a quantity constant to ten figures is "probably not being updated at all" (p. 125). The UI
+    equivalent bit us: the fluid panel started paused, and a user saw nothing happen.
+- **Fixed point is the right answer to rounding.** [HLW] §VIII.5, pp. 322–325:
+  - rounding errors in yₙ₊₁ = yₙ + δₙ accumulate like a random walk, O(t^{3/2}·eps);
+  - compensated summation began as Gill's (1951) trick *in fixed-point arithmetic*.
+  - [FS] p. 112 notes that floating-point implementations of reversible algorithms are "hardly
+    ever truly time reversible".
+  - Our 64-bit fixed-point positions and integer kicks make the update exact, which is why the
+    reversal page returns bit for bit. Keep the state in integers, and keep every update that
+    touches it (walls, membranes, pistons, region commands) integer-exact and invertible.
+- **Chaos sets the horizon, not the integrator.** [FS] §4.3.1, pp. 106–110, Fig. 4.1 (500 LJ
+  atoms, ρ = 0.8, T = 1): a velocity change of 10⁻⁸ decorrelates the whole system within about
+  10 τ. This is a property of the system, "not of the algorithm" (p. 107).
+  - Our reversal page agrees: one molecule nudged 12 τ out spoils the return of 1,125 of 8,000
+    molecules; nudged 25 τ out, all 8,000.
+  - Statistical answers are trustworthy anyway because numerical orbits shadow true ones,
+    "a working hypothesis" (p. 110). Pages should say so where they lean on it.
+- **Stiff springs.**
+  - Leapfrog goes unstable at ωΔt = 2, and becomes unphysical well before that. A starting
+    rule is Δt ≈ one tenth of the Einstein period: [AT] §3.6, pp. 121–122.
+  - Our stiffest springs (k = 150, the big saline cell) have ω = √(2k/m) ≈ 17 τ⁻¹, a period
+    of about 73 steps: fine.
+  - If we ever need stiffer bonds, use RESPA multiple time stepping ([TU] §3.11, pp. 116–121;
+    [AT] §3.5). Mind the resonance limit Δt < π/ω_fast ([TU] §3.11.1, p. 121; [HLW] §VIII.4,
+    §XIII.1.1).
+- **Which velocities give the temperature.** [FS] §5.1.1, pp. 127–128: with a finite time
+  step, the velocity conjugate to the shadow Hamiltonian is not the leapfrog velocity. Using
+  the wrong one gives visibly different "temperatures" for stiff internal modes and for
+  translation.
+  - Our kinetic-energy readouts use half-step velocities. They are fine for simple fluids, but
+    on pages with stiff springs (rubber, the big cell), compare against the mean of the two
+    adjacent half-steps before trusting small temperature differences.
+- **Degrees of freedom.** [FS] §5.1.1, p. 127: f = Nd minus constraints and conserved
+  quantities. Total momentum is conserved only without walls and external fields.
+  - `init::set_temperature` counts pinned particles and then zeroes the net momentum over
+    everyone, which gives pinned beads a small velocity, and pinned particles move by their
+    velocity. This is a latent bug; the U-tube's `Finish::Solute` avoids it by hand. Fix it in
+    one place: exclude pinned species, and do not zero momentum when walls or gravity break
+    momentum conservation.
+
+### 18.2 Thermostats: what they do to dynamics
+
+- **The Andersen bath kills flow.** This is the clearest textbook confirmation of a problem we
+  hit.
+  - [FS] §7.1.1.1, pp. 237–239: "the Andersen thermostat does not conserve momentum. Hence it
+    should not be used when hydrodynamic effects are expected to be important". Example 14:
+    a perturbation is "screened exponentially" rather than diffusing, so "do not use the
+    Andersen method when computing transport properties".
+  - [AT] §3.8.1, pp. 130–131 agrees: too high a collision rate makes velocity correlations
+    decay exponentially, and non-conservation "may become problematic in the study of fluid
+    flow".
+  - **Ours:** the osmotic U-tube rose to Δh ≈ 11 σ by 1000 τ with no bath, and only about 2 σ
+    with the bath (crates/md/tests/osmosis_demos.rs).
+  - **Lesson:** no bulk Andersen bath on any page whose answer is a rate, a flow, or a
+    transport coefficient: heat flow, smell, osmotic flow, masks, viscosity.
+- **What to use instead, when a bath is needed.**
+  - The **Lowe–Andersen** thermostat: pairwise, momentum-conserving, resampling the relative
+    velocity along the line of centres of nearby pairs. [AT] §3.8.1, pp. 131–132; [FS]
+    §7.1.1.2, pp. 239–241.
+  - Or **DPD**: [AT] §12.4; [FS] §16.1.
+  - [FS] §7.1.4, pp. 257–258 ("Choose your thermostat carefully"): in flowing systems only the
+    *peculiar* velocity (relative to the local flow) should be thermostatted, and the cleanest
+    way is "a local, momentum conserving thermostat that controls the kinetic energy
+    distribution of the relative motion of neighboring particles".
+  - Our "flow-relative" fan thermostat (commit 0e59497) is a hand-made version of this. Replace
+    it with Lowe–Andersen plus a body force. Draw the per-pair random numbers from Threefry,
+    keyed by (step, pair ids), to stay deterministic.
+- **Prefer physical baths at boundaries.** A microcanonical bulk with heat-bath walls (our
+  thermal walls, the hot plates) is the most physical canonical contact and keeps bulk
+  hydrodynamics intact. It fits CLAUDE.md's preference.
+- **Avoid:**
+  - Berendsen weak coupling: not canonical, and its distribution depends on τ ([AT] p. 139).
+  - Velocity rescaling during equilibration: "probably unwise" ([FS] p. 237; it can cause the
+    "flying ice cube").
+  - Nosé–Hoover on small or stiff systems, where it is not ergodic ([AT] p. 136). If we
+    ever use Nosé–Hoover, show its conserved extended energy ([AT] eq. 3.65) as the page's
+    "total energy".
+
+### 18.3 Measuring things
+
+- **Finding a liquid's surface.** [AT] §14.1.3, pp. 451–452: fit ρ(z) to a tanh (eq. 14.8)
+  or an error function (eq. 14.9), or use the Gibbs dividing surface (eq. 14.10, equal areas).
+  - Our U-tube instead takes the last crossing of ρ = 0.35. On a ragged 2D surface (films
+    climbing walls, capillary waves) that alone moves Δh by several σ.
+  - Switch to the Gibbs dividing surface per arm.
+- **Interfaces need care in preparation.** [AT] §14.1.1–14.1.2, pp. 446–449:
+  - start the liquid slightly above its coexistence density;
+  - check thermal equilibrium (T(z) flat, Code 14.1), mechanical equilibrium (normal pressure
+    P_N(z) flat, eq. 14.3) and chemical equilibrium;
+  - coexistence "varies dramatically with the chosen pair potential cutoff" (p. 446).
+  - Ours: the U-tube started at 0.72, the liquid compacted to about 0.75, and a start at 0.76
+    nearly froze it.
+  - Our "settle as pure water, then add solute" step is this preparation done right.
+- **Errors, not eyeballs.**
+  - Block averaging (Flyvbjerg–Petersen): [FS] §5.3.3, pp. 171–173 and Example 7, p. 165;
+    [AT] §8.4.
+  - Our thresholds (the big cell's tension limit, the U-tube medians) were set from one or two
+    runs, and tests flaked: the cell tore at 163 τ in one run and 257 τ in another; one run
+    failed.
+  - **Lesson:** seed every page's randomness (done for salt), and set test bounds from
+    block-averaged error bars.
+- **Recurrence in periodic boxes.** [AT] §8.4, p. 289: sound crosses a periodic box and returns
+  in about L/c_s, which corrupts long-time correlations. It matters on the bike pump (shock
+  reflections) and in long corridors.
+- **Mechanical equilibrium as a picture.** The atmosphere page's "weight of the gas above
+  against n kT" is a crude version of [AT] eq. 14.3. The real Irving–Kirkwood normal pressure
+  (kinetic plus virial, slab by slab) would let the boiling page show P_N flat straight
+  through the liquid–vapour interface, while the tangential pressure dips (surface tension,
+  eq. 2.183a).
+
+### 18.4 Hydrodynamics inside the particles (and why 2D is special)
+
+- **Long-time tails.** [BY] §3.4, pp. 120–129; [AT] §8.5, p. 293; [FS] Example 6, pp. 163–164.
+  - The velocity autocorrelation decays as t^{-d/2}, because a moving molecule sets up a vortex
+    flow that keeps pushing it (Alder and Wainwright's discovery, [BY] p. 120, Fig. 3.5).
+  - In 2D that is t⁻¹, so the Green–Kubo diffusion coefficient diverges logarithmically: "the
+    self-diffusion coefficient D would be infinite in a two-dimensional fluid" ([BY] p. 128).
+  - **Lesson:** the smell page's D ≈ 1.18 σ²/τ is an effective value for that run length and box
+    size; it grows like ln t. Say so on the page, and never quote a 2D transport coefficient as
+    a material constant.
+  - This is the same physics as Stokes' paradox (§4 above).
+- **Measuring viscosity in MD.** [BY] §6.2, pp. 281–285:
+  - the transverse current correlation J_t(k, t) decays as exp(−νk²t) (eq. 6.2.4), so ν comes
+    from fitting a few small k;
+  - it is valid below about a tenth of 2π/ℓ (p. 282).
+  - Alternatively, Müller-Plathe's reverse NEMD swaps momenta between two slabs, so total energy
+    and momentum stay exactly conserved: no thermostat needed ([AT] §11.4, p. 371). That fits
+    our microcanonical preference.
+  - Either gives the viscosity for the "calibration" merge in `fluid-engine.md`.
+- **Poiseuille and slip.** [AT] §11.5, pp. 371–374: a body force between walls gives Poiseuille
+  flow; the slip length ℓ = η/ζ (eqs. 11.44–11.45) needs both Couette and Poiseuille runs. This
+  is the recipe for the "same flow at two scales" page.
+
+### 18.5 Fluids, and the throwaway convection panel
+
+- **Convective stability.** [FA] §1.1.3, pp. 6–8, eq. 1.9: air is stable when entropy rises
+  with height, that is when −dT/dz < g/c_p, about 10 °C per km. Further:
+  - the real 6.5 °C/km is lower because rising vapour condenses and releases latent heat
+    (p. 11);
+  - anvil-cloud tops mark where unstable air meets stable (p. 8);
+  - "the human body always excites convection in room-temperature air" (p. 8).
+
+  The atmosphere page's text is consistent with all of this.
+- **The 2D inverse cascade explains the wind.** [FA] end of §3.3, pp. 138–139 ("Turbulence with
+  two cascades", Kraichnan 1967): two-dimensional flow conserves both energy and enstrophy, so
+  energy flows to *large* scales and enstrophy to small ones. In a bounded domain the large
+  scales form a "condensate" (p. 139).
+  - Our convection panel's left-to-right wind across the top was exactly that condensate.
+  - **Lesson:** every 2D fluid demo needs a large-scale sink (we damp the mean wind) and a
+    caveat.
+- **Two different reversibilities.**
+  - The reversal page's return fails because of molecular chaos ([FS] §4.3.1).
+  - Low-Reynolds-number flow is reversible for the opposite reason: it is linear and has no
+    inertia, "an Aristotelean world" ([FA] §1.5.1, pp. 44–45). Reversing the forces retraces
+    the motion, which is why swimming at low Re must be non-reciprocal (the scallop theorem).
+  - The reversibility paradox: drag must be odd in velocity, so it can only come from friction
+    ([FA] §1.4.1, pp. 36–37).
+  - A Taylor "unmixing" page next to the reversal page would contrast the two.
+- **Mixing.** [FA] §2.2.4, pp. 81–83:
+  - flow increases a flux (Zeldovich);
+  - in a pipe, Taylor dispersion gives an effective diffusivity κ + kU²a²/κ (k = 1/192 for a
+    round tube);
+  - across convection cells the enhancement is about κ·Pe^{1/2};
+  - [FA] works the example of medicine spreading in a vein (p. 82): about 10 cm²/s, set by the
+    flow, not by diffusion.
+
+  Ideas follow in §18.9.
+- **Convection from molecules is feasible.** From the Rayleigh-number derivation in [FA]'s
+  solutions to Chapter 2 (pp. 169–170): onset needs Ra = gβΔT h³/(νχ) above about 1708 between
+  rigid plates. For our LJ fluid, ν, χ ~ 1 in reduced units and β = 1/T; with g = 0.01 and
+  ΔT/T ~ 1 that means h ≳ 55 σ.
+  - That is within reach: a hot plate under a cold lid in an MD box of about 10⁴–10⁵ molecules
+    should show convection rolls emerging from molecules.
+  - MD Rayleigh–Bénard convection has been done before (Rapaport, PRL 1988 [memory]).
+
+### 18.6 Free energy, insertion and osmosis
+
+- **Widom insertion is virtual; ours is real.** [FS] §8.5.1, pp. 280–282; [TU] §6.8:
+  μ_ex = −kT ln⟨exp(−βΔU)⟩ over uniformly random trial insertions that are "never accepted".
+  - Our salt brush *does* insert, turning water into salt only where nothing overlaps (ΔU = 0
+    for WCA). It is energy-neutral by construction, but slightly biased towards cavities
+    (strictly, a Metropolis identity change would accept partial overlaps with probability
+    e^{−βΔU}; [FS] §6.5.4, semigrand ensemble).
+  - The fraction of water molecules with room is itself a measurement (§18.9, idea 8).
+- **Osmotic pressure, other routes.** [FS] §6.5.4, pp. 211–212 (the osmotic ensemble); [AT]
+  §9.4, p. 335 (Gibbs-ensemble osmotic equilibria, Panagiotopoulos et al. 1988; the acceptance
+  rule includes −βΠδV).
+  - These are fast Monte Carlo checks of the ~20% non-ideality we measured (with and without
+    the water made invisible).
+- **The direction of time.** [TU] §2.1, p. 56 (Loschmidt's paradox); [FS] §4.3.1. The pages'
+  language ("entropy is why it climbs, the energy comes from the heat") matches the standard
+  resolution.
+- **Jarzynski.** [TU] §8.4, p. 350 ff.; [AT] §11.6; [FS] §8.7. Repeated fast compressions give
+  ⟨e^{−βW}⟩ = e^{−βΔF} exactly, while ⟨W⟩ ≥ ΔF. Our batched replicas (compartments) make this
+  cheap (§18.9, idea 5).
+
+### 18.7 Starting states and equilibration
+
+- [AT] §5.6 and §3.6, p. 124: check starting configurations for close pairs; a catastrophic
+  energy rise in the first steps means overlaps. Every scenario builder should guarantee:
+  - every particle inside the half-open box (now enforced by `scenarios::build`);
+  - no pair much closer than contact (a force bound at step 0, like the rubber stretch test);
+  - pinned particles outside every wall's range of action.
+- **Settle before measuring, and prove it with a control.**
+  - The U-tube "cooled" by 2%, and a run with no solute cooled just as much: relaxation, not
+    osmosis.
+  - **Lesson:** every claimed effect needs a control run without the cause (no solute, plate
+    off, water invisible).
+  - [AT] §14.1.2 lists the equilibrium checks. The configurational temperature ([AT]
+    Appendix F, p. 517: T_conf = ⟨|∇U|²⟩/⟨∇²U⟩) is a cheap, independent "is it in
+    equilibrium?" indicator that a page could show beside the kinetic temperature.
+
+### 18.8 Bugs found while building the pages, and the guard each needs
+
+| What happened | Found by | Guard (now, or to add) |
+|---|---|---|
+| Bonds longer than 8 σ gave garbage forces on the GPU; the CPU twin silently skipped them, so the twins disagreed quietly | the rubber band "crazy mode" | fixed (`sep_long`); CPU twins must never silently skip a case the GPU computes; test across the whole range (3–20 σ) |
+| A wall bead was placed exactly on the box's top edge; the soft wall bounced it at 100 σ/τ | a U-tube "temperature" alternating 0.49/2.2 | `build()` rejects particles outside [0, L); regression test that pinned beads stay put |
+| Pinned beads inside the soft walls' range held a constant 64,000 ε | energy books jumping at step 1 | beads now kept 1.2 σ clear; to add: walls should ignore pinned particles |
+| Salt made by changing species at random overlapped neighbours; kT went to ~3,000 | the salt pour | insert only where there is room ([AT] §3.6) |
+| `init::set_temperature` counts pinned particles and zeroes momentum over everyone | reading [FS] §5.1.1 | to fix (§18.1) |
+| Rebuilding a simulation freed it under a running readout ("null pointer passed to rust") | the atmosphere page's Reset | `SimHost.create` serialised |
+| `set_view` takes corners; two pages passed a width and height | reading the wasm API | to add: a typed `View {lo, hi}` in TS (make illegal states unrepresentable) |
+| The fluid panel started paused, so Sunshine alone did nothing | the user | controls that change physics start the run ([AT] p. 125: "check that the monitored quantities are in fact evolving") |
+| Andersen bath slowed the U-tube several-fold | measurement, then [FS] §7.1.1.1 | no bulk Andersen bath on flow pages (§18.2) |
+| A denser start (0.76) nearly froze the 2D LJ liquid | U-tube test failure | stay clear of the 2D LJ melting line; check ρ(z) and mobility before measuring |
+| 2D convection built a mean wind | the user | damp large scales; caveat ([FA] §3.3) |
+| Thresholds tuned on one run made tests flaky | test failures | seeds, block errors ([FS] §5.3.3) |
+
+### 18.9 Ideas, from the reading, mapped to the questions
+
+1. **"How fast does a nudge become a different world?"** (reversal page; *Why does entropy
+   increase?*). Run two copies in compartments, identical but for one flipped bit, and plot
+   log |Δr|² live. The slope is the Lyapunov exponent; then it turns diffusive. This is [FS]
+   Fig. 4.1 made interactive, and it shows why the one-molecule nudge spoils the return.
+2. **"Is there a diffusion coefficient in Flatland?"** (smell page). Plot D(t) creeping up like
+   ln t, and average the velocity field in the frame of molecules moving right, to show the
+   Alder–Wainwright vortex ([BY] §3.4, Fig. 3.5). It is visceral and true, and it explains the
+   smell page's number.
+3. **Convection rolls from molecules** (*Why is it colder at altitude? Why do cumulus clouds
+   have flat bases?*). Use the new hot plate with a cold lid, h ≳ 55 σ and liquid-like density
+   (Ra above the threshold, §18.5). Then put the MD box beside the fluid panel: the same rolls
+   at two scales, which is the emergence page fluid-engine.md asks for.
+4. **The Lowe–Andersen bath in Rahman** (§18.2). Momentum-conserving, deterministic per pair.
+   It lets the U-tube, mask and smell pages keep a temperature without killing the flow.
+5. **Jarzynski on the bike pump** (*Why does fast compression heat a gas?*). Many replicas
+   pushed fast: the work histogram, ⟨W⟩ above ΔF, and ⟨e^{−βW}⟩ landing on ΔF exactly ([TU]
+   §8.4).
+6. **Measure the viscosity** from transverse currents ([BY] §6.2) or by reverse NEMD ([AT]
+   §11.4). That gives a page on "why honey flows slowly" (its temperature dependence too: [FA]
+   §1.4.3 explains why gases get *more* viscous when hot and liquids less), and the calibration
+   number for the fluid engine.
+7. **Taylor dispersion** (smell page; saline page). With walls, a draught spreads the puff along
+   the corridor far faster than diffusion; and an IV drop spreads through a vein by the flow
+   ([FA] §2.2.4, p. 82).
+8. **"How hard is it to add salt here?"** (saline page; *Why does salt dissolve?*, *road
+   salt*). The fraction of water molecules with room for a salt molecule, −kT ln(fraction), is
+   an insertion free energy ([FS] §8.5.1, §6.5.4). Compare inside and outside the cell, and
+   against temperature; this connects to solubility and to the FEP page.
+9. **An "is it in equilibrium?" light**: configurational temperature beside kinetic
+   temperature ([AT] Appendix F). Useful on every settling page (the U-tube, boiling on a hot
+   plate).
+10. **CI energy test**: rms energy fluctuation against Δt² for every scenario family, with
+    thermostats off ([AT] §3.6). Most bugs in §18.8 would have shown up as a broken line.
+11. **Pressure tensor through the interface** (boiling page; *Why is there a triple point?*,
+    surface tension): P_N flat, P_T dipping, their integral the surface tension ([AT] §14.1.2,
+    §14.1.4).
+12. **Pressure cooker, opened early** (*pressure cookers*, from questions.md): a hot plate under a
+    piston lid; lift the lid and the superheated liquid flash-boils (bubbles nucleating at the
+    plate were already visible in our first hot-plate run).
+13. **Low-Re reversibility and swimming** (for the fluid engine; *Taylor's unmixing*): the
+    scallop theorem ([FA] §1.5.1, p. 45) next to the reversal page, as two kinds of
+    reversibility.
+
+---
+
+## 19. Bibliography (consolidated)
 
 ### DESRES
 1. Bowers, K. J., et al. "Scalable Algorithms for Molecular Dynamics Simulations on Commodity Clusters." SC06 (2006). https://ieeexplore.ieee.org/document/4090217
@@ -1073,3 +1414,11 @@ Ten Minute Physics (§14).
 59. Meltzer, D. E. Students' reasoning regarding heat, work, and the first law. *Am. J. Phys.* (2004).
 60. Brundage, M. J., Meltzer, D. E., Singh, C. Introductory and advanced students' difficulties with entropy and the second law, validated instrument. (2024). https://arxiv.org/abs/2408.00944
 61. Loverude, M. E., Kautz, C. H., Heron, P. R. L. Student understanding of the first law of thermodynamics. *Am. J. Phys.* 70 (2002) [memory].
+
+### Textbooks (read 2026-10-20 for §18; library loans, not in the repository)
+62. Allen, M. P., Tildesley, D. J. *Computer Simulation of Liquids*, 2nd ed. Oxford University Press (2017). [read: §3.6, §3.8, §8.4–8.5, §9.4, §11.4–11.5, §14.1; contents]
+63. Frenkel, D., Smit, B. *Understanding Molecular Simulation: From Algorithms to Applications*, 3rd ed. Academic Press/Elsevier (2023). [read: §4.3, §5.1.1, §5.2.3, §6.5.4, §7.1, §8.5.1; contents]
+64. Tuckerman, M. E. *Statistical Mechanics: Theory and Molecular Simulation*, 2nd ed. Oxford University Press (2023). [read: §2.1, §3.10–3.11, §3.13 opening; contents]
+65. Hairer, E., Lubich, C., Wanner, G. *Geometric Numerical Integration: Structure-Preserving Algorithms for Ordinary Differential Equations*, 2nd ed. Springer Series in Computational Mathematics 31 (2006). [read: §I.4, §V.1, §VIII.5, §IX.8; contents]
+66. Boon, J. P., Yip, S. *Molecular Hydrodynamics*. McGraw-Hill (1980); Dover reprint (1991). [read: preface, §1.1–1.2, §3.4, §6.2; contents]
+67. Falkovich, G. *Fluid Mechanics*, 2nd ed. Cambridge University Press (2018). [read: §1.1.3, §1.4, §1.5.1, §2.2.2, §2.2.4, end of §3.3, solutions to Ch. 2; contents]
