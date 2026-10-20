@@ -118,18 +118,26 @@ the minimal model per question.
 - They need bonds, angles, dihedrals, partial charges and PME long-range electrostatics
   (FFT-heavy, painful without f64 in WGSL), with timesteps of about 1–2 fs. That is roughly
   10³–10⁴× more cost per unit of physical time.
-- **They get the water physics wrong anyway.** Melting points of water models (Vega et al.,
-  *J. Chem. Phys.* 122, 234511, 2005) [memory]:
-  - TIP3P: ~146 K
-  - SPC/E: ~215 K
-  - TIP4P/2005: ~252 K
-  - TIP4P/Ice: ~272 K
+- **They get the water physics wrong anyway.** Melting points of ice Ih for common water
+  models:
+  - TIP3P: ~146 K [memory]
+  - SPC/E: ~215 K [memory]
+  - TIP4P/2005: 250 K [read: Blazquez & Vega 2022]
+  - TIP4P/Ice: ~272 K [memory]
+  - TIP5P: 274 K [read: Blazquez & Vega 2022]
+
+  The 2005 citation given earlier (*J. Chem. Phys.* 122, 234511) was wrong. The original is
+  probably Vega, Sanz & Abascal, *J. Chem. Phys.* 122, 114507 (2005) [memory]. The verified
+  current summary is Blazquez & Vega, "Melting points of water models: Current situation," *J.
+  Chem. Phys.* 156, 216101 (2022), [doi:10.1063/5.0093815](https://doi.org/10.1063/5.0093815)
+  (also TIP3P-FB 216 K, TIP4P-FB 242 K, TIP4P-D 247 K). They conclude that no model reproduces
+  both the melting point and the temperature of maximum density.
 - The detail obscures the mechanism, which works against question-led teaching.
 
 ### Coarse-grained middle ground
 - **mW water** (Molinero & Moore, *J. Phys. Chem. B* 113, 4008, 2009): a single site with a
-  Stillinger–Weber three-body term favoring tetrahedral bonding. It melts near 274 K, has the
-  density maximum and floating ice, and costs about 100× less than atomistic water. [memory]
+  Stillinger–Weber three-body term favoring tetrahedral bonding. It has the density maximum
+  and floating ice, and costs about 100× less than atomistic water. Verified numbers are in §11.
   Candidate model for the ice, salt and triple-point questions. There is follow-up work on
   coarse-grained ions with mW.
 - **MARTINI** (4-to-1 coarse graining) or simpler bead-spring lipids for bilayer
@@ -550,7 +558,7 @@ Jiqun Tu (NVIDIA) and Ellery Russell (Schrödinger, Desmond tech lead). S61156,
 |---|---|---|---|
 | 1 | **Fixed-point positions** in box-normalized coordinates (u32) | Desmond SC06, Anton | 2³² steps across the box. Integer wraparound gives periodic boundaries for free; nearest image is the signed i32 difference. No f64 needed. |
 | 2 | **Fixed-point accumulation** of forces, energies, impulses and heat | Anton, OpenMM, AMBER SPFP, Tinker-HP, pbmpm, WebGPU-Ocean | Order-independent and deterministic. WGSL has only 32-bit atomics, so emulate 64-bit with **two u32 words**: `atomicAdd` the low word, detect carry from the returned old value, `atomicAdd` the carry and high part into the high word. The final sum is exact because addition commutes. |
-| 3 | **Bitwise-reversible integration** (fixed-point leapfrog with symmetric rounding) | Desmond SC06; Levesque & Verlet, "Molecular dynamics and time reversibility", *J. Stat. Phys.* 72, 519 (1993) [memory] | Exact-reversal **Loschmidt demo**: release a gas, flip velocities, it un-mixes exactly; flip a single bit first and it doesn't (chaos). Doubles as an engine determinism test. Thermal walls break reversibility, which is a lesson in itself. |
+| 3 | **Bitwise-reversible integration** (integer leapfrog: positions and velocities as integers in the same units, so the drift step is exact and only the kick rounds; see `architecture.md`) | Desmond SC06; Levesque & Verlet, "Molecular dynamics and time reversibility", *J. Stat. Phys.* 72, 519 (1993) [memory] | Exact-reversal **Loschmidt demo**: release a gas, flip velocities, it un-mixes exactly; flip a single bit first and it doesn't (chaos). Doubles as an engine determinism test. Thermal walls break reversibility, which is a lesson in itself. |
 | 4 | **Counter-based RNG** keyed by (seed, step, particle id) | Random123; HOOMD (Philox via OpenRAND); symdjs | Reproducible thermal walls and Langevin noise with no RNG state. Use **Threefry** in WGSL (no multiply-high). |
 | 5 | **Pair-potential tables in r²** (a·r² + b) | Desmond SC06 | Per-species-pair tables (WCA, Yukawa, LJ variants). No sqrt, force is the exact gradient, consistent energy and force. Fewer cross-vendor transcendental differences. |
 | 6 | Store v, not x_{i−1}; never recompute v from position differences | Lippert 2007 | Matters for constraints and rigid water later. |
@@ -569,37 +577,423 @@ Jiqun Tu (NVIDIA) and Ellery Russell (Schrödinger, Desmond tech lead). S61156,
 | 19 | **Checkerboard parallel hard-particle MC** | Anderson et al. 2013, HPMC | Second engine for entropy-only pages: hard-disk melting and hexatic phase, depletion, osmosis without attraction. |
 | 20 | **LBVH or per-species-pair grids** for size disparity | Howard et al. 2016 | Large Brownian tracer in small solvent, sheep and sheepdogs. |
 | 21 | **MPCD solvent** | HOOMD | Cheap hydrodynamics for 3D Brownian motion, labeled as coarse. |
-| 22 | **Float64 CPU reference engine plus GPU parity tests** | symdjs | From day one. |
+| 22 | **Two CPU references plus GPU parity tests** | symdjs (f64 + parity), Anton/Desmond (bit-exact) | (a) a **bit-exact twin** of the fixed-point integrator, where the test is equal state hashes; (b) an **f64 ideal integrator** for integrator error and observables. Cross-platform bit-exactness needs integer force arithmetic, because WGSL allows float reassociation and fusion (see §13). |
 | 23 | Midpoint / neutral-territory decomposition; RDMA primitives | Desmond SC06 | **Skip:** these are for multi-node machines. The midpoint idea for m-body terms may matter if we add three-body mW on tiles. |
 | 24 | PME / u-series / midtown splines / k-GSE | DESRES | **Skip** unless long-range electrostatics become necessary; use Yukawa/Debye–Hückel instead. |
 
 ### Proposed first step
 A benchmark: a 2D LJ/WCA engine in WGSL with a count/scan/scatter cell list in Hilbert order,
-a skin neighbor list, u32 fixed-point positions, two-word fixed-point sums, Threefry RNG, and a
-Float64 CPU reference with parity tests. Run it on a desktop GPU, a laptop's integrated GPU and
+a skin neighbor list, u32 fixed-point positions, two-word fixed-point sums, Threefry RNG, a
+bit-exact CPU twin and an f64 reference. Run it on a desktop GPU, a laptop's integrated GPU and
 a phone to find the real particle ceiling before designing pages around a number. Then compare
 the force strategies (#10 vs #11) on a liquid–vapor slab.
 
 ---
 
-## 11. Open items to verify
+## 11. Validation reference data
 
-- Exact GROMACS cluster sizes (CPU 4×4/4×8, GPU 8×8 super-clusters): read Páll & Hess 2013.
-- Water-model melting points (Vega et al. 2005) and mW properties (Molinero & Moore 2009):
-  confirm the numbers.
-- Levesque & Verlet 1993 bit-reversible algorithm: read for the exact rounding scheme.
-- WGSL f32 accuracy guarantees for add, mul and fma, and whether implementations may fuse
-  multiply-adds (affects cross-vendor bitwise reproducibility).
-- WebGPU `subgroups` feature availability across browsers, and subgroup sizes.
-- Published 2D LJ phase diagram and coexistence data for validation (triple and critical points
-  depend on the cutoff).
-- HOOMD source: neighbor lists (`hoomd/md/NeighborList*`), HPMC checkerboard kernels, Hilbert
-  sorter. Read next.
-- Whether any newer WebGPU MD engine has appeared (repeat the search periodically).
+Validating against published numbers is what turns demos into a contribution. Most checks
+depend on the potential's truncation, so match the convention exactly.
+
+### Checks that are exact by construction (no literature needed)
+- Maxwell–Boltzmann speed and velocity distributions; equipartition (⟨KE⟩ = kT per particle in
+  2D).
+- Ideal-gas law, and the barometric profile ρ(z) ∝ exp(−mgz/kT) for a dilute gas in gravity.
+- Low-density LJ pressure against the second virial coefficient B₂(T), computable by quadrature.
+- Einstein relation D = kT/γ (drag a tracer to measure γ, and separately measure D from MSD).
+- Energy conservation and drift (NVE), and bit-exact reversal.
+- Self-consistency: the Clausius–Clapeyron slope of our own measured ln p_sat vs 1/T should match
+  our own measured ΔH_vap; freezing-point depression should match RT²x/ΔH_fus using our own
+  measured ΔH_fus.
+
+### NIST Standard Reference Simulation Website (SRD 173)
+[LJ benchmark index](https://mmlapps.nist.gov/srs/LJ_PURE/index.htm),
+[dataset record](https://data.nist.gov/od/id/FF429BC178798B3EE0431A570681E858232),
+doi:10.18434/mds2-232. Contacts: Daniel Siderius; reference calculations by Krekelberg and Shen.
+[read]
+- **Sample configurations with reference energies and pair virials** (3σ cutoff with long-range
+  corrections, 4σ with corrections, 3σ linear-force-shifted). These are unit tests for our force
+  kernels.
+- Datasets: NVE MD at T* = 0.85 (T, E, P, **diffusion coefficient**); NVT MC at T* = 0.85 and
+  0.90; SAT-TMMC coexistence at T* = 0.70–1.20; EOS-TMMC; an empirical saturation fit (not for
+  use near the critical point); surface tension, including truncation effects; and, for the
+  linear-force-shifted potential at 2.5σ, SAT-TMMC and vapor EOS at T* = 0.65–0.90.
+- **Full-LJ critical point** (Potoff & Panagiotopoulos 1998): T*c = 1.3120(7), ρ*c = 0.316(1),
+  p*c = 0.1279(6).
+- **Linear-force-shifted 2.5σ critical point:** T*c = 0.937, ρ*c = 0.320, p*c = 0.0820.
+- **SAT-TMMC coexistence**, LJ with 3σ cutoff and long-range corrections, V/σ³ = 512
+  ([table](https://mmlapps.nist.gov/srs/LJ_PURE/sattmmc.htm)):
+
+| T* | ρ*vap | ρ*liq | p*sat |
+|---|---|---|---|
+| 0.70 | 1.99600E-03 | 8.43739E-01 | 1.36959E-03 |
+| 0.75 | 3.62958E-03 | 8.21911E-01 | 2.63525E-03 |
+| 0.80 | 6.09962E-03 | 7.99867E-01 | 4.64539E-03 |
+| 0.85 | 9.64024E-03 | 7.76854E-01 | 7.63583E-03 |
+| 0.90 | 1.45128E-02 | 7.52806E-01 | 1.18493E-02 |
+| 0.95 | 2.10228E-02 | 7.27724E-01 | 1.75374E-02 |
+| 1.00 | 2.95686E-02 | 7.01018E-01 | 2.49576E-02 |
+| 1.05 | 4.06547E-02 | 6.72152E-01 | 3.43602E-02 |
+| 1.10 | 5.50768E-02 | 6.40799E-01 | 4.60204E-02 |
+| 1.15 | 7.41176E-02 | 6.05204E-01 | 6.02112E-02 |
+| 1.20 | 1.00339E-01 | 5.63158E-01 | 7.72251E-02 |
+
+  The ln p_sat vs 1/T slope of this table gives a reference ΔH_vap. That's a ready-made
+  **Clausius–Clapeyron validation page** for "why does the boiling point rise with pressure?"
+
+### Other 3D LJ references
+- Truncated-and-shifted at 2.5σ: triple point T* ≈ 0.62 (Gibbs–Duhem integration,
+  [arXiv:2104.03028](https://arxiv.org/pdf/2104.03028)) [abstract]; coexistence p* ≈ 0.0267 at
+  T* = 0.785 ([arXiv:2101.08135](https://arxiv.org/pdf/2101.08135)) [abstract]. The likely
+  primary source for this potential's coexistence curve and critical point is Vrabec et al.
+  (Mol. Phys. 2006) [memory; numbers not retrieved].
+- Full LJ triple point T* ≈ 0.694 [memory].
+- Smit, "Phase diagrams of Lennard-Jones fluids," *J. Chem. Phys.* (1992): the phase diagram
+  depends significantly on truncation details
+  ([PDF](https://pure.uva.nl/ws/files/2199981/29999_3595309057smi922.pdf)). [abstract]
+
+### 2D LJ references
+- Smit & Frenkel, "Vapour–liquid equilibria of the two-dimensional Lennard-Jones fluid," *J.
+  Chem. Phys.* 94, 5663 (1991): truncated-and-shifted potential, **T_c = 0.459 ± 0.001,
+  ρ_c = 0.35 ± 0.01**. The tail of the potential has a substantial effect, and the 2D
+  coexistence curve is very flat near T_c. [abstract; check the cutoff in the paper]
+- Li & Pica Ciamarra, "Phase behavior of Lennard-Jones particles in two dimensions," *Phys.
+  Rev. E* 102, 062101 (2020), [arXiv:2010.03876](https://arxiv.org/pdf/2010.03876). At high T,
+  melting is a continuous solid–hexatic transition followed by a first-order hexatic–fluid
+  transition; at low T it is a first-order liquid–solid transition. [abstract]
+- [arXiv:2110.01986](https://arxiv.org/pdf/2110.01986) (generalized 2D LJ): a shorter attraction
+  range lowers T_c toward the triple point. Its ρ_c ≈ 0.366 and its P_c differs between preprint
+  versions. The 2D LJ phase diagram is "still debated". [abstract]
+- No clean 2D LJ triple-point temperature was found. Read Li & Pica Ciamarra for one.
+
+### Hard disks (Engel et al. 2013, [arXiv HTML](https://arxiv.org/html/1211.1645v2)) [read]
+- Mayer–Wood loop extrema at η ≈ 0.702 and η ≈ 0.714; "the coexistence phase ends at η ≃ 0.716".
+  Hexatic at η = 0.718; at η = 0.720 orientational correlations decay almost as a power law. The
+  hexatic–solid transition location is not pinned down.
+- Pressure test at η = 0.698, N = 256², in units of βP(2σ)²: LMC 9.17046(15), EDMD 9.17076(18),
+  ECMC 9.17062(9), MPMC 9.17078(5). Four methods agree to about 10⁻⁴, a sharp validation target.
+- Largest N = 1024². Efficiency at N = 512², η = 0.698, in displacements per hour: LMC 6.5×10⁹,
+  EDMD 1.7×10⁹, ECMC 1.6×10¹⁰, **GPU massively parallel MC 2.3×10¹²** (overall speed-up vs
+  LMC: 1, 10, 70, 320).
+
+### Water (mW)
+Molinero & Moore 2009, [arXiv:0809.2811](https://arxiv.org/abs/0809.2811),
+doi:10.1021/jp805227c. [abstract]
+- Ice Ih T_m = 274.6 ± 1 K and cubic ice 271.5 ± 1 K, so hexagonal ice is more stable, as
+  observed.
+- Maximum liquid density ≈ 1.003 g/cm³ at a temperature of maximum density ≈ 250 K (experiment:
+  277 K).
+- Liquid density within 1% of experiment for 250–350 K. Surface tension at 300 K is 66 ± 2
+  mJ/m² (experiment 71.6). T_m and the sublimation and vaporization enthalpies are within 2% of
+  experiment.
+- Also in the [NIST Interatomic Potentials Repository](https://www.ctcms.nist.gov/potentials/entry/2009--Molinero-V-Moore-E-B--water/2009--Molinero-V--water--ipr-1.html).
+
+### Finite-time Carnot
+- Izumida & Okuda, "Molecular kinetic analysis of a finite-time Carnot cycle," *EPL* (2008),
+  [arXiv:0802.3759](https://arxiv.org/pdf/0802.3759). [abstract]
+  - MD of a nearly ideal gas with a piston moving at constant speed u, the only control
+    parameter.
+  - The efficiency at maximum power **deviates from Curzon–Ahlborn** except as T_c → T_h, and a
+    simple kinetic analysis explains why.
+  - **This is our Carnot page's validation target and almost its exact protocol.**
+- Follow-ups: "Onsager coefficients of a finite-time Carnot cycle," *PRE* 80, 021121 (2009)
+  (tight coupling explains reaching CA in linear response); an endoreversible model in *NJP*
+  17 (2015).
+
+### Osmosis
+- Itano et al., *J. Phys. Soc. Jpn.* (2008): MD of an ideal solution and pure solvent separated
+  by a semipermeable membrane made of "phantom molecules" that reflect solute only. van 't Hoff
+  holds up to about 0.1 mole fraction, with a non-uniform balance of solute and solvent partial
+  pressures. [abstract]
+- [arXiv:1111.2705](https://arxiv.org/pdf/1111.2705): a membrane as a smooth confining potential
+  on the solute; osmotic pressure from local pressures via the virial. [abstract]
+- Yoshida, Marbach & Bocquet (2017),
+  [arXiv:1703.02759](https://arxiv.org/pdf/1703.02759): partially permeable membranes and the
+  reflection coefficient (Kedem–Katchalsky); van 't Hoff at full semipermeability. [abstract]
+- [arXiv:1207.6998](https://arxiv.org/pdf/1207.6998), "Osmosis in a minimal model system": van
+  't Hoff holds only at low concentration; deviations signal solute–solute interactions. [abstract]
+
+### Diffusion finite-size correction
+- Yeh & Hummer, *J. Phys. Chem. B* (2004): for a cubic periodic box,
+  **D_∞ = D_PBC + 2.837 k_BT/(6πηL)**. Tested on water, LJ and hard spheres. Needed for any
+  quantitative Stokes–Einstein page. [abstract; volume and page not retrieved]
 
 ---
 
-## 12. Bibliography (consolidated)
+## 12. Source reading: ALCHEMI Toolkit-Ops and HOOMD-blue
+
+### NVIDIA ALCHEMI Toolkit-Ops
+[github.com/NVIDIA/nvalchemi-toolkit-ops](https://github.com/NVIDIA/nvalchemi-toolkit-ops),
+Apache-2.0, 2025–2026. Written in Warp. [read module and kernel docstrings]
+- **Neighbor modules:** `naive` (all pairs), `naive_dual_cutoff`, `cell_list`, `cluster_tile`,
+  `rebuild`, each with **batched** variants.
+- **Cluster tiles** ("GROMACS-style NxM cluster pair list: Morton-sorted atoms grouped into
+  32-atom clusters"):
+  1. Morton codes, then sort (fixed 1024- and 2048-element single-block tile sorts for small
+     systems).
+  2. Gather into SoA arrays.
+  3. An axis-aligned bounding box per 32-atom cluster.
+  4. Enumerate tile pairs (row group, column group) whose box distance is within the cutoff.
+  5. Query the tiles into a per-atom neighbor matrix, or into a COO pair list via a count pass
+     then a fill pass.
+
+  float32 only.
+- **Batching:** systems are concatenated and addressed by a CSR `batch_ptr`; per-system
+  parameters such as the timestep are looked up by `batch_idx`. Buffer capacities come from
+  density and cutoff estimates with a safety factor (`estimate_max_tiles_per_group`,
+  `estimate_batch_cluster_tile_segments`). Overflow raises `TileBufferOverflow` or
+  `NeighborOverflowError`, the same fixed-capacity pattern as JAX MD. **This is the layout to
+  copy for our replicas.**
+- **Cell list:** stages are `estimate_sizes` → `construct_bin_size` → `count_atoms_per_bin` →
+  `bin_atoms` (count, scan, scatter), with atom-centric and pair-centric query kernels.
+  - A grid-selection cost model (`_grid_selection.py`): C cells, stencil volume S, occupancy
+    q = ⌈N/C⌉, estimated cost C·S·(setup_warps + active_warp_passes·q).
+  - It **"assumes approximately uniform occupancy"**, which our liquid–vapor systems violate.
+- **Rebuild detection:** for the neighbor list, rebuild when any atom moves beyond the skin from
+  its reference position (minimum image); for the cell list, rebuild when any atom changes cell
+  coordinates.
+- **Integrators:** two-pass velocity Verlet (drift with half kick; user computes forces; final
+  half kick), Langevin, Nosé–Hoover chains, NPT/NPH (MTK), velocity rescaling, plus FIRE, FIRE2
+  and L-BFGS optimizers and constraints. Batched kernels index per-system parameters; "ptr"
+  variants run one thread per small system.
+- Elaborate certified triclinic minimum-image logic (QR, Babai nearest plane). We don't need it
+  for rectangular boxes.
+
+### HOOMD-blue
+[github.com/glotzerlab/hoomd-blue](https://github.com/glotzerlab/hoomd-blue), BSD-3. [read file
+layout, headers, and parts of the HPMC GPU integrator]
+- Neighbor lists: `NeighborListGPUBinned` (cell list), `NeighborListGPUStencil` (stenciled cells
+  for multiple cutoffs), `NeighborListGPUTree` (LBVH, Howard et al. 2016). Cells: `CellList`,
+  `CellListGPU`, `CellListStencil`.
+- `SFCPackTuner`: periodically reorders particle data along a space-filling curve on a grid for
+  memory locality (Hilbert in 3D [memory for the curve type]).
+- `Autotuner`: runtime autotuning of block sizes and similar parameters. We could autotune
+  workgroup sizes at startup using `timestamp-query`.
+- **HPMC GPU** (`hpmc/IntegratorHPMCMonoGPU.h`). Semantics are inferred from the code structure:
+  - The particle update order is shuffled every step, seeded by the timestep.
+  - Trial moves are proposed for all particles in parallel; moves that leave the particle's
+    cell are rejected (`reject_out_of_cell`).
+  - Overlap checks against "expanded cells" iterate until the reject flags converge (a
+    `while (!converged)` loop swapping reject in/out buffers). This resolves conflicts as a
+    sequential sweep in the shuffled order would.
+  - **A random grid shift each sweep** (`hpmc_shift`, `translateOrigin`) keeps cell boundaries
+    from biasing the dynamics.
+  - This looks like an evolution of the 2013 checkerboard scheme; read the kernels before
+    porting.
+- RNG: Philox4x32 via OpenRAND, seeded by (class id, timestep, user seed), with the particle
+  tag in the counter.
+
+---
+
+## 13. WebGPU compute portability
+
+### WGSL numerics ([WGSL spec](https://gpuweb.github.io/gpuweb/wgsl/)) [read]
+- f32 `+ − ×` are correctly rounded; `/` is within 2.5 ULP; transcendentals have looser bounds
+  (e.g., `atan` 4096 ULP, `cos` absolute error 2⁻¹¹ on [−π, π]).
+- **§15.7.5 Reassociation and Fusion: "An implementation may reassociate operations. An
+  implementation may fuse operations if the transformed expression is at least as accurate as
+  the original formulation."** So f32 results are **not** guaranteed bit-identical across
+  browsers, GPUs, or between GPU and CPU, even for plain `a*b + c`.
+- Dawn on macOS 15+/iOS 18+ emits `#pragma METAL fp math_mode(relaxed|safe)` from a
+  `useStrictMath` flag, and a follow-up commit says fast math defaults to true
+  ([commit](https://dawn.googlesource.com/dawn/+/58c1c685a8dab745a8c22d231b7b1cd68bfc977a%5E%21),
+  [fix](https://dawn.googlesource.com/dawn/+/13298c36dfff8b19f8867867ebaeb680849a4b80)). Apple:
+  `fastMathEnabled = true` means `MTLMathMode.fast`
+  ([docs](https://developer.apple.com/documentation/metal/mtlcompileoptions/mathmode.md)).
+- **Integers:** i32/u32 are two's complement with defined wrapping on overflow. **Float→int
+  conversion is fully defined** (clamps to range, rounds toward zero; NaN is indeterminate).
+  Integer paths are therefore bit-exact everywhere.
+- **Atomics:** only `atomic<i32>` and `atomic<u32>`. `atomic<vec2<u32>>` (64-bit) exists only for
+  **min/max** via the `atomic_vec2u_min_max` extension, with no 64-bit add. So two-word
+  fixed-point accumulation (catalog #2) is still required.
+
+### Default limits ([WebGPU spec](https://gpuweb.github.io/gpuweb/)) [read]
+
+| Limit | Default |
+|---|---|
+| `maxComputeWorkgroupStorageSize` | 16384 bytes |
+| `maxComputeInvocationsPerWorkgroup` | 256 |
+| `maxComputeWorkgroupSizeX` | 256 |
+| `maxComputeWorkgroupsPerDimension` | 65535 |
+| `maxStorageBufferBindingSize` | 134217728 (128 MiB) |
+| `maxBufferSize` | 268435456 (256 MiB) |
+| `maxStorageBuffersPerShaderStage` | 8 |
+
+Adapters often allow more if requested. At 32 B of state per particle, 128 MiB is about 4M
+particles per binding.
+
+Optional features: `timestamp-query` (benchmarks, autotuning), `subgroups`, `shader-f16`.
+
+### Subgroups
+Supported in **Chrome and Edge 144+ only**; not in Safari or Firefox per
+[caniuse](https://caniuse.com/wf-webgpu-subgroups).
+- Chromium has intents to ship for
+  [`subgroup_id`](https://groups.google.com/a/chromium.org/g/blink-dev/c/SV75BHCUJz0/m/pUsyjxvoBQAJ)
+  and [subgroup size control](https://groups.google.com/a/chromium.org/g/Blink-dev/c/Lx06y9Rdzvs)
+  (June 2026; positive signals from Gecko and WebKit).
+- **The engine must not require subgroups;** they can only be an optional fast path.
+
+### Forward progress and scans
+- WebGPU gives no guarantee that one workgroup will eventually run while another spins waiting
+  for it, and Apple GPUs lack that guarantee in practice. So the single-pass chained scan with
+  **decoupled look-back** (Merrill & Garland,
+  [NVR-2016-002](https://research.nvidia.com/publication/2016-03_single-pass-parallel-prefix-scan-decoupled-look-back),
+  used in CUB) can starve or deadlock.
+- **Smith, Levien & Owens, "Decoupled Fallback: A Portable Single-Pass GPU Scan," SPAA 2025**
+  (Google / UC Davis; [paper source and artifact](https://github.com/b0nes164/Decoupled-Fallback-Paper),
+  [eScholarship](https://escholarship.org/uc/item/0bk9z4bt)). [read abstract]
+  - Work-stealing fallback for hardware without forward-progress guarantees.
+  - A tile-state representation that needs **no 64-bit atomics or memory barriers** for
+    correctness; a subgroup-size-agnostic intra-workgroup implementation.
+  - Near-memcpy inclusive scan on M1 Max and M3 under Dawn, approaching the expected 50% speedup
+    over reduce-then-scan; robust when workgroups are blocked up to 50% of the time.
+  - The artifact requires subgroups and timestamp queries.
+- Related code by Thomas Smith (b0nes164):
+  [GPUPrefixSums](https://github.com/b0nes164/GPUPrefixSums) (CUDA/D3D12/Unity/WGPU, about 300
+  stars), [GPUSorting](https://github.com/b0nes164/GPUSorting) (OneSweep and segmented sort,
+  about 480 stars), [ShaderOneSweep](https://github.com/b0nes164/ShaderOneSweep).
+- **Plan:** a portable baseline with **reduce-then-scan** (no subgroups, no forward-progress
+  assumption); Decoupled Fallback as the fast path where subgroups exist.
+
+### Consequences for bit-exactness (see `architecture.md`)
+- **Tier 1, device-local determinism and exact reversal.** The same compiled shader with the
+  same inputs gives the same outputs. If forces are a pure function of positions (fixed-point,
+  order-independent accumulation), **exact reversal works on any single device, even with f32
+  force math.**
+- **Tier 2, cross-platform bit-exactness** (GPU ↔ CPU twin, browser ↔ browser, Mac ↔ PC).
+  Because WGSL permits fusion and reassociation, every operation that affects the trajectory must
+  be **integer**: integer displacement → integer r² → table index plus fixed-point interpolation
+  → fixed-point force. This is the Anton approach; the cost on GPUs needs benchmarking.
+
+---
+
+## 14. Recent NVIDIA work relevant to the design
+
+- **[Warp](https://github.com/NVIDIA/warp)** (Python GPU simulation framework, Apache-2.0).
+  - [v1.16.0](https://github.com/NVIDIA/warp/discussions/1716): **grouped `HashGrid` queries**,
+    so independent environments share one spatial grid and skip other groups' candidates. That's
+    our replica-batching problem. `reserve(..., with_groups=True)` allows graph capture without a
+    warm-up build.
+  - Queries return cell candidates, so kernels still test the actual distance.
+  - Tile primitives since 1.5 (linear algebra via MathDx); NumPy-style tile slicing in 1.16;
+    in-place rebuild of fixed-capacity NanoVDB volumes.
+  - [Changelog](https://nvidia.github.io/warp/latest/project/changelog.html),
+    [tiles docs](https://nvidia.github.io/warp/latest/user_guide/programming_model/tiles.html).
+    GPU runs need CUDA, so it's not usable on a Mac.
+- **ALCHEMI** ([overview](https://developer.nvidia.com/cuda/cuda-x-libraries/alchemi),
+  [Toolkit blog](https://developer.nvidia.com/blog/building-custom-atomistic-simulation-workflows-for-chemistry-and-materials-science-with-nvidia-alchemi-toolkit/),
+  [Toolkit-Ops blog](https://developer.nvidia.com/blog/accelerating-ai-powered-chemistry-and-materials-science-simulations-with-nvidia-alchemi-toolkit-ops),
+  [batched MD NIM](https://docs.nvidia.com/nim/alchemi/alchemi-bmd/latest/overview.html)).
+  PyTorch-native atomistic workflows with a GPU-native **batched** dynamics engine
+  (`nvalchemi-toolkit` on PyPI). Toolkit-Ops is the Warp kernel layer (§12). Vendor-reported:
+  about 33× speedup for batched small systems (Orbital). Ewald, PME and DSF electrostatics; the
+  MTK barostat.
+- **CUB/CCCL:** decoupled look-back scan (above); **Onesweep** LSD radix sort (Adinets &
+  Merrill, [arXiv:2206.01784](https://arxiv.org/abs/2206.01784v1), 2022; about 2n global
+  reads/writes per digit pass; [GTC 2020 talk](https://developer.download.nvidia.com/video/gputechconf/gtc/2020/presentations/s21572-a-faster-radix-sort-implementation.pdf);
+  a variant ships in Intel oneDPL). It needs a forward-progress-safe scan before use on WebGPU.
+- **CUDA Tile / cuTile Python** ([docs](https://docs.nvidia.com/cuda/cutile-python/),
+  [blog](https://developer.nvidia.com/blog/simplify-gpu-programming-with-nvidia-cuda-tile-in-python),
+  [CUDA Tile](https://developer.nvidia.com/cuda/tile)): a tile-based model with the Tile IR
+  compiler stack, announced March 2025 and released with CUDA 13.1 (PyPI `cuda-tile`). It
+  targets Blackwell and Ampere/Ada. Conceptually aligned with cluster-pair tiles; not usable
+  from WebGPU.
+- **Matthias Müller (NVIDIA), *Ten Minute Physics***: self-contained HTML/JavaScript physics demos
+  (hard and soft bodies, cloth, fluids; three.js for 3D). Video 11 covers spatial hashing. Co-author
+  of Teschner et al., "Optimized Spatial Hashing for Collision Detection of Deformable Objects"
+  (2003). A model for how small and teachable a demo page can be.
+  ([forum](https://discourse.threejs.org/t/ten-minute-physics-youtube-channel/35450),
+  [Gigazine](https://gigazine.net/gsc_news/en/20221212-ten-minute-physics/))
+- Hoetzlein's fixed-radius nearest-neighbor grid (§3) and the Schrödinger/NVIDIA Desmond GTC
+  talk (§5) also belong here.
+
+---
+
+## 15. Page design and physics education research
+
+### Interactive-simulation design (PhET)
+- Wieman, Adams & Perkins, "PhET: Simulations That Enhance Learning," *Science* 322, 682–683
+  (2008), [doi:10.1126/science.1161948](https://doi.org/10.1126/science.1161948). [abstract]
+- Adams et al., "A Study of Educational Simulations Part I: Engagement and Learning" and "Part
+  II: Interface Design," *J. Interactive Learning Research* 19 (2008). Based on 200+ (later
+  275+) think-aloud student interviews.
+  ([ComPADRE](https://www.compadre.org/portal/items/detail.cfm?ID=14284)) [abstract]
+- Wieman, Perkins & Adams, *Am. J. Phys.* 76 (2008): design philosophy, development and testing
+  process. [abstract]
+
+### Documented student difficulties in thermodynamics
+Each of these is a target for a page.
+- **Entropy of system vs surroundings vs universe:** students struggle to tell them apart, and
+  many treat the entropy of the universe as **conserved** (Christensen, Meltzer & Ogilvie,
+  introductory course). Upper-level students make the same confusion (Bucy et al.).
+  → **The heat-ledger instrument shows ΔS_system, ΔS_bath and ΔS_total side by side.**
+- **Carnot and the second law:** upper-division students "do not clearly articulate the
+  connection between the Carnot cycle and the second law" after lecture (Smith, Christensen,
+  Mountcastle & Thompson, *PRST-PER* 2015). → The Carnot page.
+- **First law:** up to 80% of introductory students could not apply it after instruction, partly
+  from mixing up state functions and process quantities (Meltzer 2004/2008). → Pages on "heat vs
+  energy vs enthalpy" and path dependence.
+- **Brundage, Meltzer & Singh (2024),
+  [arXiv:2408.00944](https://arxiv.org/pdf/2408.00944):** a validated 78-item survey given to more
+  than 1000 students. Associating entropy with energy leads to "conservation of entropy" errors,
+  and students widely fail to apply ΔS = Q_rev/T. → **A possible pre/post evaluation
+  instrument for our pages.**
+- Loverude, Kautz & Heron, *Am. J. Phys.* 70 (2002), first law and adiabatic compression [memory].
+- Sources: [DOAJ PRST-PER 2015](https://doaj.org/article/f56cfd2786c14bc79c39c353b2c71b6a),
+  [Rowan](https://rdw.rowan.edu/csm_facpub/36),
+  [UMaine](https://digitalcommons.library.umaine.edu/phy_facpub/3),
+  [ASU](https://asu.elsevierpure.com/en/publications/investigating-and-addressing-learning-difficulties-in-thermodynam-2).
+  [abstracts]
+
+### Craft references to study [memory]
+Bartosz Ciechanowski's explainers; Bret Victor, "Explorable Explanations" (2011); Nicky Case;
+Ten Minute Physics (§14).
+
+---
+
+## 16. Tooling
+
+- **Rust:** [`wgpu`](https://crates.io/crates/wgpu) 30.0.1 and `naga` 30.0.1 (2026-08-22). The
+  WebGPU implementation behind **Firefox** (Mozilla pinned a wgpu release from 2026-03-18 in
+  [moz.yaml](https://kdab.searchfox.org/firefox-main/source/gfx/wgpu_bindings/moz.yaml)).
+  - Runs natively on Vulkan, Metal, DX12 and GL, and in the browser via WebAssembly on top of
+    the browser's WebGPU. [wgpu-native](https://gittrend.io/repo/gfx-rs/wgpu-native) offers a C
+    API.
+  - Native `wgpu` translates WGSL through naga, while Chrome uses Dawn/Tint, so the two shader
+    compilers can differ. Test both.
+- **[rust-gpu](https://github.com/Rust-GPU/rust-gpu)** (Rust as a shader language → SPIR-V;
+  about 3.4k stars, active, "🚧"). Not a dependable path to the web yet; write WGSL.
+- **Node/JS:** npm [`webgpu`](https://www.npmjs.com/package/webgpu) 0.6.2 (2026-10-02,
+  `dawn-gpu/node-webgpu`), Dawn for Node, for headless WebGPU in Node.
+  - Dawn's own `dawn.node` is a source build and runs the WebGPU conformance tests; SwiftShader
+    provides a software Vulkan device for CI (`VK_ICD_FILENAMES`)
+    ([README](https://dawn.googlesource.com/dawn/+/refs/heads/chromium/4688/src/dawn_node/README.md)).
+  - Deno has built-in WebGPU [memory].
+- **TypeGPU** 0.12.8 (2026-10-16): typed WGSL from TypeScript [memory: by Software Mansion].
+  Probably unnecessary if the core is Rust.
+- **Testing:** Playwright and headless Chrome for WebGPU-vs-CPU parity (as symdjs does); native
+  `wgpu` for fast headless validation runs.
+
+---
+
+## 17. Open items to verify
+
+- Exact GROMACS cluster sizes (CPU 4×4/4×8, GPU 8×8 super-clusters): read Páll & Hess 2013.
+- TIP3P, SPC/E and TIP4P/Ice melting points and the exact 2005 Vega–Sanz–Abascal citation.
+- Levesque & Verlet 1993 bit-reversible algorithm: read for the exact rounding scheme.
+- Truncated-and-shifted 2.5σ LJ critical point and coexistence (Vrabec et al. 2006); 2D LJ
+  triple point (Li & Pica Ciamarra 2020); the Smit & Frenkel cutoff.
+- Yeh & Hummer 2004 volume and page.
+- HOOMD HPMC GPU kernels in detail (`IntegratorHPMCMonoGPUMoves.cuh`, the narrow-phase kernel):
+  confirm the convergence-loop semantics and detailed balance.
+- Whether naga (native `wgpu`) or Tint (Chrome) fuse or reassociate in practice, and whether
+  `wgpu` on Metal enables fast math. Empirically: run the same f32 kernel on Chrome, Firefox,
+  Safari and native `wgpu`, and compare bits.
+- Cost of an all-integer force path vs f32 on Apple, NVIDIA and AMD GPUs (benchmark).
+- Whether any newer WebGPU MD engine has appeared (repeat the search periodically).
+---
+
+## 18. Bibliography (consolidated)
 
 ### DESRES
 1. Bowers, K. J., et al. "Scalable Algorithms for Molecular Dynamics Simulations on Commodity Clusters." SC06 (2006). https://ieeexplore.ieee.org/document/4090217
@@ -647,3 +1041,35 @@ the force strategies (#10 vs #11) on a liquid–vapor slab.
 33. Moore, T. A., Schroeder, D. V. "A different approach to introducing statistical mechanics." *Am. J. Phys.* (1997) [memory: check year and link]
 34. Schroeder, D. V. *An Introduction to Thermal Physics*; Interactive MD: https://physics.weber.edu/schroeder/md/interactivemd.html
 35. Gould, H., Tobochnik, J. *Statistical and Thermal Physics*, 2nd ed. (2021).
+
+### Validation data
+36. Potoff, J. J., Panagiotopoulos, A. Z. Critical point and phase behavior of the pure fluid and a Lennard-Jones mixture. *J. Chem. Phys.* (1998).
+37. NIST Standard Reference Simulation Website, SRD 173. doi:10.18434/mds2-232. https://mmlapps.nist.gov/srs/LJ_PURE/index.htm
+38. Smit, B., Frenkel, D. "Vapour-liquid equilibria of the two-dimensional Lennard-Jones fluid." *J. Chem. Phys.* 94, 5663 (1991).
+39. Smit, B. "Phase diagrams of Lennard-Jones fluids." *J. Chem. Phys.* (1992).
+40. Li, Y.-W., Pica Ciamarra, M. "Phase behavior of Lennard-Jones particles in two dimensions." *Phys. Rev. E* 102, 062101 (2020). https://arxiv.org/abs/2010.03876
+41. Blazquez, S., Vega, C. "Melting points of water models: Current situation." *J. Chem. Phys.* 156, 216101 (2022). https://doi.org/10.1063/5.0093815
+42. Izumida, Y., Okuda, K. "Molecular kinetic analysis of a finite-time Carnot cycle." *EPL* (2008). https://arxiv.org/abs/0802.3759
+43. Izumida, Y., Okuda, K. "Onsager coefficients of a finite-time Carnot cycle." *Phys. Rev. E* 80, 021121 (2009).
+44. Itano, T., et al. Nanoscale osmosis MD. *J. Phys. Soc. Jpn.* (2008).
+45. Yoshida, H., Marbach, S., Bocquet, L. "Osmotic and diffusio-osmotic flow generation at high solute concentration. II. Molecular dynamics simulations." (2017). https://arxiv.org/abs/1703.02759
+46. Yeh, I.-C., Hummer, G. System-size dependence of diffusion coefficients and viscosities from MD with periodic boundary conditions. *J. Phys. Chem. B* (2004).
+
+### WebGPU / GPU primitives
+47. W3C. WebGPU Shading Language (WGSL). https://gpuweb.github.io/gpuweb/wgsl/ ; WebGPU. https://gpuweb.github.io/gpuweb/
+48. Merrill, D., Garland, M. "Single-pass Parallel Prefix Scan with Decoupled Look-back." NVIDIA NVR-2016-002 (2016).
+49. Smith, T., Levien, R., Owens, J. D. "Decoupled Fallback: A Portable Single-Pass GPU Scan." SPAA 2025. https://github.com/b0nes164/Decoupled-Fallback-Paper
+50. Adinets, A., Merrill, D. "Onesweep: A Faster Least Significant Digit Radix Sort for GPUs." (2022). https://arxiv.org/abs/2206.01784
+51. NVIDIA Warp. https://github.com/NVIDIA/warp
+52. NVIDIA ALCHEMI Toolkit-Ops. https://github.com/NVIDIA/nvalchemi-toolkit-ops
+53. NVIDIA cuTile Python. https://docs.nvidia.com/cuda/cutile-python/
+54. Teschner, M., Heidelberger, B., Müller, M., Pomeranets, D., Gross, M. "Optimized Spatial Hashing for Collision Detection of Deformable Objects." (2003).
+
+### Education research
+55. Wieman, C. E., Adams, W. K., Perkins, K. K. "PhET: Simulations That Enhance Learning." *Science* 322, 682–683 (2008).
+56. Adams, W. K., et al. "A Study of Educational Simulations Part I/II." *J. Interactive Learning Research* 19 (2008).
+57. Christensen, W. M., Meltzer, D. E., Ogilvie, C. A. Student ideas regarding entropy and the second law in an introductory physics course. *Am. J. Phys.* (2009) [memory for venue].
+58. Smith, T. I., Christensen, W. M., Mountcastle, D. B., Thompson, J. R. Heat engines and the Carnot cycle, upper division. *Phys. Rev. ST Phys. Educ. Res.* (2015).
+59. Meltzer, D. E. Students' reasoning regarding heat, work, and the first law. *Am. J. Phys.* (2004).
+60. Brundage, M. J., Meltzer, D. E., Singh, C. Introductory and advanced students' difficulties with entropy and the second law, validated instrument. (2024). https://arxiv.org/abs/2408.00944
+61. Loverude, M. E., Kautz, C. H., Heron, P. R. L. Student understanding of the first law of thermodynamics. *Am. J. Phys.* 70 (2002) [memory].
