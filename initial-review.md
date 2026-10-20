@@ -328,3 +328,51 @@ Open questions (third round):
 - `saline`: bursting is a rule on the cell's area (the model's springs are too stretchy and noisy
   to snap by themselves). Fine, or try a stiffer, nearly inextensible membrane?
 - `oilwater`: the oil's mass is exaggerated (half of water's) so it rises in tens of seconds.
+
+## Fourth round of feedback
+
+### General
+
+1. A "total energy of the entire simulation" graph on every page, and make it very clear which
+   ensemble is simulated. Prefer the microcanonical ensemble (energy strictly conserved) and let
+   Boltzmann distributions emerge naturally, whenever possible. Recorded in `CLAUDE.md`.
+2. Be able to click and move things around, interactively (drag an end of a rubber band, etc.).
+   Recorded in `CLAUDE.md`.
+
+### `smell`
+1. Diffusion is already very fast, which defeats the point. Make the box much bigger.
+
+### `reversal`
+1. A button to nudge just one molecule, perhaps one you select. Nudging a single molecule may
+   be enough to see complete mixing after reversing.
+
+### `boltzmann`
+1. Default start: "one box very hot, the rest cold".
+2. Is "only molecules within a molecule's width of a wall take part" exactly true? Are we doing
+   all-pairs LJ with normal cutoffs throughout the box, and the walls are a hard momentum bounce?
+3. A total-energy-of-the-whole-simulation graph.
+
+### `osmosis`
+1. Another panel under the current U-tube: the real classic U-tube, with walls separating the arms
+   all the way and the membrane passable only at the bottom, and many more water molecules (like
+   the first panel). Maybe the current one suffers from too few particles.
+
+### `compress`
+1. Buttons for a shock: a fast compression and a fast decompression, to see out-of-equilibrium
+   effects and perhaps a travelling shockwave.
+
+### `rubber`
+1. The "ends held at fraction" slider restarts the simulation; instead, moving it should smoothly
+   move the other end and pull the band taut.
+2. A couple of times the band broke and the simulation went crazy, beads flying everywhere.
+3. "Why stretching warms it": a spring on the left too, to feel how hard the band pulls; and drag
+   the other end with the mouse instead of buttons that move it slowly.
+
+### `atmosphere`
+1. The slab panel: make it vertical, with the slabs drawn on screen, gravity pointing down, and the
+   weight on each slab shown, perhaps colour-coded by the weight of all the slabs above it.
+
+### `saline`
+1. Keep the current simulation, and add a panel below with much bigger cells and stiffer, nearly
+   unstretchable, more fragile springs, so they tear from too much membrane tension, as real cells
+   do.

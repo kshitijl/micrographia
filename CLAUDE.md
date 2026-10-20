@@ -42,3 +42,8 @@ engine. See `README.md`, `docs/status.md` and `docs/architecture.md`.
 - A theme throughout: entropy matters more as temperature rises. An effect that gets stronger
   when hotter (rubber's pull, osmotic pressure, depletion forces) is evidence that it is driven by
   entropy; pages should show and say so.
+- Prefer the microcanonical ensemble: energy strictly conserved (no thermostat), with Boltzmann
+  distributions emerging by themselves. Use a heat bath only when the physics needs one, and say
+  so. Every page shows the total energy of the whole simulation and states its ensemble plainly.
+- Let users grab things: click and drag objects (an end of a rubber band, a piston, a membrane)
+  rather than only pressing buttons that move them for you.
