@@ -116,3 +116,135 @@ fn fep_matches_direct_counting() {
         eprintln!("{} leg: ΔG(A→B) by TI {ti:.2} kT, by FEP {fep:.2} kT", if leg == 0 { "bound" } else { "free" });
     }
 }
+
+/// Escape rates of the ligands over `frames` snapshots `every` steps apart, one per minimum age
+/// in `ages` (in snapshots): (escapes, time bound in τ). A ligand is caught within 0.8 σ of its
+/// pocket and escapes when it next gets beyond 3 σ. Only episodes that last longer than the
+/// minimum age count, and only their time past it: for exponentially distributed residence
+/// times this gives the same rate, but leaves out ligands that pass through the pocket and leave
+/// at once.
+fn escapes(e: &mut GpuEngine, side: f64, frames: usize, every: usize, ages: &[usize]) -> Vec<(f64, f64)> {
+    let mut since: Vec<Option<usize>> = vec![];
+    let mut out = vec![(0.0, 0.0); ages.len()];
+    for f in 0..frames {
+        e.step(every);
+        let s = block_on(e.read_state());
+        let r: Vec<f64> = (0..s.n())
+            .filter(|&i| s.species[i] == 1 || s.species[i] == 3)
+            .map(|i| {
+                let (x, y) = (fixed::to_f64(s.pos[i][0]), fixed::to_f64(s.pos[i][1]));
+                let (cx, cy) = (((x / side).floor() + 0.5) * side, ((y / side).floor() + 0.5) * side);
+                ((x - cx).powi(2) + (y - cy).powi(2)).sqrt()
+            })
+            .collect();
+        since.resize(r.len(), None);
+        for (c, r) in since.iter_mut().zip(&r) {
+            match *c {
+                None if *r < 0.8 => *c = Some(f),
+                Some(f0) if *r > 3.0 => {
+                    for (o, &m) in out.iter_mut().zip(ages) {
+                        if f - f0 > m {
+                            o.0 += 1.0;
+                        }
+                    }
+                    *c = None;
+                }
+                _ => {}
+            }
+            if let Some(f0) = *c {
+                for (o, &m) in out.iter_mut().zip(ages) {
+                    if f - f0 >= m {
+                        o.1 += every as f64 * 0.005;
+                    }
+                }
+            }
+        }
+    }
+    out
+}
+
+/// Escape rate from the pocket against temperature: an Arrhenius plot, measured the way the
+/// `arrhenius` page does it, sweeping one run of 768 boxes of 8 σ from hot to cold.
+///
+/// Two lessons from `escape_rate_drift`: from a start with every ligand free, the rate per unit
+/// time bound is high at first and settles as occupancy reaches equilibrium (~500 τ at kT = 0.8,
+/// ~100 τ at 1.6), so each temperature needs its own equilibration; and the bound time has more
+/// scatter than Poisson counting suggests (long episodes), so many boxes beat long runs.
+#[test]
+#[ignore]
+fn arrhenius() {
+    let p = Prims::new(&block_on(Gpu::new()).unwrap());
+    let opts = Options::default().with("eps_a", 1.6).with("eps_b", 1.6).with("boxes_x", 32.0).with("boxes_y", 24.0).with("log2_box", 3.0).with("seed", 23.0);
+    let sc = build("binding", &opts).unwrap();
+    let mut e = GpuEngine::new(&p, sc.sys.clone(), &sc.state);
+    e.step(sc.warmup);
+    let mut pts = vec![];
+    for (t, equil) in [(1.6, 10000), (1.25, 20000), (1.0, 40000), (0.8, 60000)] {
+        e.update_system(e.sys.clone().with_thermostat(t, 0.5));
+        e.step(equil);
+        let (n, b) = escapes(&mut e, 8.0, 200, 200, &[0])[0];
+        eprintln!("T {t}: {n} escapes, {:.0}% bound, k {:.4}", 100.0 * b / (768.0 * 200.0), n / b);
+        pts.push((1.0 / t, (n / b).ln()));
+    }
+    let ea = -(pts[3].1 - pts[0].1) / (pts[3].0 - pts[0].0);
+    eprintln!("Eₐ from the end points: {ea:.2} ε");
+    assert!((4.0..7.0).contains(&ea));
+}
+
+/// How long the escape rate takes to settle at each temperature, from a start with every
+/// ligand in the bulk: rates in successive blocks of 100 τ, in 768 boxes of 8 σ (as on the
+/// page), counting episodes past a minimum age of 0 and 5 τ.
+#[test]
+#[ignore]
+fn escape_rate_drift() {
+    let p = Prims::new(&block_on(Gpu::new()).unwrap());
+    for t in [0.8, 1.0, 1.6] {
+        let o = Options::default().with("eps_a", 1.6).with("eps_b", 1.6).with("boxes_x", 32.0).with("boxes_y", 24.0).with("log2_box", 3.0).with("temperature", t).with("seed", 23.0);
+        let sc = build("binding", &o).unwrap();
+        let mut e = GpuEngine::new(&p, sc.sys.clone(), &sc.state);
+        e.step(2000);
+        let blocks: Vec<String> = (0..8)
+            .map(|_| {
+                let r = escapes(&mut e, 8.0, 100, 200, &[0, 5]);
+                let ks: Vec<String> = r.iter().map(|(n, b)| format!("{:.4}", n / b)).collect();
+                format!("[{}] {:.0}%", ks.join(" "), 100.0 * r[0].1 / (768.0 * 100.0))
+            })
+            .collect();
+        eprintln!("T {t}: {}", blocks.join(" "));
+    }
+}
+
+/// Kinetic temperature of the solvent after retuning the thermostat, against a fresh start.
+#[test]
+#[ignore]
+fn retuned_temperature() {
+    let p = Prims::new(&block_on(Gpu::new()).unwrap());
+    let opts = |t: f64| Options::default().with("eps_a", 1.6).with("eps_b", 1.6).with("boxes_x", 16.0).with("boxes_y", 12.0).with("temperature", t).with("seed", 23.0);
+    let kt = |e: &GpuEngine| {
+        let s = block_on(e.read_state());
+        let dt = e.sys.dt;
+        let (mut sum, mut n) = (0.0, 0.0);
+        for i in 0..s.n() {
+            if s.species[i] == 2 {
+                continue;
+            }
+            let v = s.vel[i].map(|x| fixed::to_f64(x as i64) / dt);
+            sum += 0.5 * (v[0] * v[0] + v[1] * v[1]);
+            n += 1.0;
+        }
+        sum / n
+    };
+    let sc = build("binding", &opts(1.0)).unwrap();
+    let mut swept = GpuEngine::new(&p, sc.sys.clone(), &sc.state);
+    swept.step(2000);
+    for t in [1.6, 0.8] {
+        swept.update_system(swept.sys.clone().with_thermostat(t, 0.5));
+        swept.step(20000);
+        let sc = build("binding", &opts(t)).unwrap();
+        let mut fresh = GpuEngine::new(&p, sc.sys.clone(), &sc.state);
+        fresh.step(22000);
+        let (a, b) = (kt(&swept), kt(&fresh));
+        eprintln!("T {t}: retuned kT {a:.3}, fresh kT {b:.3}");
+        assert!((a / t - 1.0).abs() < 0.03 && (b / t - 1.0).abs() < 0.03);
+    }
+}

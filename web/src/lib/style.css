@@ -383,3 +383,11 @@ table.results th {
   text-align: left;
   vertical-align: top;
 }
+
+/* A panel on its own, across the page (calculators). */
+.lab.calc {
+  grid-template-columns: minmax(0, 1fr);
+}
+.lab.calc .readouts {
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+}

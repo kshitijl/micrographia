@@ -15,6 +15,16 @@ M1 Pro (Metal) unless stated. Run everything with `cargo xtask all`.
 | `oilwater` | Why don't oil and water mix? | Weak cross-attraction separates (segregation > 0.3 after 200 τ); equal attraction stays mixed |
 | `osmosis` | Where does the osmotic push come from? | Membrane push within 25% of van 't Hoff (measured 0.041 vs c kT = 0.039) |
 | `compress` | Why does a bike pump get hot, a spray can cold? | Compression heats along T·A ≈ const (2%) |
+| `rubber` | Why does a rubber band pull harder when warm? | Chain tension at T = 2 is 1.5–2.8× that at T = 1; fast stretching warms the chains by >3% |
+| `atmosphere` | Why does air thin out with height? | Each species' barometric slope within 15% of −mg/kT; top and bottom temperatures within 8% |
+| `carnot` | Why is the Carnot engine the most efficient? | Slow cycles reach 70–105% of 1 − T_c/T_h (0.31 vs 0.33); fast cycles do worse |
+| `boiling` | Why does the boiling point rise with pressure? | Vapour pressure rises >1.8× from kT = 0.40 to 0.45; Clausius–Clapeyron latent heat 1.5–6 ε (~4) |
+| `lipids` | How do membranes assemble themselves? | >85% of lipids in aggregates from a random start |
+| `balloon` | Why does a helium balloon go flat faster? | Leak-rate ratio within −30%/+15% of Graham's √(mass ratio) (2.67 vs 2.69) |
+| `smell` | How long would a smell take to cross a room? | Still-air drift within 4 standard errors of zero; a draught beats diffusion |
+| `fep` | How do computers predict which drug binds best? | TI and FEP agree within 0.15 kT and with direct counting within 0.5 kT (−1.47, −1.47, −1.60) |
+| `saline` | Why are IV drips saline? | Model cell area in water > saline > brine (280, 254, 176 σ²) |
+| `arrhenius` | Why do reactions double in speed every 10 °C? | Escape rates fall monotonically from kT = 1.6 to 0.8; Arrhenius slope 4.3–6.5 ε (4.8; native 5.4) |
 
 Plus `selftest`: the GPU primitive and engine checks, run under the browser's shader compiler.
 
@@ -81,10 +91,11 @@ a CUDA machine).
 
 ## Since the first status report
 
-- More pages (18 in all, with the FEP page): rubber band (entropic spring), atmosphere (barometric, isothermal
+- More pages (20 in all): rubber band (entropic spring), atmosphere (barometric, isothermal
   column), Carnot engine and heat pump (0.31 vs the 0.33 limit when slow), boiling (vapour
   pressure, Clausius–Clapeyron, latent heat ~4 ε), lipid self-assembly, helium balloon
-  (Graham's law, 2.67 vs 2.69), smell (diffusion vs draught).
+  (Graham's law, 2.67 vs 2.69), smell (diffusion vs draught), drug binding by FEP, a saline IV
+  drip and a model cell, reaction rates (Arrhenius).
 - Engine: bonds and pinned species, membrane pores, piston, flow-relative Andersen bath with an
   exact energy ledger, M1b all-integer forces (`Arith::Int`): GPU and CPU bit-identical, golden
   hash `3aaeff680a2f0278` reproduced natively, in Chrome and in WebKit.
@@ -101,12 +112,27 @@ combines the two legs with TI and exponential-averaging FEP. In native tests the
 mean far from the pocket: ligands stuck to the pocket's outside otherwise blur the comparison
 (see `crates/md/tests/binding.rs`).
 
+## Reaction rates
+
+The `arrhenius` page counts escapes from 768 pockets (8 σ boxes) at kT = 1.6, 1.25, 1.0 and 0.8,
+sweeping one run from hot to cold. Natively: k = 0.043, 0.018, 0.0065, 0.0014 per τ bound, so
+Eₐ ≈ 5.4 ε from the end points; the local slope steepens from 4.9 to 6.1 ε towards the cold end
+(the prefactor depends on temperature). Two things had to be learned (`crates/md/tests/binding.rs`):
+
+- From a start with every ligand free, the rate per unit time bound comes out high and settles
+  only as the occupancy reaches equilibrium, ~500 τ at kT = 0.8. It is not ligands bouncing
+  straight back out (requiring 5–10 τ in the pocket changes little): some slower relaxation in the
+  bound state. Each temperature gets its own equilibration.
+- The time bound has more scatter than Poisson counting suggests, because episodes are long. Many
+  small boxes beat a few long runs; the solvent density per box also changes the rate (by ~2×
+  between 8 σ and 16 σ boxes), as Kramers' theory of friction would have it.
+
 ## Next
 
-- Bonds (polymers): rubber band as an entropic force; then lipids and soap.
-- Liquid–vapour coexistence (LJ) with the free piston: boiling point vs pressure, the pressure
-  cooker, the temperature plateau while boiling.
-- Carnot engine and heat pump: piston cycles between baths, efficiency vs speed.
+- Pressure cooker and boiling plateau: temperature held while boiling at fixed pressure.
+- Salt and the melting point (freezing point depression), dissolving and solubility.
+- Buffers and pH (needs a reaction model), catalysis.
+- Evaporative cooling and the wet-bulb limit.
 - Maxwell's demon / Feynman ratchet (needs a rigid body).
-- All-integer forces (`gpu-int-int`, M1b), cross-device golden hashes.
-- 3D.
+- Lattice protein folding: why a cooked egg cannot be uncooked.
+- 3D, then comparisons with HOOMD/LAMMPS/OpenMM on the same hardware.

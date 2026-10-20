@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Reaction Rates and Heat</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 16 16%22%3E%3Ccircle cx=%228%22 cy=%228%22 r=%227%22 fill=%22%239a4a1e%22/%3E%3C/svg%3E" />
+    <link rel="stylesheet" href="../../src/lib/style.css" />
+  </head>
+  <body>
+    <nav class="topbar"><div class="wrap"><a href="../../index.html">Statistical mechanics, simulated</a></div></nav>
+    <main class="wrap">
+      <header class="question">
+        <div class="eyebrow">Kinetics</div>
+        <h1>Why do reactions roughly double in speed every 10 °C?</h1>
+        <p class="lede">
+          Cooking, spoiling, insulin going off in a hot car: all are molecules getting over an energy
+          barrier. Here each small box holds a sticky pocket with one molecule caught in it. To escape it
+          has to collect a big kick of energy from its jostling neighbours. Warm the boxes a little and
+          count how much more often molecules get out.
+        </p>
+      </header>
+
+      <section class="lab">
+        <div class="stage" id="stage">
+          <canvas id="canvas" aria-label="768 small boxes, each with a sticky pocket and one molecule that is caught in it or free"></canvas>
+          <div class="overlay" id="overlay">Starting the GPU…</div>
+        </div>
+        <aside class="panel">
+          <div class="buttons">
+            <button class="primary" id="run">Run</button>
+            <button id="sweep">Measure at four temperatures</button>
+          </div>
+          <div class="legend"><span><i style="background: var(--accent)"></i>pocket</span><span><i style="background: var(--cream)"></i>molecule</span><span><i style="background: var(--box-hit)"></i>caught</span></div>
+          <label class="row">Temperature kT/ε <span id="tv">1.00</span>
+            <input type="range" id="temp" min="0.7" max="1.8" step="0.05" value="1" />
+          </label>
+          <div class="readouts">
+            <div class="readout"><div class="k">caught now</div><div class="v" id="caught">–</div></div>
+            <div class="readout"><div class="k">escapes at this T</div><div class="v" id="esc">0</div></div>
+            <div class="readout"><div class="k">escape rate (per τ)</div><div class="v" id="rate">–</div></div>
+            <div class="readout"><div class="k">barrier from the slope</div><div class="v" id="ea">–</div></div>
+          </div>
+          <canvas class="plot tall" id="plot" aria-label="Logarithm of the escape rate against inverse temperature, with a straight-line fit"></canvas>
+          <div class="status" id="status">Press Run, or measure at four temperatures (about a minute). After each change of temperature the pockets take a while to settle before counting starts.</div>
+        </aside>
+      </section>
+
+      <h2>From the toy to the kitchen</h2>
+      <section class="lab calc">
+        <aside class="panel wide">
+          <label class="row">Activation energy <span id="eav">50 kJ/mol</span>
+            <input type="range" id="eareal" min="10" max="150" step="5" value="50" />
+          </label>
+          <div class="readouts">
+            <div class="readout"><div class="k">20 → 30 °C</div><div class="v" id="f10">–</div></div>
+            <div class="readout"><div class="k">fridge 4 °C → body 37 °C</div><div class="v" id="ffridge">–</div></div>
+            <div class="readout"><div class="k">pot 100 °C → pressure cooker 120 °C</div><div class="v" id="fcook">–</div></div>
+            <div class="readout"><div class="k">pot at sea level → in Leh (87 °C)</div><div class="v" id="fleh">–</div></div>
+          </div>
+          <div class="status" id="calcstatus"></div>
+        </aside>
+      </section>
+
+      <article class="notes">
+        <h2>Rates are Boltzmann factors</h2>
+        <p>
+          A molecule in the pocket sits in an energy well. Getting out needs an energy E<sub>a</sub>
+          above its usual share, and the chance of having that much extra energy at any instant is the
+          Boltzmann factor e<sup>−E<sub>a</sub>/kT</sup> (the <a href="../boltzmann/index.html">energy of one
+          molecule</a> is spread exponentially). So the escape rate is k = A e<sup>−E<sub>a</sub>/kT</sup>,
+          Arrhenius's law. Plot ln k against 1/T and the points fall on a line whose slope is −E<sub>a</sub>.
+        </p>
+        <p>
+          The toy barrier is a few ε, comparable to kT, so escapes happen often enough to count in a few
+          seconds. Chemical and biological barriers are much higher: 50 kJ/mol is 20 kT at room temperature.
+          A 10 °C rise is only 3% more kT, but multiplied by 20 in the exponent that becomes a factor of
+          e<sup>0.66</sup> ≈ 2. That is the rule of thumb, and why it is only a rule: it holds for barriers
+          near 50 kJ/mol.
+        </p>
+        <p>
+          The same arithmetic explains the <a href="../boiling/index.html">pressure cooker</a>. At 120 °C
+          instead of 100 °C, the reactions that soften beans and cook meat run several times faster; in Leh,
+          where water boils at 87 °C, they run several times slower. And it is why insulin and mRNA vaccines
+          are kept cold: the reactions that degrade them are slowed by the same factor.
+        </p>
+        <p>
+          What the simulation adds is that nothing here is put in by hand. The escape rate comes out of
+          Newton's laws for a few tens of thousands of molecules; the exponential dependence on temperature
+          is a consequence of how energy is shared, not an assumption. The barrier read from the slope is
+          not exactly the pocket's depth: the molecule also has to push solvent aside, and the prefactor
+          A depends on temperature too (how often the solvent kicks), so the line bends slightly, steeper
+          at the cold end. Real Arrhenius plots bend for the same reasons.
+        </p>
+      </article>
+    </main>
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>
