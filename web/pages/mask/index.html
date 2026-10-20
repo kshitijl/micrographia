@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>How Masks Filter</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 16 16%22%3E%3Ccircle cx=%228%22 cy=%228%22 r=%227%22 fill=%22%239a4a1e%22/%3E%3C/svg%3E" />
+    <link rel="stylesheet" href="../../src/lib/style.css" />
+  </head>
+  <body>
+    <nav class="topbar"><div class="wrap"><a href="../../index.html">Statistical mechanics, simulated</a></div></nav>
+    <main class="wrap">
+      <header class="question">
+        <div class="eyebrow">Public health</div>
+        <h1>How can a mask stop particles much smaller than its holes?</h1>
+        <p class="lede">
+          A mask is not a sieve. Its fibres leave gaps far wider than a virus-laden droplet, yet it catches
+          most of them. Here a fan (the shaded strip) blows air round a channel through a few rows of
+          fibres, carrying aerosol particles that stick to any fibre they touch. Follow the traced
+          particles: they do not ride the air straight through the gaps.
+        </p>
+      </header>
+
+      <section class="lab">
+        <div class="stage" id="stage" style="aspect-ratio: 2 / 1">
+          <canvas id="canvas" aria-label="Air flowing left to right through rows of fibres, carrying aerosol particles"></canvas>
+          <div class="overlay" id="overlay">Starting the GPU…</div>
+        </div>
+        <aside class="panel">
+          <div class="buttons">
+            <button class="primary" id="run">Run</button>
+            <button id="sweep">Measure every size</button>
+          </div>
+          <div class="legend"><span><i style="background: var(--accent)"></i>fibre</span><span><i style="background: var(--cream)"></i>aerosol</span><span><i style="background: var(--species-2)"></i>air</span></div>
+          <label class="row">Particle size
+            <select id="size">
+              <option value="0.3">0.3 σ (27× smaller than the gaps)</option>
+              <option value="1.2" selected>1.2 σ (7× smaller)</option>
+              <option value="2.4">2.4 σ (3× smaller)</option>
+              <option value="4.8">4.8 σ (just smaller)</option>
+            </select>
+          </label>
+          <div class="readouts">
+            <div class="readout"><div class="k">caught</div><div class="v" id="caught">0</div></div>
+            <div class="readout"><div class="k">got through</div><div class="v" id="passed">0</div></div>
+            <div class="readout"><div class="k">caught per pass</div><div class="v" id="eff">–</div></div>
+            <div class="readout"><div class="k">a sieve would catch</div><div class="v">0%</div></div>
+          </div>
+          <canvas class="plot" id="plot" aria-label="Share of particles caught per pass, by size"></canvas>
+          <div class="status" id="status">Press Run to watch, or measure every size (about a minute).</div>
+        </aside>
+      </section>
+
+      <article class="notes">
+        <h2>Three ways to hit a fibre</h2>
+        <p>
+          A sieve stops what is bigger than its holes. A filter catches particles by bringing them into
+          contact with a fibre, where they stick (van der Waals forces hold them). Air flows round each fibre,
+          and a particle that followed the air exactly would flow round it too. Particles do not:
+        </p>
+        <ul>
+          <li><b>Diffusion.</b> Small particles are knocked about by air molecules and wander sideways off
+            the airflow (Brownian motion, the same jostling as on the <a href="../smell/index.html">smell
+            page</a>). The slower the flow, the more time they have to wander into a fibre.</li>
+          <li><b>Inertia.</b> Heavy particles cannot turn as sharply as the air does and run straight into
+            the fibre in front of them.</li>
+          <li><b>Interception.</b> A large particle following the air past a fibre touches it simply because
+            it is large.</li>
+        </ul>
+        <p>
+          Diffusion works best on the smallest particles, inertia and interception on the largest, so a
+          filter has a most penetrating size in between. For real fibre filters it is about 0.1–0.3 µm, and
+          the N95 rating means at least 95% of such particles are caught: everything else is caught better.
+          Respiratory droplets and aerosols are mostly larger. Many N95 fibres also carry electric charge,
+          which pulls particles in from further away, a fourth mechanism not modelled here.
+        </p>
+        <p>
+          In this toy the fibres are 4 σ across with gaps of 8 σ, the air is a gas of molecules 1 σ across,
+          and the aerosols range from air-molecule size to just smaller than the gaps. Even particles 27×
+          smaller than the gaps are caught on a good fraction of passes, and the largest almost always.
+          The toy does not resolve the most penetrating size: between the smallest and the middle sizes the
+          difference is within the noise (it changes sign from run to run), because even the smallest
+          particles here are as heavy as an air molecule and the air is too thin and fast for diffusion
+          to dominate.
+          Each extra row of fibres catches a share of what is left, which is why real masks are many fibres
+          thick. As particles stick, the filter clogs and the same fan pushes less air through: a used mask
+          is harder to breathe through.
+        </p>
+      </article>
+    </main>
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>

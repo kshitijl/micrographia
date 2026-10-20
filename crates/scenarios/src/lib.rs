@@ -59,7 +59,7 @@ pub struct Scenario {
     pub radii: Vec<f64>,
 }
 
-pub const NAMES: &[&str] = &["cream", "corner", "boltzmann", "heavy", "oilwater", "heatflow", "osmosis", "compress", "rubber", "atmosphere", "carnot", "boiling", "lipids", "balloon", "smell", "binding", "fep", "cell", "buffer"];
+pub const NAMES: &[&str] = &["cream", "corner", "boltzmann", "heavy", "oilwater", "heatflow", "osmosis", "compress", "rubber", "atmosphere", "carnot", "boiling", "lipids", "balloon", "smell", "binding", "fep", "cell", "buffer", "mask"];
 
 pub fn build(name: &str, o: &Options) -> Result<Scenario, String> {
     match name {
@@ -82,6 +82,7 @@ pub fn build(name: &str, o: &Options) -> Result<Scenario, String> {
         "fep" => Ok(fep(o)),
         "cell" => Ok(cell(o)),
         "buffer" => Ok(buffer(o)),
+        "mask" => Ok(mask(o)),
         _ => Err(format!("unknown scenario {name}")),
     }
 }
@@ -862,4 +863,84 @@ pub fn buffer(o: &Options) -> Scenario {
     let vel = init::maxwell(&sys, &species, t, seed);
     let state = State { pos: pos.iter().map(|p| [fixed::to_fixed(p[0]), fixed::to_fixed(p[1])]).collect(), vel, species };
     Scenario { warmup: o.get("warmup", 2000.0) as usize, finish: Finish::None, marked: 0, grid: [8, 8], radii: vec![0.6, 1.0], sys, state }
+}
+
+/// A mask: air (species 0) blown round a periodic channel by a fan through a filter of fixed
+/// fibres (species 1, pinned discs of radius `fiber`), carrying aerosol particles (species 2,
+/// diameter `size`, mass `density` × size², at least 1). Aerosols stick to a fibre they touch (a short
+/// Lennard-Jones well); air only bounces. Walls top and bottom are frictionless, so the fan
+/// works only against the filter. Options: width, height, air (density), fiber, gap (between
+/// fibre surfaces across the flow), rows, size, density, aerosols, fan (drift σ/τ), stick (ε),
+/// seed.
+pub fn mask(o: &Options) -> Scenario {
+    let (w, h) = (o.get("width", 128.0), o.get("height", 64.0));
+    let rf = o.get("fiber", 2.0);
+    let gap = o.get("gap", 8.0);
+    let rows = o.get("rows", 3.0) as usize;
+    let size = o.get("size", 1.0);
+    // No lighter than an air molecule.
+    let m_a = (o.get("density", 10.0) * size * size).max(1.0);
+    let wca = |sigma: f64| Pair { eps: 1.0, sigma, rc: sigma * 2f64.powf(1.0 / 6.0) };
+    let af = rf + size / 2.0;
+    let sys = System::new([fixed::to_fixed(w), fixed::to_fixed(h)], init::DT, wca(1.0), vec![1.0, 1.0, m_a])
+        .with_walls(1, Wall::Hard, Wall::Hard)
+        .with_pair(0, 1, wca(rf + 0.5))
+        .with_pair(1, 1, wca(1.0))
+        .with_pair(0, 2, wca((1.0 + size) / 2.0))
+        .with_pair(2, 2, wca(size))
+        .with_pair(1, 2, Pair { eps: o.get("stick", 12.0), sigma: af / 2f64.powf(1.0 / 6.0), rc: 1.5 * af / 2f64.powf(1.0 / 6.0) })
+        .with_pinned(1)
+        .with_thermostat(1.0, 2.0)
+        .with_fan(1, 0.0, w / 8.0, o.get("fan", 1.0));
+    // Fibres in staggered columns across the middle of the channel, 2 rf + gap apart.
+    let pitch = 2.0 * rf + gap;
+    let x0 = w / 2.0;
+    let mut fibers = Vec::new();
+    for c in 0..rows {
+        let x = x0 + c as f64 * pitch * 0.866;
+        let shift = if c % 2 == 0 { 0.0 } else { pitch / 2.0 };
+        let mut y = pitch / 2.0 + shift;
+        while y < h - rf - 0.6 {
+            fibers.push([x, y]);
+            y += pitch;
+        }
+    }
+    let seed = o.get("seed", 1.0) as u64;
+    let aerosols = o.get("aerosols", 60.0) as usize;
+    // Aerosols start upstream of the fan, spread over the channel; air fills the rest.
+    let mut pos: Vec<[f64; 2]> = fibers.clone();
+    let mut species = vec![1u32; fibers.len()];
+    let clear = |pos: &Vec<[f64; 2]>, q: [f64; 2], r: f64| pos.iter().all(|p| (p[0] - q[0]).powi(2) + (p[1] - q[1]).powi(2) > r * r);
+    let mut draw = 0u32;
+    while species.iter().filter(|&&s| s == 2).count() < aerosols {
+        assert!(draw < 1_000_000, "no room for {aerosols} aerosols of size {size} upstream");
+        let u = |k: u32| gpu_prims::threefry::uniform(seed, 13, 2 * draw + k);
+        let q = [w / 8.0 + u(0) * (x0 - w / 8.0 - pitch), size + u(1) * (h - 2.0 * size)];
+        draw += 1;
+        if clear(&pos, q, size + 1.0) {
+            pos.push(q);
+            species.push(2);
+        }
+    }
+    let a = (1.0 / o.get("air", 0.2)).sqrt();
+    let (nx, ny) = ((w / a) as usize, ((h - 1.0) / a) as usize);
+    for j in 0..ny {
+        for i in 0..nx {
+            let q = [(i as f64 + 0.5) * a, 0.5 + (j as f64 + 0.5) * (h - 1.0) / ny as f64];
+            let near_fiber = fibers.iter().any(|f| (f[0] - q[0]).powi(2) + (f[1] - q[1]).powi(2) < (rf + 1.0).powi(2));
+            let near_aerosol = pos.iter().zip(&species).any(|(p, &s)| s == 2 && (p[0] - q[0]).powi(2) + (p[1] - q[1]).powi(2) < (size / 2.0 + 1.0).powi(2));
+            if !near_fiber && !near_aerosol {
+                pos.push(q);
+                species.push(0);
+            }
+        }
+    }
+    let mut vel = init::maxwell(&sys, &species, 1.0, seed);
+    for (v, s) in vel.iter_mut().zip(&species) {
+        if *s == 1 {
+            *v = [0, 0];
+        }
+    }
+    let state = State { pos: pos.iter().map(|p| [fixed::to_fixed(p[0]), fixed::to_fixed(p[1])]).collect(), vel, species };
+    Scenario { warmup: o.get("warmup", 0.0) as usize, finish: Finish::None, marked: 2, grid: [8, 8], radii: vec![0.5, rf, size / 2.0], sys, state }
 }
