@@ -1,5 +1,6 @@
 import { $, cssVar, SimHost } from "../../src/lib/host";
-import { BarPlot, ScatterPlot } from "../../src/lib/plot";
+import { BarPlot, LinesPlot, ScatterPlot } from "../../src/lib/plot";
+import { Tools } from "../../src/lib/interact";
 import { cssColor } from "../../src/lib/theme";
 import type { DiscSim } from "../../src/lib/wasm";
 
@@ -164,5 +165,140 @@ window.heatflowTest = {
     });
     const neg = qs.filter((q) => q < 0).length / qs.length;
     return { n: qs.length, negative: neg, slope: Number($("slope").textContent), predicted: predicted() };
+  },
+};
+
+// ---- 1. Colour means speed: a small gas to poke at. ----
+const speedColors = (sim: DiscSim, vmax: number) => {
+  sim.set_speed_colors(new Float32Array([...cssColor("--species-2"), ...cssColor("--species-3")]));
+  sim.color_by_speed(vmax);
+};
+const hostA = new SimHost({
+  canvas: $<HTMLCanvasElement>("canvasA"),
+  overlay: $("overlayA"),
+  scenario: "boltzmann",
+  options: () => ({ n: 600, density: 0.3, temperature: 1, seed: 8 }),
+  names: ["molecules", "molecules"],
+  label: "colour means speed",
+  colors: ["--cream", "--cream"],
+  stepsPerFrame: () => 4,
+  onCreate: (sim) => speedColors(sim, 3),
+});
+new Tools({ host: hostA, container: $("toolsA") });
+$("runA").onclick = () => {
+  hostA.running = !hostA.running;
+  $("runA").textContent = hostA.running ? "Pause" : "Run";
+};
+
+// ---- 2. What the walls do: departures from each wall, by speed. ----
+const HOT_B = 2.5;
+const COLD_B = 0.4;
+const H_B = 32; // σ: the box is 16 σ wide and 32 σ tall
+const SPEED_BINS = 24;
+const VMAX_B = 4;
+let departures = { hot: [] as number[], cold: [] as number[] };
+let prevY: Float32Array | null = null;
+let prevUp: boolean[] = [];
+
+const depPlot = new LinesPlot($<HTMLCanvasElement>("departures"), {
+  xLabel: "speed leaving the wall (σ/τ)",
+  yLabel: "share of departures",
+  yMin: 0,
+  ink: () => cssVar("--muted"),
+  rule: () => cssVar("--rule"),
+});
+
+/** Speeds of molecules leaving a wall at kT: p(v) ∝ v² e^(−v²/2kT) in 2D (flux-weighted Maxwell). */
+const leaving = (v: number, t: number) => (v * v * Math.exp((-v * v) / (2 * t))) / (t ** 1.5 * Math.sqrt(Math.PI / 2));
+
+function drawDepartures() {
+  const w = VMAX_B / SPEED_BINS;
+  const hist = (vs: number[]) => {
+    const c = new Array(SPEED_BINS).fill(0);
+    for (const v of vs) if (v < VMAX_B) c[Math.floor(v / w)]++;
+    return c.map((x, i) => ({ x: (i + 0.5) * w, y: x / Math.max(1, vs.length) / w }));
+  };
+  const theory = (t: number) => Array.from({ length: 80 }, (_, i) => ({ x: ((i + 0.5) / 80) * VMAX_B, y: leaving(((i + 0.5) / 80) * VMAX_B, t) }));
+  depPlot.set([
+    { points: theory(HOT_B), color: cssVar("--muted"), dashed: true },
+    { points: theory(COLD_B), color: cssVar("--muted"), dashed: true },
+    { points: hist(departures.hot), color: cssVar("--species-3"), dots: true },
+    { points: hist(departures.cold), color: cssVar("--species-2"), dots: true },
+  ]);
+  $("nhot").textContent = String(departures.hot.length);
+  $("ncold").textContent = String(departures.cold.length);
+  if (departures.hot.length > 20 && departures.cold.length > 20) {
+    const med = [...departures.hot].sort((a, b) => a - b)[Math.floor(departures.hot.length / 2)];
+    const faster = departures.cold.filter((v) => v > med).length / departures.cold.length;
+    $("overlap").textContent = `${(100 * faster).toFixed(1)}%`;
+  }
+}
+
+/** A molecule near a wall that has just turned round has left it: record its speed. */
+async function readoutB(sim: DiscSim) {
+  const [{ pos }, { ke }] = (await Promise.all([sim.all_positions(), sim.kinetic_energies()])) as [{ pos: Float32Array }, { ke: Float32Array }];
+  const n = ke.length;
+  const y = new Float32Array(n);
+  for (let i = 0; i < n; i++) y[i] = pos[2 * i + 1];
+  if (prevY) {
+    for (let i = 0; i < n; i++) {
+      const up = y[i] > prevY[i];
+      if (up !== prevUp[i]) {
+        const v = Math.sqrt(2 * ke[i]);
+        if (up && y[i] < 1.5) departures.hot.push(v);
+        else if (!up && y[i] > H_B - 1.5) departures.cold.push(v);
+      }
+      prevUp[i] = up;
+    }
+  }
+  prevY = y;
+  drawDepartures();
+}
+
+const hostB = new SimHost({
+  canvas: $<HTMLCanvasElement>("canvasB"),
+  overlay: $("overlayB"),
+  scenario: "heatflow",
+  options: () => ({ columns: 1, per_box: 40, log2_width: 4, hot: HOT_B, cold: COLD_B, seed: 9 }),
+  names: ["molecules"],
+  label: "what the walls do",
+  colors: ["--cream"],
+  // Few steps per frame: a molecule moves under 0.1 σ between readings, so a turn at a wall is
+  // seen near the wall.
+  stepsPerFrame: () => 8,
+  afterSteps: (sim) => readoutB(sim),
+  onCreate: (sim) => {
+    speedColors(sim, 3.5);
+    const hot = cssColor("--species-3");
+    const cold = cssColor("--species-2");
+    sim.set_overlay(new Float32Array([0, -0.5, 16, 0.3, ...hot, 0, H_B - 0.3, 16, H_B + 0.5, ...cold]));
+    sim.set_view(-4, -0.6, 20, H_B + 0.6);
+    departures = { hot: [], cold: [] };
+    prevY = null;
+    prevUp = [];
+  },
+});
+$("runB").onclick = () => {
+  hostB.running = !hostB.running;
+  $("runB").textContent = hostB.running ? "Pause" : "Run";
+};
+
+declare global {
+  interface Window {
+    wallsTest?: { ready: Promise<void>; run(frames: number): Promise<{ hot: number[]; cold: number[] }> };
+  }
+}
+
+window.wallsTest = {
+  ready: hostB.ready,
+  async run(frames: number) {
+    await hostB.ready;
+    return hostB.exclusive(async (sim) => {
+      for (let f = 0; f < frames; f++) {
+        sim.step(8);
+        await readoutB(sim);
+      }
+      return departures;
+    });
   },
 };

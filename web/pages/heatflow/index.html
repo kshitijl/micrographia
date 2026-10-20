@@ -21,6 +21,49 @@
         </p>
       </header>
 
+      <h2>1. Colour means speed</h2>
+      <section class="lab">
+        <div class="stage" id="stageA">
+          <canvas id="canvasA" aria-label="A small gas, each molecule coloured by its speed"></canvas>
+          <div class="overlay" id="overlayA">Starting the GPU…</div>
+        </div>
+        <aside class="panel">
+          <div class="buttons"><button class="primary" id="runA">Run</button></div>
+          <div class="speedbar"><span>slow</span><i></i><span>fast</span></div>
+          <div id="toolsA"></div>
+          <div class="status">
+            On this page each molecule is coloured by its speed. Temperature is just how fast the molecules
+            jiggle on average. Select some molecules and kick them: they turn red, then share their speed
+            with their neighbours through collisions, and the red fades into the crowd.
+          </div>
+        </aside>
+      </section>
+
+      <h2>2. What the hot and cold walls do</h2>
+      <section class="lab">
+        <div class="stage" id="stageB">
+          <canvas id="canvasB" aria-label="A thin gas between a hot wall below and a cold wall above, molecules coloured by speed"></canvas>
+          <div class="overlay" id="overlayB">Starting the GPU…</div>
+        </div>
+        <aside class="panel">
+          <div class="buttons"><button class="primary" id="runB">Run</button></div>
+          <div class="legend"><span><i style="background: var(--species-3)"></i>hot wall (below), kT = 2.5</span><span><i style="background: var(--species-2)"></i>cold wall (above), kT = 0.4</span></div>
+          <canvas class="plot tall" id="departures" aria-label="Speeds of molecules leaving the hot wall and the cold wall"></canvas>
+          <div class="legend"><span><i style="background: var(--species-3)"></i>leaving the hot wall</span><span><i style="background: var(--species-2)"></i>leaving the cold wall</span><span><i style="background: var(--muted)"></i>theory</span></div>
+          <div class="readouts">
+            <div class="readout"><div class="k">left the hot wall</div><div class="v" id="nhot">0</div></div>
+            <div class="readout"><div class="k">left the cold wall</div><div class="v" id="ncold">0</div></div>
+            <div class="readout"><div class="k">cold-wall molecules faster than the median hot-wall one</div><div class="v" id="overlap">–</div></div>
+          </div>
+          <div class="status">
+            A molecule that hits a wall forgets its speed: it leaves with a new, random velocity drawn at the
+            wall's temperature. Not one fixed speed: a spread, centred higher for the hot wall. The spreads
+            overlap, so now and then the cold wall sends a molecule off faster than the hot wall usually does.
+          </div>
+        </aside>
+      </section>
+
+      <h2>3. Many small systems, counting heat</h2>
       <section>
         <div class="stage wide" id="stage">
           <canvas id="canvas" aria-label="Six of the small systems: molecules between a hot wall below and a cold wall above, coloured by speed"></canvas>
@@ -60,6 +103,15 @@
       </section>
 
       <article class="notes">
+        <h2>How the walls move heat</h2>
+        <p>
+          The walls are heat baths. Whatever speed a molecule hits a wall with, it leaves with a fresh
+          random velocity, drawn from the distribution of molecules crossing a surface in a gas at the
+          wall's temperature (panel 2). So each hit is a small exchange of energy: the wall gains whatever
+          the molecule brought in minus what it leaves with. On average a hot wall sends molecules off
+          faster than they came and a cold wall slower, so energy flows from the hot wall, through the
+          molecules' collisions, to the cold one. That is heat conduction.
+        </p>
         <h2>What you're seeing</h2>
         <p>
           The molecules are coloured by speed, blue to red. Molecules that hit the bottom wall leave with

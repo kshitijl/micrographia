@@ -409,3 +409,18 @@ table.results th {
   display: grid;
   gap: 6px;
 }
+
+/* A slow-to-fast colour bar, for pages that colour molecules by speed. */
+.speedbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--muted);
+}
+.speedbar i {
+  flex: 1;
+  height: 10px;
+  border-radius: 5px;
+  background: linear-gradient(to right, var(--species-2), var(--species-3));
+}
