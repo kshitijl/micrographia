@@ -278,3 +278,53 @@ Open questions (second round):
    does energy come in, why is it needed, wouldn't the effect show without it? Isn't heating from
    the bottom what gives a temperature gradient, so adding heat uniformly and then finding a
    uniform temperature is a bit of a cheat?
+
+### Third round: done (to confirm)
+
+- [ ] Engine renamed **Rahman** (README, site, docs). Crate names unchanged (still open).
+- [ ] `CLAUDE.md`: build pages on the public API; make things visceral; entropy-stronger-when-hotter
+  as a theme.
+- [ ] `boltzmann`: the three plots sit in a row under the simulation. On every page the
+  simulation now stays in view (sticky) while a long panel scrolls.
+- [ ] Energy graphs everywhere: every simulation gets the total-energy and entropy plots by
+  default; the legend says how energy can change (heat bath, heat-bath walls, piston work).
+  Potential energy now includes m g h, so energy under gravity is flat. `compress` and `carnot`
+  also plot "total minus the work the piston has done", which stays flat.
+- [ ] `oilwater`: "Stir with a spoon": the pointer becomes a spoon; dragging pulls the molecules
+  under it along with the spoon (velocities moved halfway to the spoon's each event, swept along
+  its path), so it stirs without boiling. "Start again, mixed" replaces the old lattice reset.
+  Gravity slider, with oil half as heavy as water (exaggerated, said so): with gravity off it still
+  separates into blobs; with g = 0.03, 2/3 of the oil is in the top half after ~1200 τ. The heat
+  bath is now gentle (it was killing the flow that lets oil float up). Salad-dressing note.
+- [ ] `saline`: four cells. Answer to the question: the ring is beads joined by harmonic springs,
+  plus springs between next-nearest beads for bending stiffness. Measured: the springs barely
+  stretch more in water than in saline (the swelling unfolds the ring's wrinkles, and thermal
+  jiggling stretches springs far more than osmosis does), so colouring by spring strain would show
+  noise. Instead each cell's membrane is coloured by how full it is (blue shrunken, white normal,
+  red about to burst, grey burst), and a cell bursts when its 10 τ-averaged area passes the
+  lysis limit, like a real red cell that tears once swollen to its limit: the membrane opens
+  where it is most stretched (three springs removed through a new public `remove_bond` API) and
+  the salt leaks out. In pure water all four burst within a few hundred τ; in saline none; in
+  brine they shrink to ~60% and crumple. Notes on crenation (stiff spiky cells that can't pass
+  capillaries; brain cells tearing vessels in very salty blood).
+- [ ] `rubber`: part 1, "feel the pull": each chain's right end is a handle on a soft spring to a
+  fixed post, drawn as dots from blue (slack) to red (taut); heat it and the springs stretch further
+  (2 σ → 6.7 σ from kT 1 to 2.5), and the pull is k × stretch (the T = 2 / T = 1 ratio is 2.04).
+  Part 2, "why stretching warms it": insulated chains, "Stretch fast" and "Release fast" with a
+  temperature trace: stretching warms them (1.00 → 1.19), releasing cools them (→ 1.05). Releasing
+  has to be slower than the chains can follow, or the ends just push on them and heat them.
+- [ ] `atmosphere`: no heat bath (answer: the bath was an Andersen thermostat redrawing velocities
+  at random, which is what made top molecules jump about; it set the temperature but isn't needed:
+  a sealed column also settles to one uniform temperature, which is the real point). Start menu
+  (spread evenly, squeezed against the floor, against the ceiling, already settled); gravity and
+  temperature sliders (mass only enters through m g, so no mass slider; two kinds of molecule show
+  two scale heights); the temperature slider rescales everyone's speed through the public region
+  command. Falling from the ceiling heats the gas (to kT ≈ 4); spreading from the floor cools it.
+  New "slabs" panel: N slabs each holding up the ones above, (1 − x/N)^k, becoming the
+  exponential as N grows.
+
+Open questions (third round):
+- Rename the `md` crates to `rahman`?
+- `saline`: bursting is a rule on the cell's area (the model's springs are too stretchy and noisy
+  to snap by themselves). Fine, or try a stiffer, nearly inextensible membrane?
+- `oilwater`: the oil's mass is exaggerated (half of water's) so it rises in tens of seconds.
