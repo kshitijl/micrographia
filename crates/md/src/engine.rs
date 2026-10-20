@@ -59,6 +59,8 @@ pub struct Params {
     pub bond_types: [[f32; 4]; 4],
     pub pairs: [[f32; 4]; 16],
     pub fan: [u32; 4],
+    pub thermo_sd: [f32; 4],
+    pub wall_sd: [[f32; 4]; 4],
 }
 
 /// Words of the control buffer (see `params.wgsl`).
@@ -267,6 +269,24 @@ impl Params {
                 let r = sys.thermostat.map_or([0, 0], |t| t.region).map(|x| x.clamp(0, sys.box_len[0]));
                 let (lo, hi) = (fixed64::split(r[0]), fixed64::split(r[1]));
                 [lo[0], lo[1], hi[0], hi[1]]
+            },
+            thermo_sd: {
+                let mut sd = [0f32; 4];
+                if let Some(t) = sys.thermostat {
+                    for s in 0..ns {
+                        sd[s] = ((t.t / sys.masses[s]).sqrt() * sys.dt * md_core::ONE as f64) as f32;
+                    }
+                }
+                sd
+            },
+            wall_sd: {
+                let mut sd = [[0f32; 4]; 4];
+                for w in 0..4 {
+                    for s in 0..ns {
+                        sd[w][s] = (wall_t[w] as f64 / sys.masses[s]).sqrt() as f32;
+                    }
+                }
+                sd
             },
         }
     }

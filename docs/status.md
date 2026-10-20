@@ -24,7 +24,7 @@ M1 Pro (Metal) unless stated. Run everything with `cargo xtask all`.
 | `smell` | How long would a smell take to cross a room? | Still-air drift within 4 standard errors of zero; a draught beats diffusion |
 | `fep` | How do computers predict which drug binds best? | TI and FEP agree within 0.15 kT and with direct counting within 0.5 kT (−1.47, −1.47, −1.60) |
 | `saline` | Why are IV drips saline? | Model cell area in water > saline > brine (280, 254, 176 σ²) |
-| `arrhenius` | Why do reactions double in speed every 10 °C? | Escape rates fall monotonically from kT = 1.6 to 0.8; Arrhenius slope 4.3–6.5 ε (4.8; native 5.4) |
+| `arrhenius` | Why do reactions double in speed every 10 °C? | Escape rates fall monotonically from kT = 1.6 to 0.8; Arrhenius slope 4.3–6.5 ε (4.9 in Chrome and WebKit; native 5.4) |
 | `buffer` | How does a buffer hold blood's pH steady? | [H][A]/[HA] constant within 1.8× up to equivalence; at 24 protons per box <25% as many free as in water (2.5 vs 24); Henderson–Hasselbalch from K within 0.15 |
 | `mask` | How can a mask stop particles smaller than its holes? | Particles 3–27× smaller than the gaps caught on >20% of passes (~40%); the largest ≥0.2 more often (0.76) |
 
@@ -48,7 +48,11 @@ Plus `selftest`: the GPU primitive and engine checks, run under the browser's sh
   for ~70% of particles (the rest differ by a few units: different f32 rounding/fusion) and
   with the f64 twin to ~8×10⁻⁷ rms.
 - **Browser:** the same WGSL runs through Chrome's compiler. On this Mac the state hash after
-  1000 steps (`f26cd2e88ad2801e`) is identical natively (naga) and in Chrome (Tint).
+  1000 steps (`f26cd2e88ad2801e`) is identical natively (naga) and in Chrome (Tint). The f32
+  pages also reproduce bit for bit between Chrome and WebKit, after one fix: the heat baths
+  computed √(kT/m) in the shader, and Chrome's and WebKit's compiled shaders disagreed on it for
+  kT = 1.6 or 2.25 (not for 1 or 4). The scales are now computed on the CPU in f64 and passed as
+  uniforms.
 
 ## Physics checks (native tests)
 

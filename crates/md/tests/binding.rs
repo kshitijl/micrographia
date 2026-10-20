@@ -248,3 +248,4 @@ fn retuned_temperature() {
         assert!((a / t - 1.0).abs() < 0.03 && (b / t - 1.0).abs() < 0.03);
     }
 }
+

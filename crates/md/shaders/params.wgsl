@@ -72,6 +72,10 @@ struct Params {
     pairs: array<vec4<f32>, 16>,
     // The thermostat acts on x in [lo, hi): (lo.lo, lo.hi, hi.lo, hi.hi).
     fan: vec4<u32>,
+    // √(kT/m) per species for the thermostat (position units per step) and per wall and
+    // species for thermal walls (σ/τ), computed on the CPU.
+    thermo_sd: vec4<f32>,
+    wall_sd: array<vec4<f32>, 4>,
 }
 
 fn is_pinned(s: u32) -> bool {

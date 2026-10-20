@@ -59,7 +59,7 @@ pub struct Scenario {
     pub radii: Vec<f64>,
 }
 
-pub const NAMES: &[&str] = &["cream", "corner", "boltzmann", "heavy", "oilwater", "heatflow", "osmosis", "compress", "rubber", "atmosphere", "carnot", "boiling", "lipids", "balloon", "smell", "binding", "fep", "cell", "buffer", "mask"];
+pub const NAMES: &[&str] = &["cream", "corner", "boltzmann", "heavy", "oilwater", "heatflow", "osmosis", "compress", "rubber", "atmosphere", "carnot", "boiling", "lipids", "balloon", "smell", "binding", "fep", "cell", "buffer", "mask", "dna"];
 
 pub fn build(name: &str, o: &Options) -> Result<Scenario, String> {
     match name {
@@ -83,6 +83,7 @@ pub fn build(name: &str, o: &Options) -> Result<Scenario, String> {
         "cell" => Ok(cell(o)),
         "buffer" => Ok(buffer(o)),
         "mask" => Ok(mask(o)),
+        "dna" => Ok(dna(o)),
         _ => Err(format!("unknown scenario {name}")),
     }
 }
@@ -794,7 +795,7 @@ mod tests {
         for name in NAMES {
             let mut o = Options::default();
             // Small versions, so the CPU engine finishes quickly.
-            for (k, v) in [("n", 1500.0), ("boxes_x", 8.0), ("boxes_y", 6.0), ("columns", 16.0), ("chains", 8.0), ("lipids", 200.0), ("width", 40.0), ("radius", 8.0)] {
+            for (k, v) in [("n", 1500.0), ("boxes_x", 8.0), ("boxes_y", 6.0), ("columns", 16.0), ("chains", 8.0), ("lipids", 200.0), ("width", 40.0), ("radius", 8.0), ("aerosols", 10.0), ("rows", 2.0)] {
                 o = o.with(k, v);
             }
             let sc = build(name, &o).unwrap();
@@ -895,6 +896,7 @@ pub fn mask(o: &Options) -> Scenario {
     // Fibres in staggered columns across the middle of the channel, 2 rf + gap apart.
     let pitch = 2.0 * rf + gap;
     let x0 = w / 2.0;
+    assert!(x0 + (rows as f64 - 1.0) * pitch * 0.866 + rf + 1.0 < w, "{rows} rows of fibres do not fit in a channel {w} σ long");
     let mut fibers = Vec::new();
     for c in 0..rows {
         let x = x0 + c as f64 * pitch * 0.866;
@@ -943,4 +945,61 @@ pub fn mask(o: &Options) -> Scenario {
     }
     let state = State { pos: pos.iter().map(|p| [fixed::to_fixed(p[0]), fixed::to_fixed(p[1])]).collect(), vel, species };
     Scenario { warmup: o.get("warmup", 0.0) as usize, finish: Finish::None, marked: 2, grid: [8, 8], radii: vec![0.5, rf, size / 2.0], sys, state }
+}
+
+/// DNA melting, coarse-grained: each box holds one strand of A beads (species 0) and one of B
+/// beads (species 1), in an implicit solvent (a bulk bath). Only A–B attract (a Lennard-Jones
+/// well standing in for base pairing); beads of a strand are joined by Kremer–Grest bonds and
+/// stiffened by springs between next-nearest beads. Rows of boxes come in bands with strands of
+/// each length in `lengths` (bottom to top). Options: log2_box, columns, rows (per length),
+/// lengths (a number whose decimal digits are the lengths, e.g. 248), eps, temperature, seed.
+pub fn dna(o: &Options) -> Scenario {
+    let log2 = o.get("log2_box", 4.0) as u32;
+    let side = (1u64 << log2) as f64;
+    let cols = o.get("columns", 12.0) as usize;
+    let rows = o.get("rows", 3.0) as usize;
+    let lengths: Vec<usize> = (o.get("lengths", 248.0) as u64).to_string().chars().map(|c| c.to_digit(10).unwrap() as usize).collect();
+    let t = o.get("temperature", 1.0);
+    let wca = Pair::wca();
+    let mut pos = Vec::new();
+    let mut species = Vec::new();
+    let mut bonds = Vec::new();
+    for (band, &len) in lengths.iter().enumerate() {
+        assert!(len >= 1 && (len as f64) < side - 3.0, "strands of {len} do not fit in {side} σ boxes");
+        for j in 0..rows {
+            for i in 0..cols {
+                let (x0, y0) = (i as f64 * side, (band * rows + j) as f64 * side);
+                for (strand, y) in [(0u32, y0 + side * 0.3), (1u32, y0 + side * 0.7)] {
+                    let id = pos.len() as u32;
+                    for k in 0..len {
+                        pos.push([x0 + (side - (len - 1) as f64 * 0.97) / 2.0 + k as f64 * 0.97, y]);
+                        species.push(strand);
+                    }
+                    for k in 0..len as u32 {
+                        if k + 1 < len as u32 {
+                            bonds.push([id + k, id + k + 1, 0]);
+                        }
+                        if k + 2 < len as u32 {
+                            bonds.push([id + k, id + k + 2, 1]);
+                        }
+                    }
+                }
+            }
+        }
+    }
+    let ny = lengths.len() * rows;
+    let mut sys = System::new([fixed::to_fixed(cols as f64 * side), fixed::to_fixed(ny as f64 * side)], init::DT, wca, vec![1.0, 1.0])
+        .with_walls(0, Wall::Hard, Wall::Hard)
+        .with_walls(1, Wall::Hard, Wall::Hard)
+        .with_compartments(0, log2)
+        .with_compartments(1, log2)
+        .with_pair(0, 1, Pair { eps: o.get("eps", 1.5), sigma: 1.0, rc: 2.0 })
+        .with_thermostat(t, 0.5);
+    if !bonds.is_empty() {
+        sys = sys.with_bonds(vec![md_core::BondType::kremer_grest(), md_core::BondType::Harmonic { k: 10.0, r0: 1.94 }], bonds);
+    }
+    let seed = o.get("seed", 1.0) as u64;
+    let vel = init::maxwell(&sys, &species, t, seed);
+    let state = State { pos: pos.iter().map(|p| [fixed::to_fixed(p[0]), fixed::to_fixed(p[1])]).collect(), vel, species };
+    Scenario { warmup: o.get("warmup", 0.0) as usize, finish: Finish::None, marked: 0, grid: [8, 8], radii: vec![0.5, 0.5], sys, state }
 }

@@ -57,11 +57,12 @@ fn unit_open(x: u32) -> f32 {
 // A heat bath's outgoing velocity (σ/τ): Maxwell flux normal component pointing inward, and a
 // Gaussian tangential component. Counter-based on (particle id, clock), like
 // md_core::walls::thermal_velocity (which uses f64, so values agree only approximately).
-fn thermal_draw(id: u32, clock: u32, t: f32, m: f32, inward: f32) -> vec2<f32> {
+// `sd` is √(kT/m), computed on the CPU (P.wall_sd) so that no browser's shader compiler rounds
+// it differently.
+fn thermal_draw(id: u32, clock: u32, sd: f32, inward: f32) -> vec2<f32> {
     let key = vec2<u32>(P.seed_lo, P.seed_hi ^ 0x57414c4cu);
     let r = threefry2x32(vec2<u32>(id, clock), key);
     let r2 = threefry2x32(vec2<u32>(id, clock), vec2<u32>(key.x, key.y ^ 1u));
-    let sd = sqrt(t / m);
     let vn = inward * sd * sqrt(-2.0 * log(unit_open(r.x)));
     let vt = sd * sqrt(-2.0 * log(unit_open(r2.x))) * cos(6.2831853 * unit_open(r2.y));
     return vec2<f32>(vn, vt);
@@ -81,7 +82,7 @@ fn collide(i: u32, p: vec4<u32>, axis: u32, side: u32, v: vec2<i32>) -> vec2<i32
     var out = v;
     if (P.wall_kind[w] == WALL_THERMAL) {
         let inward = select(-1.0, 1.0, side == 0u);
-        let d = thermal_draw(ids[i], atomicLoad(&ctl[CTL_CLOCK]), P.wall_t[w], m, inward);
+        let d = thermal_draw(ids[i], atomicLoad(&ctl[CTL_CLOCK]), P.wall_sd[w][species[i]], inward);
         let vn = i32(round(d.x * P.vstep));
         let vt = i32(round(d.y * P.vstep));
         out = select(vec2<i32>(vt, vn), vec2<i32>(vn, vt), axis == 0u);
@@ -152,7 +153,8 @@ fn andersen(i: u32, v: vec2<i32>) -> vec2<i32> {
     }
     let r2 = threefry2x32(vec2<u32>(id, clock), vec2<u32>(key.x, key.y ^ 1u));
     let m = P.mass[species[i]];
-    let sd = sqrt(P.thermo.x / m) * P.vstep;
+    // √(kT/m) in position units per step, from the CPU (see thermal_draw).
+    let sd = P.thermo_sd[species[i]];
     let rad = sqrt(-2.0 * log(unit_open(r.y)));
     let a = 6.2831853 * unit_open(r2.x);
     var out = vec2<i32>(i32(round(sd * rad * cos(a))) + P.thermo_drift, i32(round(sd * rad * sin(a))));
