@@ -81,3 +81,47 @@ fn osmometer_rises() {
         eprintln!("{} τ: surface left {hl:.1}, right {hr:.1}, Δh {:.1}; van 't Hoff Δh {pred:.1}; densities {rl:.3} {rr:.3}", (k + 1) * 200, hr - hl);
     }
 }
+
+/// The classic U-tube (`channel` > 0): the arms meet only through a passage at the bottom.
+/// Measured (24 σ arms, 90 σ deep, a 30 σ passage, g 0.008, 30% solute, 3339 molecules): with no
+/// heat bath Δh reaches ~9 σ by 1000 τ and then sits at 11–15 σ, against van 't Hoff's ~16 σ.
+/// With the Andersen bath it is ~1 σ at 2000 τ and ~12 σ only by 6000 τ: redrawing velocities
+/// destroys the momentum the flow through the passage needs.
+/// Env: WIDTH, HEIGHT, DEPTH, CHANNEL, G, SOLUTE, BATH (0 = constant energy), STEPS (per report).
+#[test]
+#[ignore]
+fn utube_rises() {
+    let p = Prims::new(&block_on(Gpu::new()).unwrap());
+    let env = |k: &str, d: f64| std::env::var(k).map_or(d, |v| v.parse().unwrap());
+    let (g, f, t) = (env("G", 0.006), env("SOLUTE", 0.3), 0.5);
+    let o = Options::default()
+        .with("gravity", g)
+        .with("solute", f)
+        .with("width", env("WIDTH", 64.0))
+        .with("height", env("HEIGHT", 140.0))
+        .with("depth", env("DEPTH", 60.0))
+        .with("channel", env("CHANNEL", 12.0))
+        .with("bath", env("BATH", 1.0));
+    let sc = build("osmometer", &o).unwrap();
+    let w = fixed::to_f64(sc.sys.box_len[0]);
+    let h = fixed::to_f64(sc.sys.box_len[1]);
+    eprintln!("{} molecules", sc.state.n());
+    let mut e = GpuEngine::new(&p, sc.sys.clone(), &sc.state);
+    let steps = env("STEPS", 40000.0) as usize;
+    let start = std::time::Instant::now();
+    for k in 0..env("REPORTS", 10.0) as usize {
+        e.step(steps);
+        let s = block_on(e.read_state());
+        let (hl, rl) = surface(&s, 2.0, w / 2.0 - 1.0, h);
+        let (hr, rr) = surface(&s, w / 2.0 + 1.0, w - 2.0, h);
+        let sol = (0..s.n()).filter(|&i| s.species[i] == 1 && fixed::to_f64(s.pos[i][1]) < hr + 3.0).count() as f64;
+        let c = sol / (hr * (w / 2.0 - 1.0));
+        let pred = c * t / (0.5 * (rl + rr) * g);
+        eprintln!(
+            "{:.0} τ ({:.0} s): left {hl:.1}, right {hr:.1}, Δh {:.1}; van 't Hoff {pred:.1}",
+            ((k + 1) * steps) as f64 * sc.sys.dt,
+            start.elapsed().as_secs_f64(),
+            hr - hl
+        );
+    }
+}

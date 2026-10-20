@@ -66,3 +66,45 @@ fn copy_back_meta(@builtin(global_invocation_id) gid: vec3<u32>) {
     species[k] = tmp_c[k];
     ids[k] = tmp_d[k];
 }
+
+// Change the species of particles in a region: each unpinned particle of species
+// `from_species` inside the rectangle becomes `to_species` with probability `fraction`, drawn
+// from its id and `seed` (so the choice does not depend on storage order). The command shares
+// the region command's buffer.
+struct ConvertCmd {
+    lo: vec2<f32>,
+    hi: vec2<f32>,
+    from_species: u32,
+    to_species: u32,
+    fraction: f32,
+    seed: u32,
+}
+@group(0) @binding(11) var<uniform> K: ConvertCmd;
+
+fn lowbias32(v: u32) -> u32 {
+    var x = v;
+    x ^= x >> 16u;
+    x *= 0x7feb352du;
+    x ^= x >> 15u;
+    x *= 0x846ca68bu;
+    x ^= x >> 16u;
+    return x;
+}
+
+@compute @workgroup_size(256)
+fn convert_region(@builtin(global_invocation_id) gid: vec3<u32>) {
+    let i = gid.x;
+    if (i >= P.n || species[i] != K.from_species || is_pinned(K.from_species)) {
+        return;
+    }
+    let p = pos[i];
+    let x = coord_f32(p.xy);
+    let y = coord_f32(p.zw);
+    if (x < K.lo.x || x >= K.hi.x || y < K.lo.y || y >= K.hi.y) {
+        return;
+    }
+    let u = f32(lowbias32(ids[i] ^ lowbias32(K.seed)) >> 8u) * (1.0 / 16777216.0);
+    if (u < K.fraction) {
+        species[i] = K.to_species;
+    }
+}

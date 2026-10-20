@@ -391,6 +391,13 @@ impl DiscSim {
         self.engine.kick_region([x0.min(x1), y0.min(y1)], [x0.max(x1), y0.max(y1)], scale, [vx, vy]);
     }
 
+    /// Turn molecules of species `from` in the rectangle (x0, y0)–(x1, y1) (σ) into species `to`,
+    /// each with probability `fraction` (`seed` picks which): add salt to water, or take it out.
+    #[allow(clippy::too_many_arguments)]
+    pub fn convert_region(&mut self, x0: f64, y0: f64, x1: f64, y1: f64, from: u32, to: u32, fraction: f64, seed: u32) {
+        self.engine.convert_region([x0.min(x1), y0.min(y1)], [x0.max(x1), y0.max(y1)], from, to, fraction, seed);
+    }
+
     /// "About this simulation": plain-language bullet points (method, forces, boundaries,
     /// ensemble). `names` are the page's names for the species.
     pub fn describe(&self, names: Vec<String>) -> Vec<String> {
