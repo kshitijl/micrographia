@@ -181,16 +181,15 @@ pub fn heavy(o: &Options) -> Scenario {
 }
 
 /// Two kinds of LJ molecules ("water" 0 and "oil" 1) that attract each other more weakly than
-/// themselves, in a box whose walls are a heat bath. Options: n, density, temperature,
-/// cross (oil–water attraction ε_AB), seed.
+/// themselves, held at a temperature by a heat bath acting throughout (Andersen). Options: n,
+/// density, temperature, cross (oil–water attraction ε_AB), seed.
 pub fn oilwater(o: &Options) -> Scenario {
     let n = o.get("n", 12000.0) as usize;
     let t = o.get("temperature", 1.0);
     let lj = |eps: f64| Pair { eps, sigma: 1.0, rc: 2.5 };
     let sys = System::new(init::box_for(n, o.get("density", 0.7), o.get("aspect", 4.0 / 3.0)), init::DT, lj(1.0), vec![1.0, 1.0])
-        .with_pair(0, 1, lj(o.get("cross", 0.4)))
-        .with_walls(0, Wall::Thermal(t), Wall::Thermal(t))
-        .with_walls(1, Wall::Thermal(t), Wall::Thermal(t));
+        .with_pair(0, 1, lj(o.get("cross", 0.5)))
+        .with_thermostat(t, 0.5);
     let seed = o.get("seed", 1.0) as u64;
     let mut state = init::fluid(&sys, n, t, seed);
     for i in 0..n {
@@ -198,24 +197,25 @@ pub fn oilwater(o: &Options) -> Scenario {
             state.species[i] = 1;
         }
     }
-    Scenario { warmup: 0, finish: Finish::None, marked: 1, grid: grid_for(n, sys.box_f64(), 48.0), radii: vec![0.5, 0.5], sys, state }
+    // Small bins (about 16 molecules) so that early domains register.
+    Scenario { warmup: 0, finish: Finish::None, marked: 1, grid: grid_for(n, sys.box_f64(), 16.0), radii: vec![0.5, 0.5], sys, state }
 }
 
-/// Rows of small boxes between a hot wall (left) and a cold wall (right), for the statistics
-/// of the heat each row passes in a short time. Options: rows, per_box, width (σ, power of
-/// two), hot, cold, seed.
+/// Columns of small boxes between a hot wall (bottom) and a cold wall (top), for the
+/// statistics of the heat each column passes in a short time. Each column is 2^log2_width σ
+/// wide and twice that tall. Options: columns, per_box, log2_width, hot, cold, seed.
 pub fn heatflow(o: &Options) -> Scenario {
-    let rows = o.get("rows", 128.0) as i64;
+    let cols = o.get("columns", 128.0) as i64;
     let per_box = o.get("per_box", 12.0) as usize;
     let log2w = o.get("log2_width", 3.0) as u32;
     let side = 1i64 << (32 + log2w);
     let (th, tc) = (o.get("hot", 1.5), o.get("cold", 1.0));
-    let sys = System::new([2 * side, rows * side], init::DT, Pair::wca(), vec![1.0])
-        .with_walls(0, Wall::Thermal(th), Wall::Thermal(tc))
-        .with_walls(1, Wall::Hard, Wall::Hard)
-        .with_compartments(1, log2w);
+    let sys = System::new([cols * side, 2 * side], init::DT, Pair::wca(), vec![1.0])
+        .with_walls(0, Wall::Hard, Wall::Hard)
+        .with_walls(1, Wall::Thermal(th), Wall::Thermal(tc))
+        .with_compartments(0, log2w);
     let state = init::compartment_fluid(&sys, per_box, 0.5 * (th + tc), o.get("seed", 1.0) as u64);
-    Scenario { warmup: 0, finish: Finish::None, marked: 0, grid: [8, rows as u32], radii: vec![0.5], sys, state }
+    Scenario { warmup: o.get("warmup", 4000.0) as usize, finish: Finish::None, marked: 0, grid: [cols as u32, 2], radii: vec![0.5], sys, state }
 }
 
 #[cfg(test)]
@@ -227,7 +227,7 @@ mod tests {
         for name in NAMES {
             let mut o = Options::default();
             // Small versions, so the CPU engine finishes quickly.
-            for (k, v) in [("n", 1500.0), ("boxes_x", 8.0), ("boxes_y", 6.0), ("rows", 16.0)] {
+            for (k, v) in [("n", 1500.0), ("boxes_x", 8.0), ("boxes_y", 6.0), ("columns", 16.0)] {
                 o = o.with(k, v);
             }
             let sc = build(name, &o).unwrap();

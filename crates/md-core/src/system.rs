@@ -43,6 +43,16 @@ pub struct System {
     /// different compartments do not interact: one simulation then holds many independent
     /// replicas. The axis must have walls (the outer boundary).
     pub compartments: [u32; 2],
+    /// A heat bath acting throughout the volume (Andersen): each step, each particle has
+    /// probability `rate · Δt` of having its velocity redrawn at temperature `t`.
+    pub thermostat: Option<Thermostat>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Thermostat {
+    pub t: f64,
+    /// Collision rate per particle (1/τ).
+    pub rate: f64,
 }
 
 /// Ledger slots per wall: one per compartment along the other axis.
@@ -53,7 +63,7 @@ impl System {
     pub fn new(box_len: [i64; 2], dt: f64, pair: Pair, masses: Vec<f64>) -> Self {
         assert!(!masses.is_empty() && masses.len() <= MAX_SPECIES);
         let ns = masses.len();
-        let s = Self { box_len, dt, pairs: vec![pair; ns * ns], masses, walls: [None, None], gravity: [0.0, 0.0], seed: 1, compartments: [0, 0] };
+        let s = Self { box_len, dt, pairs: vec![pair; ns * ns], masses, walls: [None, None], gravity: [0.0, 0.0], seed: 1, compartments: [0, 0], thermostat: None };
         s.check();
         s
     }
@@ -115,6 +125,11 @@ impl System {
         [c(0), c(1)]
     }
 
+    pub fn with_thermostat(mut self, t: f64, rate: f64) -> Self {
+        self.thermostat = Some(Thermostat { t, rate });
+        self
+    }
+
     pub fn with_seed(mut self, seed: u64) -> Self {
         self.seed = seed;
         self
@@ -135,7 +150,7 @@ impl System {
 
     /// True if nothing stochastic happens: the dynamics is then exactly reversible.
     pub fn deterministic(&self) -> bool {
-        self.walls.iter().flatten().flatten().all(|w| !matches!(w, Wall::Thermal(_)))
+        self.thermostat.is_none() && self.walls.iter().flatten().flatten().all(|w| !matches!(w, Wall::Thermal(_)))
     }
 
     pub fn has_soft_walls(&self) -> bool {

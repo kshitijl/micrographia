@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Why Oil and Water Separate</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 16 16%22%3E%3Ccircle cx=%228%22 cy=%228%22 r=%227%22 fill=%22%239a4a1e%22/%3E%3C/svg%3E" />
+    <link rel="stylesheet" href="../../src/lib/style.css" />
+  </head>
+  <body>
+    <nav class="topbar"><div class="wrap"><a href="../../index.html">Statistical mechanics, simulated</a></div></nav>
+    <main class="wrap">
+      <header class="question">
+        <div class="eyebrow">Energy against entropy</div>
+        <h1>Why don't oil and water mix?</h1>
+        <p class="lede">
+          Oil and water molecules attract each other: weakly, but they do. And mixing raises entropy,
+          which nature favours. So why do they separate? Here are two kinds of molecules that attract
+          everything, their own kind a little more. Tune the attraction between the two kinds, and the
+          temperature, and see who wins.
+        </p>
+      </header>
+
+      <section class="lab">
+        <div class="stage" id="stage">
+          <canvas id="canvas" aria-label="A mixture of two kinds of molecules separating into domains"></canvas>
+          <div class="overlay" id="overlay">Starting the GPU…</div>
+        </div>
+        <aside class="panel">
+          <div class="buttons">
+            <button class="primary" id="run">Run</button>
+            <button id="remix">Stir</button>
+          </div>
+          <div class="legend"><span><i style="background: var(--species-2)"></i>“water”</span><span><i style="background: var(--cream)"></i>“oil”</span></div>
+          <label class="row">Oil–water attraction <span id="crossv">0.30</span>
+            <input type="range" id="cross" min="0" max="1.2" step="0.05" value="0.3" />
+          </label>
+          <div class="sub" style="font-size: 13px; color: var(--muted)">Water–water and oil–oil attraction are both 1.</div>
+          <label class="row">Temperature <span id="tv">0.70</span>
+            <input type="range" id="t" min="0.5" max="3" step="0.05" value="0.7" />
+          </label>
+          <div class="readouts">
+            <div class="readout"><div class="k">mixed</div><div class="v" id="mix">–</div></div>
+            <div class="readout"><div class="k">temperature</div><div class="v" id="temp">–</div></div>
+          </div>
+          <canvas class="plot" id="plot" aria-label="How mixed the two kinds are over time"></canvas>
+          <div class="status" id="status">Press Run.</div>
+        </aside>
+      </section>
+
+      <article class="notes">
+        <h2>The tug of war</h2>
+        <p>
+          Every molecule here attracts every other one. But a water molecule surrounded by water feels
+          more attraction (and so has lower energy) than one surrounded by oil, because the oil–water
+          attraction is weaker. Separating into regions maximises like–like contacts and lowers the
+          total energy. Mixing, on the other hand, has more arrangements: entropy pulls towards mixing.
+        </p>
+        <p>
+          Which wins depends on temperature, because what nature minimises at fixed temperature is the
+          free energy F = E − TS. At low temperature the energy term dominates and the kinds separate;
+          heat them up and the entropy term takes over and they mix. Set the oil–water attraction equal
+          to the like–like attraction (1.0) and there is no energy reason to separate at all: they mix
+          at any temperature. Try making it larger than 1, and like prefers unlike.
+        </p>
+        <p class="formula">separate if the energy gain of like–like contacts beats T × the mixing entropy</p>
+        <h2>Real oil and water are stranger</h2>
+        <p>
+          This model captures the classic “regular solution” picture used for many liquid mixtures, and
+          some real pairs (like methanol and hexane) do separate cold and mix hot. Oil and water are
+          more subtle: water molecules near oil arrange their hydrogen bonds into ordered cages, so for
+          oil in water mixing actually <i>lowers</i> entropy at room temperature. This “hydrophobic
+          effect” needs a model of water's hydrogen bonds, and will get its own page.
+        </p>
+        <div class="caveat">
+          <h3>Caveats</h3>
+          <ul>
+            <li>2D Lennard-Jones molecules of equal size and mass; a heat bath acting throughout the
+              volume keeps the temperature fixed.</li>
+            <li>The “mixed” measure looks at small regions of about 16 molecules: 100% when the share of
+              oil varies between regions only as much as chance allows, 0% when every region holds only
+              one kind.</li>
+          </ul>
+        </div>
+      </article>
+    </main>
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>

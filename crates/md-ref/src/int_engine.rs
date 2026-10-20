@@ -149,6 +149,12 @@ impl<F: Real> IntEngine<F> {
                 let home = self.sys.compartment_of(x);
                 for a in 0..2 {
                     v[a] = v[a].wrapping_add(kicks[i][a]).wrapping_add(self.gravity[a]);
+                }
+                let m = self.sys.masses[self.state.species[i] as usize];
+                if let Some((vx, vy)) = walls::andersen(&self.sys, i as u32, self.clock, m) {
+                    v = [self.sys.to_step_displacement(vx), self.sys.to_step_displacement(vy)];
+                }
+                for a in 0..2 {
                     x[a] += v[a] as i64;
                 }
                 for a in 0..2 {

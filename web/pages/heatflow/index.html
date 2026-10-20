@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Heat Flowing Uphill</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 16 16%22%3E%3Ccircle cx=%228%22 cy=%228%22 r=%227%22 fill=%22%239a4a1e%22/%3E%3C/svg%3E" />
+    <link rel="stylesheet" href="../../src/lib/style.css" />
+  </head>
+  <body>
+    <nav class="topbar"><div class="wrap"><a href="../../index.html">Statistical mechanics, simulated</a></div></nav>
+    <main class="wrap">
+      <header class="question">
+        <div class="eyebrow">The second law, up close</div>
+        <h1>Can heat ever flow from cold to hot?</h1>
+        <p class="lede">
+          The second law says heat flows from hot to cold. That is a statement about averages. Here are
+          128 tiny systems, each a dozen molecules between a hot wall (below) and a cold wall (above).
+          We measure how much heat each one passes upward in a short time window, and count how often
+          it goes the wrong way.
+        </p>
+      </header>
+
+      <section>
+        <div class="stage wide" id="stage">
+          <canvas id="canvas" aria-label="Six of the small systems: molecules between a hot wall below and a cold wall above, coloured by speed"></canvas>
+          <div class="overlay" id="overlay">Starting the GPU…</div>
+        </div>
+      </section>
+      <section class="lab" style="margin-top: 20px">
+        <div class="panel">
+          <canvas class="plot tall" id="hist" aria-label="Histogram of the heat passed from hot to cold in one window"></canvas>
+          <div class="legend"><span><i style="background: var(--accent)"></i>hot → cold (normal)</span><span><i style="background: var(--plot-back)"></i>cold → hot (backwards)</span></div>
+          <canvas class="plot tall" id="ratio" aria-label="Log of the ratio of forward to backward probabilities against heat, with the predicted line"></canvas>
+        </div>
+        <aside class="panel">
+          <div class="buttons">
+            <button class="primary" id="run">Run</button>
+            <button id="clear">Clear</button>
+          </div>
+          <label class="row">Time window <span></span>
+            <select id="window">
+              <option value="100">0.5 τ</option>
+              <option value="200">1 τ</option>
+              <option value="400" selected>2 τ</option>
+              <option value="1000">5 τ</option>
+            </select>
+          </label>
+          <label class="row">Hot wall temperature (cold wall is 1.0) <span id="thv">1.5</span>
+            <input type="range" id="th" min="1.1" max="3" step="0.1" value="1.5" />
+          </label>
+          <div class="readouts">
+            <div class="readout"><div class="k">windows where heat went backwards</div><div class="v" id="neg">–</div></div>
+            <div class="readout"><div class="k">average heat per window</div><div class="v" id="mean">–</div></div>
+            <div class="readout"><div class="k">fitted slope</div><div class="v" id="slope">–</div></div>
+            <div class="readout"><div class="k">predicted 1/T<sub>c</sub> − 1/T<sub>h</sub></div><div class="v" id="pred">–</div></div>
+          </div>
+          <div class="status" id="status">Press Run.</div>
+        </aside>
+      </section>
+
+      <article class="notes">
+        <h2>What you're seeing</h2>
+        <p>
+          The molecules are coloured by speed, blue to red. Molecules that hit the bottom wall leave with
+          the hot wall's temperature; those that hit the top wall leave with the cold wall's. Each column
+          is its own little system. Every time window, the page reads how much energy each column took
+          from the hot wall and gave to the cold wall, and averages the two to get the heat Q it passed
+          from hot to cold.
+        </p>
+        <h2>Backwards, but rarely, and predictably</h2>
+        <p>
+          Most windows pass heat the normal way, but a sizeable fraction pass it backwards: a few fast
+          molecules happened to hit the cold wall and slow ones the hot wall. The second law does not
+          forbid this; it says such windows become rare as the system or the time gets bigger. The
+          fluctuation theorem makes that exact. The odds of passing heat Q backwards rather than forwards
+          are
+        </p>
+        <p class="formula">P(−Q) / P(Q) = e<sup>−Q (1/kT<sub>c</sub> − 1/kT<sub>h</sub>)</sup></p>
+        <p>
+          so the lower chart, ln[P(Q)/P(−Q)] against Q, should be a straight line with slope
+          1/T<sub>c</sub> − 1/T<sub>h</sub>. Note that the right-hand side is just e<sup>−ΔS/k</sup>, where ΔS is the
+          entropy the forward heat flow would have produced. A cup of tea cooling by one joule would have
+          to fluctuate backwards against odds of about e<sup>−10<sup>20</sup></sup>. Small systems, like the
+          molecular machines in your cells, live in the regime where these backward steps are common.
+        </p>
+        <div class="caveat">
+          <h3>Caveats</h3>
+          <ul>
+            <li>The theorem is exact in the limit of long windows. Over short windows each column's own
+              energy changes too, which bends the line slightly; averaging the heat taken from the hot
+              wall and given to the cold wall reduces that.</li>
+            <li>Windows of the same column are correlated in time, so the error bars are underestimates.</li>
+            <li>Small-system violations of the second law were observed in the lab with a bead in an
+              optical trap (Wang et al., 2002) [from memory; verify the reference].</li>
+          </ul>
+        </div>
+      </article>
+    </main>
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>

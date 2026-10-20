@@ -184,7 +184,8 @@ export class BarPlot {
     g.font = "11px system-ui, sans-serif";
     g.textAlign = "center";
     g.textBaseline = "top";
-    const every = Math.ceil(n / 16);
+    // Leave about 44 px per label.
+    const every = Math.max(1, Math.ceil(n / Math.max(1, (W - pad.l - pad.r) / 44)));
     this.opts.labels.forEach((l, i) => {
       if (i % every === 0) g.fillText(l, pad.l + (i + 0.5) * bw, H - pad.b + 4);
     });
@@ -195,5 +196,66 @@ export class BarPlot {
       g.textBaseline = "bottom";
       g.fillText(this.opts.xLabel, W - pad.r, H);
     }
+  }
+}
+
+/** Points with error bars and a reference line through the origin. */
+export class ScatterPlot {
+  private pts: { x: number; y: number; e: number }[] = [];
+  private slope = 0;
+
+  constructor(
+    private canvas: HTMLCanvasElement,
+    private opts: { xLabel: string; yLabel: string; point: () => string; line: () => string; ink: () => string; rule: () => string },
+  ) {
+    new ResizeObserver(() => this.draw()).observe(canvas);
+  }
+
+  set(pts: { x: number; y: number; e: number }[], slope: number) {
+    this.pts = pts;
+    this.slope = slope;
+    this.draw();
+  }
+
+  draw() {
+    const { g, W, H } = prepare(this.canvas);
+    const pad = { l: 36, r: 8, t: 14, b: 22 };
+    const xMax = Math.max(1e-9, ...this.pts.map((p) => p.x)) * 1.05;
+    const yMax = Math.max(1e-9, this.slope * xMax, ...this.pts.map((p) => p.y + p.e)) * 1.05;
+    const yMin = Math.min(0, ...this.pts.map((p) => p.y - p.e));
+    const x = (v: number) => pad.l + (v / xMax) * (W - pad.l - pad.r);
+    const y = (v: number) => H - pad.b - ((v - yMin) / (yMax - yMin)) * (H - pad.t - pad.b);
+    g.strokeStyle = this.opts.rule();
+    g.beginPath();
+    g.moveTo(pad.l, pad.t);
+    g.lineTo(pad.l, H - pad.b);
+    g.lineTo(W - pad.r, H - pad.b);
+    g.stroke();
+    g.strokeStyle = this.opts.line();
+    g.lineWidth = 2;
+    g.beginPath();
+    g.moveTo(x(0), y(0));
+    g.lineTo(x(xMax), y(this.slope * xMax));
+    g.stroke();
+    g.lineWidth = 1;
+    g.strokeStyle = this.opts.point();
+    g.fillStyle = this.opts.point();
+    for (const p of this.pts) {
+      g.beginPath();
+      g.moveTo(x(p.x), y(p.y - p.e));
+      g.lineTo(x(p.x), y(p.y + p.e));
+      g.stroke();
+      g.beginPath();
+      g.arc(x(p.x), y(p.y), 3, 0, 2 * Math.PI);
+      g.fill();
+    }
+    g.fillStyle = this.opts.ink();
+    g.font = "11px system-ui, sans-serif";
+    g.textAlign = "left";
+    g.textBaseline = "top";
+    g.fillText(this.opts.yLabel, pad.l + 4, 0);
+    g.textAlign = "right";
+    g.textBaseline = "bottom";
+    g.fillText(this.opts.xLabel, W - pad.r, H);
   }
 }

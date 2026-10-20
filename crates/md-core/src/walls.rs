@@ -96,3 +96,23 @@ pub fn soft_wall(d: f64) -> (f64, f64) {
     let s6 = 1.0 / d.powi(6);
     (24.0 * s6 * (2.0 * s6 - 1.0) / d, 4.0 * s6 * (s6 - 1.0) + 1.0)
 }
+
+/// RNG stream for the Andersen thermostat.
+pub const STREAM_THERMO: u32 = 0x5448_524d;
+
+/// Andersen thermostat: Some(new velocity in σ/τ) if particle `id` is redrawn this step.
+pub fn andersen(sys: &System, id: u32, clock: u32, m: f64) -> Option<(f64, f64)> {
+    let th = sys.thermostat?;
+    let key = [sys.seed as u32, (sys.seed >> 32) as u32 ^ STREAM_THERMO];
+    let r = threefry::threefry2x32([id, clock], key);
+    if threefry::to_unit_f64([r[0], 0]) >= th.rate * sys.dt {
+        return None;
+    }
+    let r2 = threefry::threefry2x32([id, clock], [key[0], key[1] ^ 1]);
+    let u1 = 1.0 - threefry::to_unit_f64([r[1], 0]);
+    let u2 = threefry::to_unit_f64([r2[0], 0]);
+    let sd = (th.t / m).sqrt();
+    let rad = (-2.0 * u1.ln()).sqrt();
+    let a = std::f64::consts::TAU * u2;
+    Some((sd * rad * a.cos(), sd * rad * a.sin()))
+}

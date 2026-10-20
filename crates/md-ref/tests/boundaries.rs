@@ -213,3 +213,25 @@ fn left_half_counts_are_binomial() {
     }
     eprintln!("left-half count distribution (measured/binomial): {}", report.join(" "));
 }
+
+#[test]
+fn andersen_thermostat_sets_the_temperature() {
+    let n = 800;
+    let sys = System::new(init::box_for(n, 0.6, 1.0), init::DT, Pair::lj(2.5), vec![1.0, 4.0]).with_thermostat(0.8, 1.0);
+    let mut s0 = init::fluid(&sys, n, 2.0, 11);
+    for i in (0..n).step_by(2) {
+        s0.species[i] = 1;
+    }
+    let mut e = IntEngine::<f32>::new(sys, s0);
+    e.step(3000);
+    let mut t = [0.0f64; 2];
+    for _ in 0..40 {
+        e.step(50);
+        for (i, v) in e.velocities().iter().enumerate() {
+            let m = e.sys.masses[e.state.species[i] as usize];
+            t[e.state.species[i] as usize] += 0.5 * m * (v[0] * v[0] + v[1] * v[1]) / (n as f64 / 2.0) / 40.0;
+        }
+    }
+    eprintln!("Andersen at T = 0.8: light {:.3}, heavy {:.3}", t[0], t[1]);
+    assert!((t[0] - 0.8).abs() < 0.04 && (t[1] - 0.8).abs() < 0.04);
+}

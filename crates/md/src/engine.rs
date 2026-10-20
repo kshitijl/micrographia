@@ -42,6 +42,7 @@ pub struct Params {
     pub wall_t: [f32; 4],
     pub comp_shift: [u32; 2],
     pub ncomp: [u32; 2],
+    pub thermo: [f32; 4],
     pub pairs: [[f32; 4]; 16],
 }
 
@@ -179,6 +180,10 @@ impl Params {
             ncomp: {
                 let c = sys.compartment_counts();
                 [c[0] as u32, c[1] as u32]
+            },
+            thermo: match sys.thermostat {
+                Some(t) => [t.t as f32, (t.rate * sys.dt) as f32, 0.0, 0.0],
+                None => [0.0; 4],
             },
             pairs,
         }
@@ -487,7 +492,7 @@ impl GpuEngine {
         Self {
             d_reverse: Dispatch::new_at(gpu, &pl("reverse"), &[(0, &b.params), (2, &b.vel), (8, &b.kicks)], g),
             // Any walls could be made thermal later (update_system), so keep a clock for them.
-            d_tick: (!sys.periodic(0) || !sys.periodic(1)).then(|| Dispatch::new_at(gpu, &pl("tick"), &[(11, &b.ctl)], 1)),
+            d_tick: (!sys.periodic(0) || !sys.periodic(1) || sys.thermostat.is_some()).then(|| Dispatch::new_at(gpu, &pl("tick"), &[(11, &b.ctl)], 1)),
             d_flip: Dispatch::new_at(gpu, &pl("flip"), &[(0, &b.params), (1, &b.pos), (10, &b.ids)], g),
             reorder,
             path,
@@ -613,6 +618,7 @@ impl GpuEngine {
         assert_eq!(sys.species(), self.sys.species());
         assert_eq!(sys.compartments, self.sys.compartments);
         assert_eq!(sys.walls.map(|w| w.is_some()), self.sys.walls.map(|w| w.is_some()));
+        assert_eq!(sys.thermostat.is_some(), self.sys.thermostat.is_some(), "the thermostat can be retuned, not added or removed");
         assert!(sys.rc_max() <= self.sys.rc_max() + 1e-12, "cutoffs cannot grow at run time");
         let mut p = Params::new(&sys, self.n(), self.mode);
         // Keep the geometry the buffers were sized for.

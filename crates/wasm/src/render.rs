@@ -9,12 +9,17 @@ use wgpu::util::DeviceExt;
 #[repr(C)]
 #[derive(Clone, Copy, Pod, Zeroable)]
 pub struct RParams {
-    pub box_f: [f32; 2],
+    pub view_lo: [f32; 2],
+    pub view_hi: [f32; 2],
     pub min_radius: f32,
     pub highlight: u32,
+    pub speed_scale: f32,
+    pub _pad: f32,
     pub radii: [f32; 4],
     pub colors: [[f32; 4]; 4],
     pub highlight_color: [f32; 4],
+    pub cool_color: [f32; 4],
+    pub hot_color: [f32; 4],
 }
 
 pub const NO_HIGHLIGHT: u32 = u32::MAX;
@@ -89,12 +94,17 @@ impl Renderer {
             r[k] = *v as f32;
         }
         let params = RParams {
-            box_f: [b[0] as f32, b[1] as f32],
+            view_lo: [0.0, 0.0],
+            view_hi: [b[0] as f32, b[1] as f32],
             min_radius: 0.0,
             highlight: NO_HIGHLIGHT,
+            speed_scale: 0.0,
+            _pad: 0.0,
             radii: r,
             colors: [[0.36, 0.22, 0.14, 1.0], [0.96, 0.90, 0.78, 1.0], [0.3, 0.5, 0.8, 1.0], [0.8, 0.3, 0.3, 1.0]],
             highlight_color: [0.9, 0.2, 0.2, 1.0],
+            cool_color: [0.25, 0.45, 0.9, 1.0],
+            hot_color: [0.95, 0.3, 0.2, 1.0],
         };
         let params_buf = gpu.device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("render params"),
@@ -107,6 +117,7 @@ impl Renderer {
                 wgpu::BindGroupEntry { binding: 1, resource: engine.buf.pos.as_entire_binding() },
                 wgpu::BindGroupEntry { binding: 2, resource: engine.buf.species.as_entire_binding() },
                 wgpu::BindGroupEntry { binding: 3, resource: engine.buf.ids.as_entire_binding() },
+                wgpu::BindGroupEntry { binding: 5, resource: engine.buf.vel.as_entire_binding() },
             ];
             gpu.device.create_bind_group(&wgpu::BindGroupDescriptor { label: None, layout: &p.get_bind_group_layout(0), entries: &entries })
         };
@@ -140,8 +151,15 @@ impl Renderer {
 
     /// Keep discs at least about 0.7 px in radius.
     fn update_min_radius(&mut self) {
-        let px_per_sigma = self.config.width as f32 / self.params.box_f[0];
+        let px_per_sigma = self.config.width as f32 / (self.params.view_hi[0] - self.params.view_lo[0]);
         self.params.min_radius = 0.7 / px_per_sigma;
+    }
+
+    /// Show the region [lo, hi] of the box (σ).
+    pub fn set_view(&mut self, lo: [f32; 2], hi: [f32; 2]) {
+        self.params.view_lo = lo;
+        self.params.view_hi = hi;
+        self.update_min_radius();
     }
 
     /// Replace the overlay rectangles (`RECT_FLOATS` floats each).

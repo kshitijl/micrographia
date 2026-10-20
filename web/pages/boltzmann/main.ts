@@ -113,7 +113,7 @@ const host = new SimHost({
   overlay: $("overlay"),
   scenario: "boltzmann",
   options: () => ({ n: N, density: 0.5, temperature: 1, seed: 5 }),
-  colors: ["--coffee", "--cream"],
+  colors: ["--species-2", "--species-2"],
   stepsPerFrame: () => 10,
   afterSteps: (sim) => readout(sim, host.elapsed * sim.dt()),
   onCreate: (sim) => {

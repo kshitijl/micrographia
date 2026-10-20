@@ -150,3 +150,32 @@ pub fn mixing(reading: &Reading) -> f64 {
     let d_max = (all / total).ln();
     (1.0 - d / d_max).clamp(0.0, 1.0)
 }
+
+/// Segregation index of the marked species in [0, 1]: the excess variance of the local
+/// marked fraction over bins, relative to its maximum. 0 for a random mixture (where the
+/// variance is just binomial counting noise), 1 when every bin holds only one kind.
+pub fn segregation(reading: &Reading) -> f64 {
+    let (mut n, mut m) = (0.0, 0.0);
+    for (a, k) in reading.all.iter().zip(&reading.marked) {
+        n += *a as f64;
+        m += *k as f64;
+    }
+    if n == 0.0 || m == 0.0 || m == n {
+        return 0.0;
+    }
+    let f = m / n;
+    // Particle-weighted variance of the bin fractions, and its value for random mixing.
+    let (mut var, mut noise) = (0.0, 0.0);
+    for (a, k) in reading.all.iter().zip(&reading.marked) {
+        let a = *a as f64;
+        if a > 0.0 {
+            let fb = *k as f64 / a;
+            var += a * (fb - f).powi(2);
+            noise += f * (1.0 - f);
+        }
+    }
+    var /= n;
+    noise /= n;
+    let max = f * (1.0 - f);
+    ((var - noise) / (max - noise)).clamp(0.0, 1.0)
+}

@@ -5,7 +5,7 @@ use crate::render::{Renderer, NO_HIGHLIGHT, RECT_FLOATS};
 use crate::{browser_gpu, err, obj};
 use gpu_prims::Prims;
 use js_sys::{Float32Array, Float64Array, Object, Uint32Array};
-use md::observe::{mixing, Observer};
+use md::observe::{mixing, segregation, Observer};
 use md::GpuEngine;
 use md_core::{fixed, Pair, State, System, Wall};
 use scenarios::{Finish, Options};
@@ -131,13 +131,14 @@ impl DiscSim {
         self.engine.sys.masses.clone()
     }
 
-    /// Resolves to `{mixing, temperature}` (temperature from the half-step kinetic energy).
+    /// Resolves to `{mixing, segregation, temperature}` (temperature from the half-step kinetic
+    /// energy).
     pub fn observe(&self) -> js_sys::Promise {
         let fut = self.observer.read();
         let dof = (self.engine.n() as f64 - 1.0).max(1.0);
         future_to_promise(async move {
             let r = fut.await;
-            Ok(obj(&[("mixing", mixing(&r).into()), ("temperature", (r.kinetic / dof).into())]))
+            Ok(obj(&[("mixing", mixing(&r).into()), ("segregation", segregation(&r).into()), ("temperature", (r.kinetic / dof).into())]))
         })
     }
 
@@ -238,6 +239,12 @@ impl DiscSim {
         self.engine.update_system(sys);
     }
 
+    /// Retune the bulk heat bath (the scenario must have one).
+    pub fn set_thermostat(&mut self, t: f64, rate: f64) {
+        let sys = self.engine.sys.clone().with_thermostat(t, rate);
+        self.engine.update_system(sys);
+    }
+
     pub fn set_gravity(&mut self, gx: f64, gy: f64) {
         let sys = self.engine.sys.clone().with_gravity([gx, gy]);
         self.engine.update_system(sys);
@@ -264,6 +271,22 @@ impl DiscSim {
     /// Draw the particle with id `i` enlarged in the highlight colour (negative for none).
     pub fn set_highlight(&mut self, i: i32) {
         self.renderer.params.highlight = if i < 0 { NO_HIGHLIGHT } else { i as u32 };
+    }
+
+    /// Show only the region (x0, y0)–(x1, y1) of the box, in σ.
+    pub fn set_view(&mut self, x0: f32, y0: f32, x1: f32, y1: f32) {
+        self.renderer.set_view([x0, y0], [x1, y1]);
+    }
+
+    /// Colour molecules by speed, cool to hot, saturating at `v_max` σ/τ (0 turns it off).
+    pub fn color_by_speed(&mut self, v_max: f64) {
+        self.renderer.params.speed_scale = if v_max > 0.0 { (1.0 / (v_max * self.engine.sys.dt * md_core::ONE as f64)) as f32 } else { 0.0 };
+    }
+
+    /// Cool and hot colours for `color_by_speed` (8 floats, RGBA each).
+    pub fn set_speed_colors(&mut self, c: Vec<f32>) {
+        self.renderer.params.cool_color.copy_from_slice(&c[0..4]);
+        self.renderer.params.hot_color.copy_from_slice(&c[4..8]);
     }
 
     /// Overlay rectangles, 8 floats each: x0, y0, x1, y1 (σ), r, g, b, a.

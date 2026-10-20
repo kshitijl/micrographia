@@ -41,6 +41,8 @@ struct Params {
     // Compartments per axis: log2 of the side in position units (0 = none), and how many.
     comp_shift: vec2<u32>,
     ncomp: vec2<u32>,
+    // Andersen thermostat: (temperature, probability per particle per step, 0, 0).
+    thermo: vec4<f32>,
     // Per species pair a·4 + b: (rc², 4ε, σ², energy shift).
     pairs: array<vec4<f32>, 16>,
 }

@@ -93,10 +93,30 @@ fn mirror64(x: vec2<u32>, l: vec2<u32>) -> Mirrored {
     return Mirrored(x, 2u);
 }
 
+// Andersen thermostat: with probability P.thermo.y, a new Maxwell velocity at P.thermo.x.
+// Counter-based on (particle id, clock), like md_core::walls::andersen.
+fn andersen(i: u32, v: vec2<i32>) -> vec2<i32> {
+    if (P.thermo.y <= 0.0) {
+        return v;
+    }
+    let id = ids[i];
+    let clock = atomicLoad(&ctl[CTL_CLOCK]);
+    let key = vec2<u32>(P.seed_lo, P.seed_hi ^ 0x5448524du);
+    let r = threefry2x32(vec2<u32>(id, clock), key);
+    if (unit_open(r.x) >= P.thermo.y) {
+        return v;
+    }
+    let r2 = threefry2x32(vec2<u32>(id, clock), vec2<u32>(key.x, key.y ^ 1u));
+    let sd = sqrt(P.thermo.x / P.mass[species[i]]) * P.vstep;
+    let rad = sqrt(-2.0 * log(unit_open(r.y)));
+    let a = 6.2831853 * unit_open(r2.x);
+    return vec2<i32>(i32(round(sd * rad * cos(a))), i32(round(sd * rad * sin(a))));
+}
+
 // Leapfrog: v += kick + gravity; x += v; then periodic wrap or wall collision per axis.
 // Returns the new position (also stored).
 fn advance(i: u32) -> vec4<u32> {
-    var v = vel[i] + kicks[i] + P.gravity;
+    var v = andersen(i, vel[i] + kicks[i] + P.gravity);
     let p = pos[i];
     var x = add64(p.xy, i64_from_i32(v.x));
     var y = add64(p.zw, i64_from_i32(v.y));

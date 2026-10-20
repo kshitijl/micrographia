@@ -184,3 +184,20 @@ fn per_compartment_ledger() {
     assert!((total - t.energy[0]).abs() < 1e-6);
     assert!(l.hits[2].iter().skip(1).all(|&h| h == 0), "only row 0 touches the bottom wall");
 }
+
+#[test]
+fn andersen_thermostat_on_the_gpu() {
+    let p = prims();
+    let n = 5000;
+    let sys = System::new(init::box_for(n, 0.6, 1.0), init::DT, Pair::lj(2.5), vec![1.0]).with_thermostat(0.8, 1.0);
+    let s0 = init::fluid(&sys, n, 2.0, 12);
+    let mut e = GpuEngine::new(&p, sys.clone(), &s0);
+    e.step(3000);
+    let mut t = 0.0;
+    for _ in 0..20 {
+        e.step(100);
+        t += block_on(e.read_state()).half_step_kinetic(&sys) / n as f64 / 20.0;
+    }
+    eprintln!("GPU Andersen at T = 0.8: {t:.3}");
+    assert!((t - 0.8).abs() < 0.04);
+}
