@@ -59,7 +59,7 @@ pub struct Scenario {
     pub radii: Vec<f64>,
 }
 
-pub const NAMES: &[&str] = &["cream", "corner", "boltzmann", "heavy", "oilwater", "heatflow", "osmosis", "compress", "rubber", "atmosphere", "carnot", "boiling", "lipids", "balloon", "smell"];
+pub const NAMES: &[&str] = &["cream", "corner", "boltzmann", "heavy", "oilwater", "heatflow", "osmosis", "compress", "rubber", "atmosphere", "carnot", "boiling", "lipids", "balloon", "smell", "binding", "fep"];
 
 pub fn build(name: &str, o: &Options) -> Result<Scenario, String> {
     match name {
@@ -78,6 +78,8 @@ pub fn build(name: &str, o: &Options) -> Result<Scenario, String> {
         "lipids" => Ok(lipids(o)),
         "balloon" => Ok(balloon(o)),
         "smell" => Ok(smell(o)),
+        "binding" => Ok(binding(o)),
+        "fep" => Ok(fep(o)),
         _ => Err(format!("unknown scenario {name}")),
     }
 }
@@ -545,6 +547,164 @@ pub fn smell(o: &Options) -> Scenario {
     let r = o.get("blob", 8.0);
     init::mark_disc(&mut state, &sys, [w / 4.0, h / 2.0], r, 1);
     Scenario { warmup: 0, finish: Finish::None, marked: 1, grid: [60, 1], radii: vec![0.5, 0.5], sys, state }
+}
+
+/// A cup-shaped binding pocket of five pinned beads on the lower half-circle of radius `r`
+/// around (cx, cy), open at the top. With r ≈ 1.15 σ a ligand at the centre touches all five at
+/// close to the Lennard-Jones minimum.
+fn pocket(cx: f64, cy: f64, r: f64) -> Vec<[f64; 2]> {
+    (0..5)
+        .map(|k| {
+            let a = std::f64::consts::PI * (1.0 + k as f64 / 4.0);
+            [cx + r * a.cos(), cy + r * a.sin()]
+        })
+        .collect()
+}
+
+/// Solvent positions on a lattice inside the region [x0, x0 + w] × [y0, y0 + h], skipping any
+/// site within `clear` σ of the given points.
+fn solvent_in(x0: f64, y0: f64, w: f64, h: f64, density: f64, avoid: &[[f64; 2]], clear: f64) -> Vec<[f64; 2]> {
+    let a = (1.0 / density).sqrt();
+    let (nx, ny) = (((w - 1.0) / a) as usize, ((h - 1.0) / a) as usize);
+    let mut out = Vec::new();
+    for j in 0..ny {
+        for i in 0..nx {
+            let p = [x0 + 0.5 + (i as f64 + 0.5) * a, y0 + 0.5 + (j as f64 + 0.5) * a];
+            if avoid.iter().all(|q| (p[0] - q[0]).powi(2) + (p[1] - q[1]).powi(2) > clear * clear) {
+                out.push(p);
+            }
+        }
+    }
+    out
+}
+
+/// Binding in many small boxes: each 2^log2_box σ compartment has a pocket (pinned species 2)
+/// and one ligand, A (species 1) in half the boxes and B (species 3) in the rest, in a
+/// Lennard-Jones solvent (species 0) held at a temperature. Ligands differ only in how strongly
+/// they stick to the pocket (`eps_a`, `eps_b`). Options: boxes_x, boxes_y, log2_box,
+/// density, temperature, eps_a, eps_b, eps_ls (ligand–solvent), seed.
+pub fn binding(o: &Options) -> Scenario {
+    let (bx, by) = (o.get("boxes_x", 4.0) as usize, o.get("boxes_y", 4.0) as usize);
+    let log2 = o.get("log2_box", 4.0) as u32;
+    let side = (1u64 << log2) as f64;
+    let t = o.get("temperature", 1.0);
+    let lj = |eps: f64| Pair { eps, sigma: 1.0, rc: 2.5 };
+    let wca = Pair::wca();
+    let sys = System::new([fixed::to_fixed(bx as f64 * side), fixed::to_fixed(by as f64 * side)], init::DT, lj(0.5), vec![1.0, 1.0, 1.0, 1.0])
+        .with_walls(0, Wall::Hard, Wall::Hard)
+        .with_walls(1, Wall::Hard, Wall::Hard)
+        .with_compartments(0, log2)
+        .with_compartments(1, log2)
+        .with_pair(0, 1, lj(o.get("eps_ls", 0.5)))
+        .with_pair(0, 3, lj(o.get("eps_ls", 0.5)))
+        .with_pair(0, 2, wca)
+        .with_pair(1, 2, lj(o.get("eps_a", 0.6)))
+        .with_pair(3, 2, lj(o.get("eps_b", 0.9)))
+        .with_pair(2, 2, wca)
+        .with_pair(1, 3, wca)
+        .with_pinned(2)
+        .with_thermostat(t, 0.5);
+    let density = o.get("density", 0.5);
+    let mut pos = Vec::new();
+    let mut species = Vec::new();
+    for j in 0..by {
+        for i in 0..bx {
+            let (x0, y0) = (i as f64 * side, j as f64 * side);
+            let (cx, cy) = (x0 + side / 2.0, y0 + side / 2.0);
+            let cup = pocket(cx, cy, 1.15);
+            // The ligand starts in the bulk, a quarter box away from the pocket.
+            let lig = [x0 + side * 0.2, y0 + side * 0.8];
+            let mut avoid = cup.clone();
+            avoid.push(lig);
+            avoid.push([cx, cy]);
+            for q in &cup {
+                pos.push(*q);
+                species.push(2);
+            }
+            pos.push(lig);
+            species.push(if (i + j) % 2 == 0 { 1 } else { 3 });
+            for q in solvent_in(x0, y0, side, side, density, &avoid, 1.1) {
+                pos.push(q);
+                species.push(0);
+            }
+        }
+    }
+    let seed = o.get("seed", 1.0) as u64;
+    let mut vel = init::maxwell(&sys, &species, t, seed);
+    for (v, s) in vel.iter_mut().zip(&species) {
+        if sys.is_pinned(*s) {
+            *v = [0, 0];
+        }
+    }
+    let state = State { pos: pos.iter().map(|p| [fixed::to_fixed(p[0]), fixed::to_fixed(p[1])]).collect(), vel, species };
+    Scenario { warmup: o.get("warmup", 2000.0) as usize, finish: Finish::None, marked: 1, grid: [8, 8], radii: vec![0.5, 0.55, 0.5, 0.55], sys, state }
+}
+
+/// The two legs of a relative binding free energy calculation, side by side: in the left box
+/// the ligand (species 1) is tethered into a pocket (pinned species 2); in the right box an
+/// identical ligand is tethered in bulk solvent. Each ligand is held by a harmonic bond to an
+/// invisible pinned anchor (species 3, no interactions). The page morphs the ligand from A to B
+/// by changing its attraction to the pocket and the solvent. Options: log2_box, density,
+/// temperature, eps_lp, eps_ls, tether (spring constant), seed.
+pub fn fep(o: &Options) -> Scenario {
+    let log2 = o.get("log2_box", 4.0) as u32;
+    let side = (1u64 << log2) as f64;
+    let t = o.get("temperature", 1.0);
+    let lj = |eps: f64| Pair { eps, sigma: 1.0, rc: 2.5 };
+    let wca = Pair::wca();
+    let none = Pair { eps: 0.0, sigma: 1.0, rc: 1.1 };
+    let sys = System::new([fixed::to_fixed(2.0 * side), fixed::to_fixed(side)], init::DT, lj(0.5), vec![1.0, 1.0, 1.0, 1.0])
+        .with_walls(0, Wall::Hard, Wall::Hard)
+        .with_walls(1, Wall::Hard, Wall::Hard)
+        .with_compartments(0, log2)
+        .with_pair(0, 1, lj(o.get("eps_ls", 0.5)))
+        .with_pair(0, 2, wca)
+        .with_pair(1, 2, lj(o.get("eps_lp", 1.0)))
+        .with_pair(2, 2, wca)
+        .with_pair(3, 0, none)
+        .with_pair(3, 1, none)
+        .with_pair(3, 2, none)
+        .with_pair(3, 3, none)
+        .with_pinned(2)
+        .with_pinned(3)
+        .with_thermostat(t, 0.5);
+    let density = o.get("density", 0.5);
+    let mut pos = Vec::new();
+    let mut species = Vec::new();
+    let mut bonds = Vec::new();
+    for leg in 0..2 {
+        let x0 = leg as f64 * side;
+        let (cx, cy) = (x0 + side / 2.0, side / 2.0);
+        let mut avoid = vec![[cx, cy]];
+        if leg == 0 {
+            for q in pocket(cx, cy, 1.15) {
+                avoid.push(q);
+                pos.push(q);
+                species.push(2);
+            }
+        }
+        // Anchor, then the ligand on it.
+        pos.push([cx, cy]);
+        species.push(3);
+        let anchor = (pos.len() - 1) as u32;
+        pos.push([cx, cy + 0.05]);
+        species.push(1);
+        bonds.push([anchor, anchor + 1, 0]);
+        for q in solvent_in(x0, 0.0, side, side, density, &avoid, 1.1) {
+            pos.push(q);
+            species.push(0);
+        }
+    }
+    let sys = sys.with_bonds(vec![md_core::BondType::Harmonic { k: o.get("tether", 5.0), r0: 0.0 }], bonds);
+    let seed = o.get("seed", 1.0) as u64;
+    let mut vel = init::maxwell(&sys, &species, t, seed);
+    for (v, s) in vel.iter_mut().zip(&species) {
+        if sys.is_pinned(*s) {
+            *v = [0, 0];
+        }
+    }
+    let state = State { pos: pos.iter().map(|p| [fixed::to_fixed(p[0]), fixed::to_fixed(p[1])]).collect(), vel, species };
+    Scenario { warmup: o.get("warmup", 2000.0) as usize, finish: Finish::None, marked: 1, grid: [8, 8], radii: vec![0.5, 0.55, 0.5, 0.1], sys, state }
 }
 
 #[cfg(test)]

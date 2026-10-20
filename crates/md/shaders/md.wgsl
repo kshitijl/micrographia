@@ -126,6 +126,10 @@ fn bond_force(@builtin(global_invocation_id) gid: vec3<u32>) {
                 let x = min(r2 / (bt.z * bt.z), 0.999999);
                 fr = -bt.y / (1.0 - x);
                 u += 0.5 * (-0.5 * bt.y * bt.z * bt.z * log(1.0 - x));
+            } else if (bt.z == 0.0) {
+                // Zero-length spring (tethers): −k, with no 0/0 at r = 0.
+                fr = -bt.y;
+                u += 0.5 * (0.5 * bt.y * r2);
             } else {
                 let r = sqrt(r2);
                 let dr = r - bt.z;

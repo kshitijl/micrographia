@@ -145,6 +145,9 @@ impl<F: Real> BondConsts<F> {
             }
             let u = -half * self.k * self.r0 * self.r0 * F::from_f64((one - x).to_f64().ln());
             (-self.k / (one - x), u)
+        } else if self.r0 == F::from_f64(0.0) {
+            // A zero-length spring (tethers): −k exactly, with no 0/0 at r = 0.
+            (-self.k, half * self.k * r2)
         } else {
             let r = r2.sqrt();
             let dr = r - self.r0;

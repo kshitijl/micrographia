@@ -79,6 +79,25 @@ lists to 470. Small systems are limited by dispatch overhead (~10 dispatches per
 Comparisons against HOOMD/LAMMPS/OpenMM on the same hardware are not done yet (they need 3D or
 a CUDA machine).
 
+## Since the first status report
+
+- More pages (17 in all): rubber band (entropic spring), atmosphere (barometric, isothermal
+  column), Carnot engine and heat pump (0.31 vs the 0.33 limit when slow), boiling (vapour
+  pressure, Clausius–Clapeyron, latent heat ~4 ε), lipid self-assembly, helium balloon
+  (Graham's law, 2.67 vs 2.69), smell (diffusion vs draught).
+- Engine: bonds and pinned species, membrane pores, piston, flow-relative Andersen bath with an
+  exact energy ledger, M1b all-integer forces (`Arith::Int`): GPU and CPU bit-identical, golden
+  hash `3aaeff680a2f0278` reproduced natively, in Chrome and in WebKit.
+- The whole browser suite passes in Chrome and in Playwright's WebKit.
+
+## In progress: drug binding and FEP
+
+`scenarios::binding` (16 boxes, each with a pocket and ligand A or B) and `scenarios::fep`
+(ligand tethered in the pocket and in bulk, for alchemical A→B windows) exist and build, but are
+not tuned. The ignored test `crates/md/tests/binding.rs` shows occupancies are still too low
+and noisy (equal ligands gave ΔΔG = −0.5 kT): the pocket needs to bind more strongly, and runs
+need many more binding events, before the FEP page can be validated against direct counting.
+
 ## Next
 
 - Bonds (polymers): rubber band as an entropic force; then lipids and soap.
