@@ -915,6 +915,23 @@ impl GpuEngine {
         self.submit(|pass| self.d_flip.encode(pass));
     }
 
+    /// Break the bond between particles `a` and `b` (ids), for good: from the next step it exerts
+    /// no force. Returns whether there was such a bond. (Bonds that break make a run irreversible.)
+    pub fn remove_bond(&mut self, a: u32, b: u32) -> bool {
+        let before = self.sys.bonds.len();
+        let bonds: Vec<[u32; 3]> = self.sys.bonds.iter().copied().filter(|x| !((x[0] == a && x[1] == b) || (x[0] == b && x[1] == a))).collect();
+        if bonds.len() == before {
+            return false;
+        }
+        self.sys.bonds = std::sync::Arc::new(bonds);
+        let table = self.sys.partner_table(self.n() as usize);
+        let row = std::mem::size_of_val(&table[0]) as u64;
+        for id in [a, b] {
+            self.gpu().queue.write_buffer(&self.buf.partners, id as u64 * row, bytemuck::cast_slice(&table[id as usize..id as usize + 1]));
+        }
+        true
+    }
+
     /// XOR bit `bit` of coordinate `axis` of every particle whose species is in `species` (a
     /// bitmask), in one dispatch.
     pub fn flip_species_bit(&mut self, species: u32, axis: usize, bit: u32) {

@@ -397,6 +397,11 @@ impl DiscSim {
         self.engine.sys.describe(self.engine.n() as usize, &names)
     }
 
+    /// Break the bond between particles `a` and `b` (ids) for good. Returns whether it existed.
+    pub fn remove_bond(&mut self, a: u32, b: u32) -> bool {
+        self.engine.remove_bond(a, b)
+    }
+
     /// How energy can enter or leave the system ("" if it is conserved).
     pub fn energy_note(&self) -> String {
         self.engine.sys.energy_note()

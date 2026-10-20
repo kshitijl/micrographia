@@ -70,3 +70,29 @@ fn cells_and_verlet_agree_with_bonds() {
     b.step(2000);
     assert_eq!(block_on(a.read_state()), block_on(b.read_state()));
 }
+
+/// Removing a bond stops its force at once: two bonded beads held apart fly apart afterwards.
+#[test]
+fn removed_bonds_exert_no_force() {
+    let p = gpu_prims::Prims::new(&pollster::block_on(gpu_prims::Gpu::new()).unwrap());
+    let sys = md_core::System::new([md_core::fixed::to_fixed(32.0); 2], md_core::init::DT, md_core::Pair::wca(), vec![1.0])
+        .with_bonds(vec![md_core::BondType::Harmonic { k: 20.0, r0: 1.0 }], vec![[0, 1, 0]]);
+    let state = md_core::State {
+        pos: vec![[md_core::fixed::to_fixed(10.0), md_core::fixed::to_fixed(16.0)], [md_core::fixed::to_fixed(13.0), md_core::fixed::to_fixed(16.0)]],
+        vel: vec![[0, 0], [0, 0]],
+        species: vec![0, 0],
+    };
+    let run = |remove: bool| {
+        let mut e = md::GpuEngine::new(&p, sys.clone(), &state);
+        if remove {
+            assert!(e.remove_bond(1, 0));
+            assert!(!e.remove_bond(0, 1));
+        }
+        e.step(10);
+        let s = pollster::block_on(e.read_state());
+        s.vel[0][0]
+    };
+    // Stretched by 2 σ: the bond pulls bead 0 to the right; removed, nothing does.
+    assert!(run(false) > 0);
+    assert_eq!(run(true), 0);
+}
