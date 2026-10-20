@@ -172,3 +172,46 @@ Open questions:
    all the way left; (b) a U-tube with a fixed membrane at the bottom, pure water left, solution
    right, under gravity: the water rises on the right and stops, and the height difference is
    the van 't Hoff pressure.
+
+### Second round: done (to confirm)
+
+- [ ] All pages: an "About this simulation" section, written by the engine from the system it
+  runs (method, units, forces grouped by potential, masses, bonds, fixed species, boundaries,
+  boxes, membrane, piston, and whether energy is conserved or a bath/heat-bath walls exchange it).
+  A browser test checks every page has one.
+- [ ] All pages, energy and entropy graphs: a reusable panel (`web/src/lib/interact.ts`), so far
+  on `heavy` (new) and `boltzmann` (its own). Not yet on the other pages.
+- [ ] All pages, reach-in tools: drag a box to select, then "Kick (3× faster)", "Freeze",
+  "Shove →" (a GPU command on the region). So far on `heavy`, `boltzmann`, the heat-flow intro
+  panel and the free-membrane osmosis demo. Not yet elsewhere. Rule recorded in `CLAUDE.md`.
+- [ ] `heavy`: tools and the energy/entropy panel. The brown tail is each bowling ball's recent
+  path (its Brownian motion); now labelled in the legend and the notes. (Also fixed: the ball
+  mass slider snapped to 316 while the label said 400.)
+- [ ] `boltzmann`: tools (a click still outlines a box). New notes section "How energy gets
+  through a wall that molecules can't": the walls stop molecules but the molecules' repulsion
+  reaches through, so a fast molecule near the wall shoves a slow one on the other side.
+- [ ] `reversal`: 2 cream and 2 coffee traced. Coming back, the page lands on exactly the step
+  counts it recorded going out and compares positions bit for bit (f64): a matching point is
+  erased (XOR), a non-matching one stays, with a white dot where the molecule really is. An exact
+  return wipes the paths completely; a nudged one leaves them.
+- [ ] `heatflow`: two intro panels before the main simulation: (1) colour means speed, with
+  kick/freeze tools; (2) a thin gas between a hot and a cold wall, with histograms of the speeds
+  of molecules leaving each wall against theory. Answer to the question: a wall does not give a
+  fixed speed; each molecule leaves with a fresh random velocity drawn at the wall's temperature
+  (the flux-weighted Maxwell distribution), so the two walls' spreads overlap. Measured ⟨v²⟩/3 of
+  departures: 2.25 for the 2.5 wall, 0.42 for the 0.4 wall.
+- [ ] `heatflow` text: fixed. Backwards means molecules arriving at the hot wall faster than it
+  returns them (heating it further) and the cold wall sending molecules back faster than they
+  came (cooling it further), as you said.
+- [ ] `oilwater`: the attraction slider goes to 2.
+- [ ] `osmosis`: (a) a free bead membrane, pure water left and solution right, moves from 48 σ
+  to 33 σ in 500 τ (it would go all the way to the wall); (b) an osmometer: two arms of a
+  Lennard-Jones liquid under gravity with the membrane between them; the solution arm climbs
+  ~10 σ above the pure water. The old membrane-push measurement stays as part 3.
+
+Open questions (second round):
+- Osmometer (b) is qualitative: the rise is clear, but it settles at about half to three
+  quarters of van 't Hoff's height and the levels jitter by several σ. A 2D liquid 16 σ wide has
+  a ragged surface with films creeping up the walls and the membrane. Many variants were tried
+  (see `crates/md/tests/osmosis_demos.rs`). A clean version wants a wider tube (slower) or 3D.
+- Energy/entropy panel and tools on every remaining page: to do, page by page.
