@@ -73,7 +73,7 @@ fn force_list(@builtin(global_invocation_id) gid: vec3<u32>) {
     let m = nbr_count[i];
     for (var k = 0u; k < m; k++) {
         let j = nbr[k * P.n + i];
-        add_pair(&acc, sep2(pi, pos[j]), si, species[j], c);
+        add_pair(&acc, pi, pos[j], si, species[j], c);
     }
     wall_f[i] = add_soft_walls(&acc, pi, c);
     kicks[i] = acc.k;

@@ -52,7 +52,7 @@ fn force(@builtin(global_invocation_id) gid: vec3<u32>) {
             for (var k = start; k < end; k++) {
                 let j = cell_items[k];
                 if (j != i) {
-                    add_pair(&acc, sep2(pi, pos[j]), si, species[j], c);
+                    add_pair(&acc, pi, pos[j], si, species[j], c);
                 }
             }
         }

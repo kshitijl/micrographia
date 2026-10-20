@@ -3,7 +3,7 @@ use gpu_prims::prims::{BinPlan, Gated};
 use gpu_prims::util::{self, Dispatch, WG};
 use gpu_prims::{fixed64, Gpu, Prims};
 use md_core::system::MAX_SPECIES;
-use md_core::walls::{Ledger, LEDGER_SCALE, WALLS};
+use md_core::walls::{CompartmentLedger, Ledger, LEDGER_SCALE, WALLS};
 use md_core::{State, System, Wall};
 use std::future::Future;
 
@@ -40,17 +40,28 @@ pub struct Params {
     pub mass: [f32; 4],
     pub wall_kind: [u32; 4],
     pub wall_t: [f32; 4],
+    pub comp_shift: [u32; 2],
+    pub ncomp: [u32; 2],
     pub pairs: [[f32; 4]; 16],
 }
 
 /// Words of the control buffer (see `params.wgsl`).
 pub mod ctl {
+    use md_core::system::MAX_COMPARTMENTS;
+    use md_core::walls::WALLS;
     pub const REBUILD: u32 = 0;
     pub const OVERFLOW: u32 = 1;
     pub const CLOCK: u32 = 2;
     pub const REBUILDS: u32 = 3;
     pub const LEDGER: usize = 8;
-    pub const WORDS: usize = 32;
+    /// Words for list flags and stats only.
+    pub const HEADER: usize = 8;
+    pub const WORDS: usize = LEDGER + 6 * WALLS * MAX_COMPARTMENTS;
+
+    /// Index of the first word of a ledger field (0 energy, 1 impulse, 2 hits).
+    pub fn ledger(wall: usize, compartment: usize, field: usize) -> usize {
+        LEDGER + 6 * (wall * MAX_COMPARTMENTS + compartment) + 2 * field
+    }
 }
 
 /// How pair forces find their partners.
@@ -164,6 +175,11 @@ impl Params {
             mass,
             wall_kind,
             wall_t,
+            comp_shift: sys.compartments,
+            ncomp: {
+                let c = sys.compartment_counts();
+                [c[0] as u32, c[1] as u32]
+            },
             pairs,
         }
     }
@@ -248,26 +264,33 @@ impl Buffers {
     pub fn read_list_stats(&self) -> impl Future<Output = (u32, bool)> + 'static {
         let b = self.clone();
         async move {
-            let w: Vec<u32> = util::read(&b.gpu, &b.ctl, ctl::WORDS).await;
+            let w: Vec<u32> = util::read(&b.gpu, &b.ctl, ctl::HEADER).await;
             (w[ctl::REBUILDS as usize], w[ctl::OVERFLOW as usize] != 0)
         }
     }
 
-    /// The wall ledger (energy and impulse exchanged with each wall, and hits).
-    pub fn read_ledger(&self) -> impl Future<Output = Ledger> + 'static {
+    /// The wall ledger per wall and per compartment along it (`per_wall` compartments).
+    pub fn read_compartment_ledger(&self, per_wall: usize) -> impl Future<Output = CompartmentLedger> + 'static {
         let b = self.clone();
         async move {
             let w: Vec<u32> = util::read(&b.gpu, &b.ctl, ctl::WORDS).await;
             let word = |k: usize| fixed64::join([w[k], w[k + 1]]);
-            let mut l = Ledger::default();
+            let mut l = CompartmentLedger::new(per_wall);
             for wall in 0..WALLS {
-                let base = ctl::LEDGER + 6 * wall;
-                l.energy[wall] = word(base) as f64 / LEDGER_SCALE;
-                l.impulse[wall] = word(base + 2) as f64 / LEDGER_SCALE;
-                l.hits[wall] = word(base + 4) as u64;
+                for c in 0..per_wall {
+                    l.energy[wall][c] = word(ctl::ledger(wall, c, 0)) as f64 / LEDGER_SCALE;
+                    l.impulse[wall][c] = word(ctl::ledger(wall, c, 1)) as f64 / LEDGER_SCALE;
+                    l.hits[wall][c] = word(ctl::ledger(wall, c, 2)) as u64;
+                }
             }
             l
         }
+    }
+
+    /// The wall ledger totals (energy and impulse exchanged with each wall, and hits).
+    pub fn read_ledger(&self) -> impl Future<Output = Ledger> + 'static {
+        let fut = self.read_compartment_ledger(md_core::system::MAX_COMPARTMENTS);
+        async move { fut.await.totals() }
     }
 }
 

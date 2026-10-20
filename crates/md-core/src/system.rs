@@ -38,14 +38,22 @@ pub struct System {
     pub gravity: [f64; 2],
     /// Seed for stochastic boundaries.
     pub seed: u64,
+    /// Per axis: 0 for none, or log2 of the compartment side in position units (≥ 32, i.e.
+    /// a power-of-two number of σ). Compartments are separated by hard walls, and particles in
+    /// different compartments do not interact: one simulation then holds many independent
+    /// replicas. The axis must have walls (the outer boundary).
+    pub compartments: [u32; 2],
 }
+
+/// Ledger slots per wall: one per compartment along the other axis.
+pub const MAX_COMPARTMENTS: usize = 256;
 
 impl System {
     /// A periodic system in which every species pair interacts through `pair`.
     pub fn new(box_len: [i64; 2], dt: f64, pair: Pair, masses: Vec<f64>) -> Self {
         assert!(!masses.is_empty() && masses.len() <= MAX_SPECIES);
         let ns = masses.len();
-        let s = Self { box_len, dt, pairs: vec![pair; ns * ns], masses, walls: [None, None], gravity: [0.0, 0.0], seed: 1 };
+        let s = Self { box_len, dt, pairs: vec![pair; ns * ns], masses, walls: [None, None], gravity: [0.0, 0.0], seed: 1, compartments: [0, 0] };
         s.check();
         s
     }
@@ -77,6 +85,34 @@ impl System {
     pub fn with_gravity(mut self, g: [f64; 2]) -> Self {
         self.gravity = g;
         self
+    }
+
+    /// Split `axis` into compartments of side 2^`log2_sigma` σ separated by hard walls. The box
+    /// length along the axis must be a whole number of compartments, and the axis must have
+    /// walls.
+    pub fn with_compartments(mut self, axis: usize, log2_sigma: u32) -> Self {
+        let shift = 32 + log2_sigma;
+        assert!(self.walls[axis].is_some(), "compartments need walls on their axis");
+        assert_eq!(self.box_len[axis] % (1i64 << shift), 0, "box must be a whole number of compartments");
+        assert!(self.compartments_along(axis, shift) <= MAX_COMPARTMENTS);
+        self.compartments[axis] = shift;
+        self
+    }
+
+    fn compartments_along(&self, axis: usize, shift: u32) -> usize {
+        (self.box_len[axis] >> shift) as usize
+    }
+
+    /// Number of compartments along each axis (1 if none).
+    pub fn compartment_counts(&self) -> [usize; 2] {
+        let c = |a: usize| if self.compartments[a] == 0 { 1 } else { self.compartments_along(a, self.compartments[a]) };
+        [c(0), c(1)]
+    }
+
+    /// Compartment coordinates of a position.
+    pub fn compartment_of(&self, p: [i64; 2]) -> [i64; 2] {
+        let c = |a: usize| if self.compartments[a] == 0 { 0 } else { p[a] >> self.compartments[a] };
+        [c(0), c(1)]
     }
 
     pub fn with_seed(mut self, seed: u64) -> Self {

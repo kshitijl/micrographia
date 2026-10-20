@@ -3,9 +3,9 @@
 // CPU twin: md-ref IntEngine::step and collide.
 
 // Add a signed fixed-point value to ledger field `field` (0 energy, 1 impulse, 2 hits) of
-// wall w, as a two-word 64-bit atomic sum (exact and order independent).
-fn ledger_add(w: u32, field: u32, value: i32) {
-    let base = CTL_LEDGER + 6u * w + 2u * field;
+// wall w, compartment c, as a two-word 64-bit atomic sum (exact and order independent).
+fn ledger_add(w: u32, c: u32, field: u32, value: i32) {
+    let base = CTL_LEDGER + 6u * (w * MAX_COMP + c) + 2u * field;
     let v = i64_from_i32(value);
     let old = atomicAdd(&ctl[base], v.x);
     atomicAdd(&ctl[base + 1u], v.y + select(0u, 1u, old + v.x < old));
@@ -28,9 +28,16 @@ fn thermal_draw(id: u32, clock: u32, t: f32, m: f32, inward: f32) -> vec2<f32> {
     return vec2<f32>(vn, vt);
 }
 
-// A particle crossed wall `side` of `axis`; returns its new velocity.
-fn collide(i: u32, axis: u32, side: u32, v: vec2<i32>) -> vec2<i32> {
+// The ledger slot of a particle at position p at a wall of `axis`: its compartment along the
+// other axis.
+fn ledger_slot(p: vec4<u32>, axis: u32) -> u32 {
+    return select(comp1(p.xy, 0u), comp1(p.zw, 1u), axis == 0u);
+}
+
+// A particle (at old position p) crossed wall `side` of `axis`; returns its new velocity.
+fn collide(i: u32, p: vec4<u32>, axis: u32, side: u32, v: vec2<i32>) -> vec2<i32> {
     let w = 2u * axis + side;
+    let c = ledger_slot(p, axis);
     let m = P.mass[species[i]];
     var out = v;
     if (P.wall_kind[w] == WALL_THERMAL) {
@@ -49,9 +56,9 @@ fn collide(i: u32, axis: u32, side: u32, v: vec2<i32>) -> vec2<i32> {
     }
     let before = vec2<f32>(v) / P.vstep;
     let after = vec2<f32>(out) / P.vstep;
-    ledger_add(w, 0u, i32(round(0.5 * m * (dot(after, after) - dot(before, before)) * LEDGER_SCALE)));
-    ledger_add(w, 1u, i32(round(m * abs(before[axis] - after[axis]) * LEDGER_SCALE)));
-    ledger_add(w, 2u, 1);
+    ledger_add(w, c, 0u, i32(round(0.5 * m * (dot(after, after) - dot(before, before)) * LEDGER_SCALE)));
+    ledger_add(w, c, 1u, i32(round(m * abs(before[axis] - after[axis]) * LEDGER_SCALE)));
+    ledger_add(w, c, 2u, 1);
     return out;
 }
 
@@ -60,6 +67,20 @@ fn collide(i: u32, axis: u32, side: u32, v: vec2<i32>) -> vec2<i32> {
 struct Mirrored {
     x: vec2<u32>,
     side: u32,
+}
+
+// Mirror back into compartment k of side 2^s (s ≥ 32) if x left it.
+fn mirror_compartment64(x: vec2<u32>, k: u32, s: u32) -> vec2<u32> {
+    let lo = vec2<u32>(0u, k << (s - 32u));
+    let hi = vec2<u32>(0u, (k + 1u) << (s - 32u));
+    let one = vec2<u32>(1u, 0u);
+    if (lt64(x, lo)) {
+        return sub64(sub64(add64(lo, lo), one), x);
+    }
+    if (!lt64(x, hi)) {
+        return sub64(sub64(add64(hi, hi), one), x);
+    }
+    return x;
 }
 
 fn mirror64(x: vec2<u32>, l: vec2<u32>) -> Mirrored {
@@ -81,10 +102,10 @@ fn advance(i: u32) -> vec4<u32> {
     var y = add64(p.zw, i64_from_i32(v.y));
     let wf = wall_f[i];
     if (wf.x != 0.0) {
-        ledger_add(select(1u, 0u, wf.x > 0.0), 1u, i32(round(abs(wf.x) * P.dt * LEDGER_SCALE)));
+        ledger_add(select(1u, 0u, wf.x > 0.0), ledger_slot(p, 0u), 1u, i32(round(abs(wf.x) * P.dt * LEDGER_SCALE)));
     }
     if (wf.y != 0.0) {
-        ledger_add(select(3u, 2u, wf.y > 0.0), 1u, i32(round(abs(wf.y) * P.dt * LEDGER_SCALE)));
+        ledger_add(select(3u, 2u, wf.y > 0.0), ledger_slot(p, 1u), 1u, i32(round(abs(wf.y) * P.dt * LEDGER_SCALE)));
     }
     if ((P.periodic & 1u) != 0u) {
         x = wrap64(x, P.box_x);
@@ -92,7 +113,13 @@ fn advance(i: u32) -> vec4<u32> {
         let m = mirror64(x, P.box_x);
         x = m.x;
         if (m.side < 2u) {
-            v = collide(i, 0u, m.side, v);
+            v = collide(i, p, 0u, m.side, v);
+        } else if (P.comp_shift.x != 0u) {
+            let k = comp1(p.xy, 0u);
+            if (comp1(x, 0u) != k) {
+                x = mirror_compartment64(x, k, P.comp_shift.x);
+                v.x = -v.x;
+            }
         }
     }
     if ((P.periodic & 2u) != 0u) {
@@ -101,7 +128,13 @@ fn advance(i: u32) -> vec4<u32> {
         let m = mirror64(y, P.box_y);
         y = m.x;
         if (m.side < 2u) {
-            v = collide(i, 1u, m.side, v);
+            v = collide(i, p, 1u, m.side, v);
+        } else if (P.comp_shift.y != 0u) {
+            let k = comp1(p.zw, 1u);
+            if (comp1(y, 1u) != k) {
+                y = mirror_compartment64(y, k, P.comp_shift.y);
+                v.y = -v.y;
+            }
         }
     }
     vel[i] = v;

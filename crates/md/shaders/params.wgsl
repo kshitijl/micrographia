@@ -38,6 +38,9 @@ struct Params {
     // Per wall (2·axis + side): 0 hard, 1 soft, 2 thermal; and the bath temperature.
     wall_kind: vec4<u32>,
     wall_t: vec4<f32>,
+    // Compartments per axis: log2 of the side in position units (0 = none), and how many.
+    comp_shift: vec2<u32>,
+    ncomp: vec2<u32>,
     // Per species pair a·4 + b: (rc², 4ε, σ², energy shift).
     pairs: array<vec4<f32>, 16>,
 }
@@ -55,9 +58,10 @@ const CTL_REBUILD: u32 = 0u;
 const CTL_OVERFLOW: u32 = 1u;
 const CTL_CLOCK: u32 = 2u;
 const CTL_REBUILDS: u32 = 3u;
-// Ledger, per wall w: energy (2 words), impulse (2 words), hits (2 words), from word 8 + 6w.
+// Ledger, per wall w and compartment c along it: energy, impulse, hits (2 words each), from
+// word 8 + 6 (w·MAX_COMP + c).
 const CTL_LEDGER: u32 = 8u;
-const CTL_WORDS: u32 = 32u;
+const MAX_COMP: u32 = 256u;
 const LEDGER_SCALE: f32 = 16777216.0;
 
 // A coordinate in σ, for cell assignment only (any rounding here is harmless: cells are wider
@@ -133,15 +137,33 @@ fn wrap64(x: vec2<u32>, l: vec2<u32>) -> vec2<u32> {
     return x;
 }
 
+// Compartment index of a coordinate (0 if the axis has no compartments). Shifts are ≥ 32.
+fn comp1(x: vec2<u32>, axis: u32) -> u32 {
+    let s = P.comp_shift[axis];
+    if (s == 0u) {
+        return 0u;
+    }
+    return x.y >> (s - 32u);
+}
+
+fn same_compartment(a: vec4<u32>, b: vec4<u32>) -> bool {
+    return comp1(a.xy, 0u) == comp1(b.xy, 0u) && comp1(a.zw, 1u) == comp1(b.zw, 1u);
+}
+
 // Accumulates the integer kick and potential energy on one particle.
 struct Acc {
     k: vec2<i32>,
     u: f32,
 }
 
-// Add the pair (i, j) with separation f = r_j − r_i (σ) to `acc`. Same operations, in the same
-// order, as md-ref's PairConsts::eval and IntEngine::forces.
-fn add_pair(acc: ptr<function, Acc>, f: vec2<f32>, si: u32, sj: u32, c: f32) {
+// Add the pair (i, j) at positions pi, pj to `acc`. Same operations, in the same order, as
+// md-ref's PairConsts::eval and IntEngine::forces. Particles in different compartments do not
+// interact.
+fn add_pair(acc: ptr<function, Acc>, pi: vec4<u32>, pj: vec4<u32>, si: u32, sj: u32, c: f32) {
+    if (!same_compartment(pi, pj)) {
+        return;
+    }
+    let f = sep2(pi, pj);
     let pc = P.pairs[si * 4u + sj];
     let fx = f.x;
     let fy = f.y;

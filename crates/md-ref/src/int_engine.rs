@@ -1,15 +1,15 @@
 use crate::cells::{cell_of, CellList};
 use crate::real::{PairConsts, Real};
 use crate::Energy;
-use md_core::walls::{self, Ledger};
+use md_core::walls::{self, CompartmentLedger, Ledger};
 use md_core::{fixed, State, System, Wall};
 
 /// The result of a force evaluation.
 pub struct Forces {
     pub kicks: Vec<[i32; 2]>,
     pub potential: f64,
-    /// Force on each soft wall (ε/σ), outward.
-    pub wall_force: [f64; walls::WALLS],
+    /// Force of each particle on each soft wall (ε/σ), outward.
+    pub wall_force: Vec<[f64; walls::WALLS]>,
 }
 
 /// `cpu-int-float`: integer positions and velocities, forces in `F`.
@@ -29,7 +29,9 @@ pub struct IntEngine<F: Real> {
     pub steps: i64,
     /// Steps taken in either direction; the counter for stochastic boundaries.
     pub clock: u32,
+    /// Wall ledger totals, and per compartment along each wall.
     pub ledger: Ledger,
+    pub compartment_ledger: CompartmentLedger,
 }
 
 impl<F: Real> IntEngine<F> {
@@ -38,7 +40,8 @@ impl<F: Real> IntEngine<F> {
         let kick_c = (0..sys.species() as u32).map(|s| F::from_f64(sys.kick_coeff(s))).collect();
         let cells = sys.cells();
         let gravity = sys.gravity_kick();
-        Self { sys, state, consts, kick_c, gravity, cells, steps: 0, clock: 0, ledger: Ledger::default() }
+        let per_wall = sys.compartment_counts().into_iter().max().unwrap();
+        Self { sys, state, consts, kick_c, gravity, cells, steps: 0, clock: 0, ledger: Ledger::default(), compartment_ledger: CompartmentLedger::new(per_wall) }
     }
 
     fn cell_list(&self) -> CellList {
@@ -68,7 +71,7 @@ impl<F: Real> IntEngine<F> {
         let list = self.cell_list();
         let mut kicks = vec![[0i32; 2]; s.n()];
         let mut pe = 0.0f64;
-        let mut wall_force = [0.0f64; walls::WALLS];
+        let mut wall_force = vec![[0.0f64; walls::WALLS]; s.n()];
         for i in 0..s.n() {
             let pi = s.pos[i];
             let si = s.species[i] as usize;
@@ -81,6 +84,9 @@ impl<F: Real> IntEngine<F> {
                     return;
                 }
                 let pj = s.pos[j];
+                if self.sys.compartment_of(pi) != self.sys.compartment_of(pj) {
+                    return;
+                }
                 let dx = self.separation(pi[0], pj[0], 0);
                 let dy = self.separation(pi[1], pj[1], 1);
                 let (Some(fx), Some(fy)) = (F::sep(dx), F::sep(dy)) else { return };
@@ -113,7 +119,7 @@ impl<F: Real> IntEngine<F> {
                         } else {
                             ky = ky.wrapping_add(k);
                         }
-                        wall_force[2 * a + side] += f.to_f64();
+                        wall_force[i][2 * a + side] += f.to_f64();
                         wall_pe += (F::from_f64(4.0) * s6 * (s6 - one) + one).to_f64();
                     }
                 }
@@ -127,13 +133,20 @@ impl<F: Real> IntEngine<F> {
     pub fn step(&mut self, n: usize) {
         for _ in 0..n {
             let Forces { kicks, wall_force, .. } = self.forces();
-            for w in 0..walls::WALLS {
-                self.ledger.impulse[w] += wall_force[w] * self.sys.dt;
+            for (i, wf) in wall_force.iter().enumerate() {
+                for w in 0..walls::WALLS {
+                    if wf[w] != 0.0 {
+                        let c = self.ledger_compartment(i, w / 2);
+                        self.ledger.impulse[w] += wf[w] * self.sys.dt;
+                        self.compartment_ledger.impulse[w][c] += wf[w] * self.sys.dt;
+                    }
+                }
             }
             let l = self.sys.box_len;
             for i in 0..self.state.n() {
                 let mut v = self.state.vel[i];
                 let mut x = self.state.pos[i];
+                let home = self.sys.compartment_of(x);
                 for a in 0..2 {
                     v[a] = v[a].wrapping_add(kicks[i][a]).wrapping_add(self.gravity[a]);
                     x[a] += v[a] as i64;
@@ -146,6 +159,12 @@ impl<F: Real> IntEngine<F> {
                             if let Some(side) = side {
                                 x[a] = m;
                                 self.collide(i, a, side, ws[side], &mut v);
+                            } else if self.sys.compartments[a] != 0 {
+                                let shift = self.sys.compartments[a];
+                                if x[a] >> shift != home[a] {
+                                    x[a] = walls::mirror_compartment(x[a], home[a], shift);
+                                    v[a] = v[a].wrapping_neg();
+                                }
                             }
                         }
                     }
@@ -175,9 +194,19 @@ impl<F: Real> IntEngine<F> {
         }
         let after = [self.sys.velocity(v[0]), self.sys.velocity(v[1])];
         let ke = |u: [f64; 2]| 0.5 * m * (u[0] * u[0] + u[1] * u[1]);
-        self.ledger.energy[w] += ke(after) - ke(before);
-        self.ledger.impulse[w] += (m * (before[axis] - after[axis])).abs();
+        let (de, dp) = (ke(after) - ke(before), (m * (before[axis] - after[axis])).abs());
+        let c = self.ledger_compartment(i, axis);
+        self.ledger.energy[w] += de;
+        self.ledger.impulse[w] += dp;
         self.ledger.hits[w] += 1;
+        self.compartment_ledger.energy[w][c] += de;
+        self.compartment_ledger.impulse[w][c] += dp;
+        self.compartment_ledger.hits[w][c] += 1;
+    }
+
+    /// The ledger slot of particle i at a wall of `axis`: its compartment along the other axis.
+    fn ledger_compartment(&self, i: usize, axis: usize) -> usize {
+        self.sys.compartment_of(self.state.pos[i])[1 - axis] as usize
     }
 
     /// Time reversal: `v ← −(v + kick(x) + g)`. Running n steps, reversing, running n steps and

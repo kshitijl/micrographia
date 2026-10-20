@@ -131,3 +131,56 @@ fn heat_flow_matches_the_cpu() {
     assert!(((gh + gc) / gh).abs() < 0.1);
     assert!((gh / ch - 1.0).abs() < 0.15);
 }
+
+#[test]
+fn compartments_on_the_gpu() {
+    let p = prims();
+    let side = 8i64 << 32;
+    let sys = System::new([32 * side, 16 * side], init::DT, Pair::wca(), vec![1.0])
+        .with_walls(0, Wall::Hard, Wall::Hard)
+        .with_walls(1, Wall::Hard, Wall::Hard)
+        .with_compartments(0, 3)
+        .with_compartments(1, 3);
+    let s0 = init::compartment_fluid(&sys, 8, 1.0, 9);
+    let home: Vec<[i64; 2]> = s0.pos.iter().map(|&q| sys.compartment_of(q)).collect();
+    for mode in [ForceMode::CellList, ForceMode::verlet_for(&sys, s0.n())] {
+        let mut e = GpuEngine::with_mode(&p, sys.clone(), &s0, mode);
+        // Kicks first: compartments must cut interactions exactly as on the CPU.
+        let (kg, _) = block_on(e.kicks());
+        let (k64, _) = IntEngine::<f64>::new(sys.clone(), s0.clone()).kicks();
+        let worst = kg.iter().zip(&k64).map(|(a, b)| (a[0] - b[0]).abs().max((a[1] - b[1]).abs())).max().unwrap();
+        assert!(worst < 64, "{mode:?}: kick difference {worst}");
+        e.step(3000);
+        let s = block_on(e.read_state());
+        for (i, q) in s.pos.iter().enumerate() {
+            assert_eq!(sys.compartment_of(*q), home[i], "{mode:?}: particle {i} left its compartment");
+        }
+        e.reverse();
+        e.step(3000);
+        e.reverse();
+        assert_eq!(block_on(e.read_state()), s0, "{mode:?}");
+    }
+}
+
+/// Rows of compartments between a hot and a cold wall: one ledger slot per row, summing to the
+/// wall totals.
+#[test]
+fn per_compartment_ledger() {
+    let p = prims();
+    let side = 16i64 << 32;
+    let rows = 8;
+    let sys = System::new([2 * side, rows * side], init::DT, Pair::wca(), vec![1.0])
+        .with_walls(0, Wall::Thermal(2.0), Wall::Thermal(1.0))
+        .with_walls(1, Wall::Hard, Wall::Hard)
+        .with_compartments(1, 4);
+    let s0 = init::compartment_fluid(&sys, 30, 1.5, 10);
+    let mut e = GpuEngine::new(&p, sys.clone(), &s0);
+    e.step(20000);
+    let l = block_on(e.buf.read_compartment_ledger(rows as usize));
+    let t = l.totals();
+    eprintln!("heat from the hot wall per row: {:?}", l.energy[0].iter().map(|x| format!("{x:.1}")).collect::<Vec<_>>());
+    assert!(l.energy[0].iter().all(|&q| q > 0.0));
+    let total: f64 = l.energy[0].iter().sum();
+    assert!((total - t.energy[0]).abs() < 1e-6);
+    assert!(l.hits[2].iter().skip(1).all(|&h| h == 0), "only row 0 touches the bottom wall");
+}

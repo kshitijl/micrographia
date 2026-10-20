@@ -110,6 +110,34 @@ pub fn fluid(sys: &System, n: usize, t: f64, seed: u64) -> State {
     State { pos, vel, species }
 }
 
+/// Exactly `per_box` particles in every compartment, on a small jittered lattice clear of the
+/// compartment walls, with Maxwell velocities at temperature `t`. Particles are numbered box by
+/// box (row-major over compartments).
+pub fn compartment_fluid(sys: &System, per_box: usize, t: f64, seed: u64) -> State {
+    let [cx, cy] = sys.compartment_counts();
+    let side = [fixed::to_f64(sys.box_len[0]) / cx as f64, fixed::to_f64(sys.box_len[1]) / cy as f64];
+    let nx = ((per_box as f64 * side[0] / side[1]).sqrt().ceil() as usize).max(1);
+    let ny = per_box.div_ceil(nx);
+    let margin = 0.6;
+    let a = [(side[0] - 2.0 * margin) / nx as f64, (side[1] - 2.0 * margin) / ny as f64];
+    let mut pos = Vec::with_capacity(per_box * cx * cy);
+    for by in 0..cy {
+        for bx in 0..cx {
+            for k in 0..per_box {
+                let id = pos.len() as u32;
+                let jx = 0.2 * a[0] * (threefry::uniform(seed, STREAM_JITTER, 2 * id) - 0.5);
+                let jy = 0.2 * a[1] * (threefry::uniform(seed, STREAM_JITTER, 2 * id + 1) - 0.5);
+                let x = bx as f64 * side[0] + margin + ((k % nx) as f64 + 0.5) * a[0] + jx;
+                let y = by as f64 * side[1] + margin + ((k / nx) as f64 + 0.5) * a[1] + jy;
+                pos.push([fixed::to_fixed(x), fixed::to_fixed(y)]);
+            }
+        }
+    }
+    let species = vec![0; pos.len()];
+    let vel = maxwell(sys, &species, t, seed);
+    State { pos, vel, species }
+}
+
 /// Set the species of every particle within `radius` σ of `center` (σ).
 pub fn mark_disc(state: &mut State, sys: &System, center: [f64; 2], radius: f64, species: u32) {
     let c = [fixed::to_fixed(center[0]), fixed::to_fixed(center[1])];

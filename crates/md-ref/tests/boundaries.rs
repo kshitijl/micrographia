@@ -150,3 +150,66 @@ fn hard_wall_pressure_of_a_dilute_gas() {
     eprintln!("wall pressure {p:.5}, ideal ρT = {:.5}", density * t);
     assert!((p / (density * t) - 1.0).abs() < 0.1);
 }
+
+/// 16 × 16 compartments of 8 σ, each an independent little box of gas.
+fn boxes(per_box: usize, seed: u64) -> (System, State) {
+    let side = 8i64 << 32;
+    let k = 16;
+    let sys = System::new([k * side, k * side], init::DT, Pair::wca(), vec![1.0])
+        .with_walls(0, Wall::Hard, Wall::Hard)
+        .with_walls(1, Wall::Hard, Wall::Hard)
+        .with_compartments(0, 3)
+        .with_compartments(1, 3);
+    let s = init::compartment_fluid(&sys, per_box, 1.0, seed);
+    (sys, s)
+}
+
+#[test]
+fn compartments_are_independent_and_reversible() {
+    let (sys, s0) = boxes(6, 7);
+    let home: Vec<[i64; 2]> = s0.pos.iter().map(|&p| sys.compartment_of(p)).collect();
+    let mut e = IntEngine::<f32>::new(sys.clone(), s0.clone());
+    e.step(3000);
+    for (i, p) in e.state.pos.iter().enumerate() {
+        assert_eq!(sys.compartment_of(*p), home[i], "particle {i} left its compartment");
+    }
+    e.reverse();
+    e.step(3000);
+    e.reverse();
+    assert_eq!(e.state, s0);
+}
+
+/// In each little box, the number of molecules in the left half is binomial(N, 1/2).
+#[test]
+fn left_half_counts_are_binomial() {
+    let n_box = 6;
+    let (sys, s0) = boxes(n_box, 8);
+    let side = 8i64 << 32;
+    let mut e = IntEngine::<f32>::new(sys.clone(), s0);
+    e.step(2000);
+    let mut hist = vec![0f64; n_box + 1];
+    let samples = 200;
+    for _ in 0..samples {
+        e.step(50);
+        let mut left = vec![0usize; 256];
+        for p in &e.state.pos {
+            let c = sys.compartment_of(*p);
+            let b = (c[1] * 16 + c[0]) as usize;
+            if p[0] - c[0] * side < side / 2 {
+                left[b] += 1;
+            }
+        }
+        for b in 0..256 {
+            hist[left[b]] += 1.0;
+        }
+    }
+    let total: f64 = hist.iter().sum();
+    let binom = |k: usize| (1..=k).fold(1.0, |a, j| a * (n_box + 1 - j) as f64 / j as f64) / 2f64.powi(n_box as i32);
+    let mut report = Vec::new();
+    for k in 0..=n_box {
+        let p = hist[k] / total;
+        report.push(format!("{k}:{p:.4}/{:.4}", binom(k)));
+        assert!((p - binom(k)).abs() < 0.02 + 0.15 * binom(k), "k={k}: {p} vs {}", binom(k));
+    }
+    eprintln!("left-half count distribution (measured/binomial): {}", report.join(" "));
+}

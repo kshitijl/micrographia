@@ -20,7 +20,8 @@ pub fn mirror(x: i64, l: i64) -> (i64, Option<usize>) {
 }
 
 /// Energy and momentum exchanged with each wall, accumulated in fixed point exactly as the
-/// GPU does (so totals do not depend on the order of collisions).
+/// GPU does (so totals do not depend on the order of collisions). Totals over the whole wall;
+/// [`CompartmentLedger`] splits them by compartment.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct Ledger {
     /// Energy given to the system by each wall (ε).
@@ -29,6 +30,38 @@ pub struct Ledger {
     /// length this is the pressure.
     pub impulse: [f64; WALLS],
     pub hits: [u64; WALLS],
+}
+
+/// The ledger per wall and per compartment along the wall (index `[wall][compartment]`).
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct CompartmentLedger {
+    pub energy: Vec<Vec<f64>>,
+    pub impulse: Vec<Vec<f64>>,
+    pub hits: Vec<Vec<u64>>,
+}
+
+impl CompartmentLedger {
+    pub fn new(per_wall: usize) -> Self {
+        Self { energy: vec![vec![0.0; per_wall]; WALLS], impulse: vec![vec![0.0; per_wall]; WALLS], hits: vec![vec![0; per_wall]; WALLS] }
+    }
+
+    pub fn totals(&self) -> Ledger {
+        let mut l = Ledger::default();
+        for w in 0..WALLS {
+            l.energy[w] = self.energy[w].iter().sum();
+            l.impulse[w] = self.impulse[w].iter().sum();
+            l.hits[w] = self.hits[w].iter().sum();
+        }
+        l
+    }
+}
+
+/// Mirror a coordinate that crossed an internal compartment wall back into compartment `k`
+/// (compartment side 2^`shift`).
+pub fn mirror_compartment(x: i64, k: i64, shift: u32) -> i64 {
+    let lo = k << shift;
+    let hi = (k + 1) << shift;
+    if x < lo { 2 * lo - 1 - x } else if x >= hi { 2 * hi - 1 - x } else { x }
 }
 
 /// Fixed-point scale of ledger entries: 2⁻²⁴ ε (or m σ/τ).
