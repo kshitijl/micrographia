@@ -59,7 +59,7 @@ pub struct Scenario {
     pub radii: Vec<f64>,
 }
 
-pub const NAMES: &[&str] = &["cream", "corner", "boltzmann", "heavy", "oilwater", "heatflow", "osmosis", "compress", "rubber"];
+pub const NAMES: &[&str] = &["cream", "corner", "boltzmann", "heavy", "oilwater", "heatflow", "osmosis", "compress", "rubber", "atmosphere"];
 
 pub fn build(name: &str, o: &Options) -> Result<Scenario, String> {
     match name {
@@ -72,6 +72,7 @@ pub fn build(name: &str, o: &Options) -> Result<Scenario, String> {
         "osmosis" => Ok(osmosis(o)),
         "compress" => Ok(compress(o)),
         "rubber" => Ok(rubber(o)),
+        "atmosphere" => Ok(atmosphere(o)),
         _ => Err(format!("unknown scenario {name}")),
     }
 }
@@ -366,6 +367,33 @@ pub fn rubber(o: &Options) -> Scenario {
     }
     let state = State { pos, vel, species };
     Scenario { warmup: o.get("warmup", 4000.0) as usize, finish: Finish::None, marked: 0, grid: [8, 8], radii: vec![0.5, 0.7, 0.5, 0.7], sys, state }
+}
+
+/// A column of gas under gravity: light (species 0, m = 1) and heavy (species 1, m = heavy)
+/// small molecules (σ = 0.4, nearly ideal), soft floor and ceiling, periodic sideways, and
+/// either a bulk heat bath at `temperature` or none (isolated). `g` is set so that the light
+/// gas's scale height kT/(m g) is `scale` (a fraction of the column height). Options: n,
+/// heavy (mass), heavy_share, scale, temperature, bath (1 or 0), seed.
+pub fn atmosphere(o: &Options) -> Scenario {
+    let n = o.get("n", 6000.0) as usize;
+    let t = o.get("temperature", 1.0);
+    let small = Pair { eps: 1.0, sigma: 0.4, rc: 0.4 * 2f64.powf(1.0 / 6.0) };
+    let aspect = o.get("aspect", 4.0 / 3.0);
+    // Dilute: density 0.05 on average.
+    let bl = init::box_for(n, 0.05, aspect);
+    let h = fixed::to_f64(bl[1]);
+    let g = t / (o.get("scale", 0.35) * h);
+    let mut sys = System::new(bl, init::DT, small, vec![1.0, o.get("heavy", 4.0)]).with_walls(1, Wall::Soft, Wall::Soft).with_gravity([0.0, -g]);
+    if o.get("bath", 1.0) > 0.0 {
+        sys = sys.with_thermostat(t, 0.2);
+    }
+    let seed = o.get("seed", 1.0) as u64;
+    let share = o.get("heavy_share", 0.3);
+    let species: Vec<u32> = (0..n).map(|i| (gpu_prims::threefry::uniform(seed, 4, i as u32) < share) as u32).collect();
+    // Start in equilibrium: falling into shape would take hundreds of τ.
+    // The soft floor and ceiling act within 1.12 σ of a molecule's centre, whatever its size.
+    let state = init::barometric(&sys, &species, t, 0.5, 1.1, seed);
+    Scenario { warmup: o.get("warmup", 2000.0) as usize, finish: Finish::None, marked: 1, grid: [1, 40], radii: vec![0.5, 0.7], sys, state }
 }
 
 #[cfg(test)]

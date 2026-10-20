@@ -215,3 +215,47 @@ pub fn chains(sys: &System, chains: usize, length: usize, bond: f64) -> (Vec<[i6
     }
     (pos, bonds)
 }
+
+/// Particles placed at random with heights drawn from the barometric (Boltzmann) distribution
+/// of their species, n(y) ∝ exp(−m g y / kT), between `margin` and the box top minus `margin`,
+/// rejecting overlaps closer than `min_sep` σ. Velocities Maxwellian at `t`. For a column under
+/// gravity that should start in equilibrium.
+pub fn barometric(sys: &System, species: &[u32], t: f64, min_sep: f64, margin: f64, seed: u64) -> State {
+    let b = [fixed::to_f64(sys.box_len[0]), fixed::to_f64(sys.box_len[1])];
+    let g = -sys.gravity[1];
+    let h = b[1] - 2.0 * margin;
+    let cell = min_sep.max(0.5);
+    let (gx, gy) = ((b[0] / cell).ceil() as usize, (b[1] / cell).ceil() as usize);
+    let mut grid: Vec<Vec<usize>> = vec![Vec::new(); gx * gy];
+    let mut pos: Vec<[f64; 2]> = Vec::with_capacity(species.len());
+    let mut draw = 0u32;
+    for (i, &s) in species.iter().enumerate() {
+        let lam = sys.masses[s as usize] * g / t;
+        loop {
+            let ux = threefry::uniform(seed, STREAM_JITTER, draw);
+            let uy = threefry::uniform(seed, STREAM_DIRECTION, draw);
+            draw += 1;
+            let x = ux * b[0];
+            let y = margin + if lam > 1e-12 { -(1.0 - uy * (1.0 - (-lam * h).exp())).ln() / lam } else { uy * h };
+            let (cx, cy) = (((x / cell) as usize).min(gx - 1), ((y / cell) as usize).min(gy - 1));
+            let clash = (cy.saturating_sub(1)..(cy + 2).min(gy)).any(|yy| {
+                (0..3).any(|ox| {
+                    let xx = (cx + gx + ox - 1) % gx;
+                    grid[yy * gx + xx].iter().any(|&j| {
+                        let mut dx = (pos[j][0] - x).abs();
+                        dx = dx.min(b[0] - dx);
+                        let dy = pos[j][1] - y;
+                        dx * dx + dy * dy < min_sep * min_sep
+                    })
+                })
+            });
+            if !clash {
+                grid[cy * gx + cx].push(i);
+                pos.push([x, y]);
+                break;
+            }
+        }
+    }
+    let vel = maxwell(sys, species, t, seed);
+    State { pos: pos.iter().map(|p| [fixed::to_fixed(p[0]), fixed::to_fixed(p[1])]).collect(), vel, species: species.to_vec() }
+}

@@ -184,6 +184,16 @@ impl DiscSim {
         })
     }
 
+    /// Resolves to `{pos, species}`: (x, y) in σ of every particle, and species, in id order.
+    pub fn all_positions(&self) -> js_sys::Promise {
+        let fut = self.engine.read_state();
+        future_to_promise(async move {
+            let s = fut.await;
+            let pos: Vec<f32> = s.pos.iter().flat_map(|p| [fixed::to_f64(p[0]) as f32, fixed::to_f64(p[1]) as f32]).collect();
+            Ok(obj(&[("pos", Float32Array::from(&pos[..]).into()), ("species", Uint32Array::from(&s.species[..]).into())]))
+        })
+    }
+
     /// Resolves to a Float32Array of (x, y) in σ for every particle of `species`, in id order.
     pub fn positions(&self, species: u32) -> js_sys::Promise {
         let fut = self.engine.read_state();

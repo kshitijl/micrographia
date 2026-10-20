@@ -259,3 +259,76 @@ export class ScatterPlot {
     g.fillText(this.opts.xLabel, W - pad.r, H);
   }
 }
+
+export interface Series {
+  points: { x: number; y: number }[];
+  color: string;
+  dashed?: boolean;
+  dots?: boolean;
+}
+
+/** Several x–y series, optionally with a logarithmic y axis. */
+export class LinesPlot {
+  private series: Series[] = [];
+
+  constructor(
+    private canvas: HTMLCanvasElement,
+    private opts: { xLabel: string; yLabel: string; log?: boolean; ink: () => string; rule: () => string; yMin?: number; yMax?: number },
+  ) {
+    new ResizeObserver(() => this.draw()).observe(canvas);
+  }
+
+  set(series: Series[]) {
+    this.series = series;
+    this.draw();
+  }
+
+  draw() {
+    const { g, W, H } = prepare(this.canvas);
+    const pad = { l: 40, r: 8, t: 14, b: 22 };
+    const pts = this.series.flatMap((s) => s.points).filter((p) => Number.isFinite(p.y) && (!this.opts.log || p.y > 0));
+    if (!pts.length) return;
+    const xMin = Math.min(...pts.map((p) => p.x));
+    const xMax = Math.max(...pts.map((p) => p.x));
+    const log = !!this.opts.log;
+    const tf = (v: number) => (log ? Math.log(v) : v);
+    const yMax = this.opts.yMax ?? Math.max(...pts.map((p) => p.y)) * (log ? 1.5 : 1.1);
+    const yMin = this.opts.yMin ?? (log ? Math.min(...pts.map((p) => p.y)) / 1.5 : Math.min(0, ...pts.map((p) => p.y)));
+    const x = (v: number) => pad.l + ((v - xMin) / (xMax - xMin || 1)) * (W - pad.l - pad.r);
+    const y = (v: number) => H - pad.b - ((tf(Math.max(v, log ? yMin : -Infinity)) - tf(yMin)) / (tf(yMax) - tf(yMin))) * (H - pad.t - pad.b);
+    g.strokeStyle = this.opts.rule();
+    g.beginPath();
+    g.moveTo(pad.l, pad.t);
+    g.lineTo(pad.l, H - pad.b);
+    g.lineTo(W - pad.r, H - pad.b);
+    g.stroke();
+    for (const s of this.series) {
+      g.strokeStyle = s.color;
+      g.fillStyle = s.color;
+      g.lineWidth = 2;
+      g.setLineDash(s.dashed ? [5, 4] : []);
+      const ok = s.points.filter((p) => Number.isFinite(p.y) && (!log || p.y > 0));
+      if (s.dots) {
+        for (const p of ok) {
+          g.beginPath();
+          g.arc(x(p.x), y(p.y), 2.5, 0, 2 * Math.PI);
+          g.fill();
+        }
+      } else {
+        g.beginPath();
+        ok.forEach((p, k) => (k === 0 ? g.moveTo(x(p.x), y(p.y)) : g.lineTo(x(p.x), y(p.y))));
+        g.stroke();
+      }
+    }
+    g.setLineDash([]);
+    g.lineWidth = 1;
+    g.fillStyle = this.opts.ink();
+    g.font = "11px system-ui, sans-serif";
+    g.textAlign = "left";
+    g.textBaseline = "top";
+    g.fillText(this.opts.yLabel + (log ? " (log scale)" : ""), pad.l + 4, 0);
+    g.textAlign = "right";
+    g.textBaseline = "bottom";
+    g.fillText(this.opts.xLabel, W - pad.r, H);
+  }
+}
