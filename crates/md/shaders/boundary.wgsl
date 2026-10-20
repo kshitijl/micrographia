@@ -146,10 +146,24 @@ fn andersen(i: u32, v: vec2<i32>) -> vec2<i32> {
         return v;
     }
     let r2 = threefry2x32(vec2<u32>(id, clock), vec2<u32>(key.x, key.y ^ 1u));
-    let sd = sqrt(P.thermo.x / P.mass[species[i]]) * P.vstep;
+    let m = P.mass[species[i]];
+    let sd = sqrt(P.thermo.x / m) * P.vstep;
     let rad = sqrt(-2.0 * log(unit_open(r.y)));
     let a = 6.2831853 * unit_open(r2.x);
-    return vec2<i32>(i32(round(sd * rad * cos(a))), i32(round(sd * rad * sin(a))));
+    var out = vec2<i32>(i32(round(sd * rad * cos(a))), i32(round(sd * rad * sin(a))));
+    // Under a moving piston the gas flows (affinely, v = u y / h); the bath redraws velocities
+    // relative to that flow, otherwise it would act as friction on it.
+    if (P.piston_mode != 0u) {
+        let vp = f32(bitcast<i32>(atomicLoad(&ctl[CTL_PISTON_VEL])));
+        let h = coord_f32(piston_pos());
+        out.y += i32(round(vp * clamp(coord_f32(pos[i].zw) / h, 0.0, 1.0)));
+    }
+    // Book the energy the bath gave (slot 6 of the ledger, like a wall).
+    let vb = vec2<f32>(v) / P.vstep;
+    let va = vec2<f32>(out) / P.vstep;
+    ledger_add(6u, 0u, 0u, i32(round(0.5 * m * (dot(va, va) - dot(vb, vb)) * LEDGER_SCALE)));
+    ledger_add(6u, 0u, 2u, 1);
+    return out;
 }
 
 // Leapfrog: v += kick + gravity; x += v; then periodic wrap or wall collision per axis.

@@ -228,7 +228,19 @@ impl<F: Real> IntEngine<F> {
                 let m = self.sys.masses[self.state.species[i] as usize];
                 if !pinned {
                     if let Some((vx, vy)) = walls::andersen(&self.sys, i as u32, self.clock, m) {
+                        let before = [self.sys.velocity(v[0]), self.sys.velocity(v[1])];
                         v = [self.sys.to_step_displacement(vx), self.sys.to_step_displacement(vy)];
+                        // Relative to the affine flow under a moving piston (see boundary.wgsl).
+                        if self.sys.piston.is_some() {
+                            let f = (fixed::to_f64(x[1]) / fixed::to_f64(self.piston_w)).clamp(0.0, 1.0);
+                            v[1] = v[1].wrapping_add((self.piston_v as f64 * f).round() as i32);
+                        }
+                        let after = [self.sys.velocity(v[0]), self.sys.velocity(v[1])];
+                        let de = 0.5 * m * (after[0] * after[0] + after[1] * after[1] - before[0] * before[0] - before[1] * before[1]);
+                        self.ledger.energy[walls::BATH] += de;
+                        self.ledger.hits[walls::BATH] += 1;
+                        self.compartment_ledger.energy[walls::BATH][0] += de;
+                        self.compartment_ledger.hits[walls::BATH][0] += 1;
                     }
                 }
                 let old = x;

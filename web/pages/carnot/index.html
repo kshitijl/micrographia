@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>The Carnot Limit</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 16 16%22%3E%3Ccircle cx=%228%22 cy=%228%22 r=%227%22 fill=%22%239a4a1e%22/%3E%3C/svg%3E" />
+    <link rel="stylesheet" href="../../src/lib/style.css" />
+  </head>
+  <body>
+    <nav class="topbar"><div class="wrap"><a href="../../index.html">Statistical mechanics, simulated</a></div></nav>
+    <main class="wrap">
+      <header class="question">
+        <div class="eyebrow">Heat engines and heat pumps</div>
+        <h1>Why is the Carnot engine the most efficient possible? And how can a heat pump beat 100%?</h1>
+        <p class="lede">
+          This cylinder of gas is a real (if tiny) heat engine. Its walls can be connected to a hot
+          bath, a cold bath, or insulated; a piston lets it do work. Run the Carnot cycle and the page
+          books every joule of heat and work, molecule collision by molecule collision.
+        </p>
+      </header>
+
+      <section class="lab">
+        <div class="stage" id="stage">
+          <canvas id="canvas" aria-label="A gas cylinder with a piston, walls switching between hot, cold and insulated"></canvas>
+          <div class="overlay" id="overlay">Starting the GPU…</div>
+        </div>
+        <aside class="panel">
+          <div class="buttons">
+            <button class="primary" id="run">Run cycles</button>
+            <button id="reset">Reset</button>
+          </div>
+          <label class="row">Run as <span></span>
+            <select id="mode"><option value="engine" selected>heat engine</option><option value="pump">heat pump</option></select>
+          </label>
+          <label class="row">Piston speed <span id="uv">0.10 σ/τ</span>
+            <input type="range" id="u" min="0.02" max="0.6" step="0.02" value="0.1" />
+          </label>
+          <label class="row">Thermal contact with the baths <span id="cv">0.50 /τ</span>
+            <input type="range" id="contact" min="0.02" max="2" step="0.02" value="0.5" />
+          </label>
+          <label class="row">Hot bath temperature (cold bath is 1.0) <span id="thv">1.50</span>
+            <input type="range" id="th" min="1.2" max="3" step="0.1" value="1.5" />
+          </label>
+          <div class="readouts">
+            <div class="readout"><div class="k">now</div><div class="v" id="leg" style="font-size: 14px">–</div></div>
+            <div class="readout"><div class="k">gas temperature</div><div class="v" id="temp">–</div></div>
+            <div class="readout"><div class="k" id="effk">efficiency (all cycles)</div><div class="v" id="eff">–</div></div>
+            <div class="readout"><div class="k" id="limk">Carnot limit</div><div class="v" id="lim">–</div></div>
+          </div>
+          <canvas class="plot tall" id="plot" aria-label="Efficiency of each cycle against piston speed, with the Carnot limit"></canvas>
+          <div class="status" id="status">Press Run cycles. Each cycle takes a little while; try slow and fast pistons.</div>
+        </aside>
+      </section>
+
+      <article class="notes">
+        <h2>The cycle</h2>
+        <ol>
+          <li><b>Hot, expanding.</b> The walls touch the hot bath; the gas expands, pushing the piston and
+            doing work, while heat Q<sub>h</sub> flows in to keep it hot.</li>
+          <li><b>Insulated, expanding.</b> The walls are insulated; the gas keeps expanding and cools down to
+            the cold temperature, doing more work out of its own energy.</li>
+          <li><b>Cold, compressing.</b> The walls touch the cold bath; the piston pushes the gas back,
+            and heat Q<sub>c</sub> flows out into the cold bath.</li>
+          <li><b>Insulated, compressing.</b> Insulated again; compression heats the gas back up to the hot
+            temperature, ready to start over.</li>
+        </ol>
+        <p>
+          Over one cycle the gas returns to where it started, so the net work out is W = Q<sub>h</sub> − Q<sub>c</sub>,
+          and the efficiency is W / Q<sub>h</sub>.
+        </p>
+        <h2>Why nothing can beat it</h2>
+        <p>
+          Heat Q flowing in at temperature T brings entropy Q/T. The gas ends each cycle exactly as it
+          began, so it cannot keep any entropy: everything that came in with Q<sub>h</sub> at T<sub>h</sub> must leave with
+          Q<sub>c</sub> at T<sub>c</sub>, at least, Q<sub>c</sub>/T<sub>c</sub> ≥ Q<sub>h</sub>/T<sub>h</sub>. So some heat must always be dumped, and the
+          best possible efficiency is
+        </p>
+        <p class="formula">η<sub>max</sub> = 1 − T<sub>c</sub> / T<sub>h</sub></p>
+        <p>
+          The Carnot cycle reaches this when it runs infinitely slowly: heat then only ever flows between
+          things at the same temperature, which creates no entropy. Run the piston faster and the gas
+          lags behind the walls (it is a little colder than the hot bath while taking in heat, a little
+          hotter than the cold bath while giving it out), and the piston stirs the gas: entropy is
+          created, and the efficiency drops below the limit. That is why a real engine, which must
+          deliver power and so cannot run slowly, never reaches it. Weaken the thermal contact and the
+          lag gets worse at any speed.
+        </p>
+        <h2>Heat pumps</h2>
+        <p>
+          Run the same cycle backwards and work goes in, heat Q<sub>c</sub> is taken from the cold side, and
+          heat Q<sub>h</sub> = Q<sub>c</sub> + W is delivered to the hot side. A heat pump's figure of merit is how much heat
+          it delivers per unit of work, Q<sub>h</sub>/W, and the same entropy argument limits it to
+          T<sub>h</sub>/(T<sub>h</sub> − T<sub>c</sub>): with the temperatures here, several times more heat than work. Nothing is
+          created from nothing: the extra heat is pumped out of the cold side. It also explains why an
+          air conditioner or heat pump struggles in a heat wave or deep cold: the bigger the
+          temperature difference, the lower the limit.
+        </p>
+        <div class="caveat">
+          <h3>Caveats</h3>
+          <ul>
+            <li>A 2D gas of 800 small molecules. The heat bath acts on every molecule (each has a
+              chance per unit time, the “thermal contact”, of being given a fresh velocity at the bath's
+              temperature): heat flowing in only through the walls would make cycles very slow. Every
+              bit of heat exchanged is booked exactly. Single cycles are noisy; trust the average of
+              several.</li>
+            <li>For this 2D gas an insulated expansion cools it as T × area = constant; the cycle's
+              turning points are set accordingly.</li>
+          </ul>
+        </div>
+      </article>
+    </main>
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>

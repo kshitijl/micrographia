@@ -171,9 +171,9 @@ impl DiscSim {
         })
     }
 
-    /// Resolves to `{energy, impulse, hits}`, each `6 × per_wall` long (wall-major; walls are
-    /// x-low, x-high, y-low, y-high, then the membrane hit from its low and high sides), split
-    /// by compartment along each wall.
+    /// Resolves to `{energy, impulse, hits}`, each `7 × per_wall` long (wall-major; walls are
+    /// x-low, x-high, y-low, y-high, then the membrane hit from its low and high sides, then the
+    /// bulk heat bath in slot 0 of the last), split by compartment along each wall.
     pub fn ledger(&self, per_wall: u32) -> js_sys::Promise {
         let fut = self.engine.buf.read_compartment_ledger(per_wall as usize);
         future_to_promise(async move {
@@ -272,8 +272,9 @@ impl DiscSim {
         future_to_promise(async move { Ok(Float64Array::from(&fut.await[..]).into()) })
     }
 
-    /// Make every wall a heat bath at `t` (`t` > 0) or insulating (soft) (`t` = 0). Pistons and
-    /// membranes are unaffected.
+    /// Make every wall a heat bath at `t` (`t` > 0) or insulating (`t` = 0). Insulating walls are
+    /// hard (specular) planes like the thermal ones, so switching never puts a molecule inside a
+    /// soft wall's repulsive layer. Pistons and membranes are unaffected.
     pub fn set_walls_thermal(&mut self, t: f64) {
         let mut sys = self.engine.sys.clone();
         let piston = sys.piston.is_some();
@@ -283,7 +284,7 @@ impl DiscSim {
                     if axis == 1 && side == 1 && piston {
                         continue;
                     }
-                    ws[side] = if t > 0.0 { Wall::Thermal(t) } else { Wall::Soft };
+                    ws[side] = if t > 0.0 { Wall::Thermal(t) } else { Wall::Hard };
                 }
             }
         }

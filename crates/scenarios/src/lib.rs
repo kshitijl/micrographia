@@ -59,7 +59,7 @@ pub struct Scenario {
     pub radii: Vec<f64>,
 }
 
-pub const NAMES: &[&str] = &["cream", "corner", "boltzmann", "heavy", "oilwater", "heatflow", "osmosis", "compress", "rubber", "atmosphere"];
+pub const NAMES: &[&str] = &["cream", "corner", "boltzmann", "heavy", "oilwater", "heatflow", "osmosis", "compress", "rubber", "atmosphere", "carnot"];
 
 pub fn build(name: &str, o: &Options) -> Result<Scenario, String> {
     match name {
@@ -73,6 +73,7 @@ pub fn build(name: &str, o: &Options) -> Result<Scenario, String> {
         "compress" => Ok(compress(o)),
         "rubber" => Ok(rubber(o)),
         "atmosphere" => Ok(atmosphere(o)),
+        "carnot" => Ok(carnot(o)),
         _ => Err(format!("unknown scenario {name}")),
     }
 }
@@ -260,7 +261,8 @@ pub fn compress(o: &Options) -> Scenario {
     let height = 0.75 * width;
     let small = Pair { eps: 1.0, sigma: 0.5, rc: 0.5 * 2f64.powf(1.0 / 6.0) };
     let thermal = o.get("thermal", 0.0);
-    let side = if thermal > 0.0 { Wall::Thermal(thermal) } else { Wall::Soft };
+    // Insulating walls are hard planes, the same geometry as thermal ones (the page switches).
+    let side = if thermal > 0.0 { Wall::Thermal(thermal) } else { Wall::Hard };
     let sys = System::new([fixed::to_fixed(width), fixed::to_fixed(height)], init::DT, small, vec![1.0])
         .with_walls(0, side, side)
         .with_walls(1, side, Wall::Hard)
@@ -394,6 +396,28 @@ pub fn atmosphere(o: &Options) -> Scenario {
     // The soft floor and ceiling act within 1.12 σ of a molecule's centre, whatever its size.
     let state = init::barometric(&sys, &species, t, 0.5, 1.1, seed);
     Scenario { warmup: o.get("warmup", 2000.0) as usize, finish: Finish::None, marked: 1, grid: [1, 40], radii: vec![0.5, 0.7], sys, state }
+}
+
+/// A heat-engine cylinder: small molecules (σ = 0.5, nearly ideal) under a fixed-speed piston,
+/// hard (insulating) walls, and a bulk heat bath that the page switches between hot, cold and
+/// off: thermal contact through the walls alone is too slow for cycles of practical length.
+/// Options: n, width (σ), start (piston height, σ), top (box height, σ), hot, contact (bath
+/// rate, 1/τ), seed.
+pub fn carnot(o: &Options) -> Scenario {
+    let n = o.get("n", 800.0) as usize;
+    let (width, start, top) = (o.get("width", 64.0), o.get("start", 48.0), o.get("top", 160.0));
+    let th = o.get("hot", 1.5);
+    let small = Pair { eps: 1.0, sigma: 0.5, rc: 0.5 * 2f64.powf(1.0 / 6.0) };
+    let sys = System::new([fixed::to_fixed(width), fixed::to_fixed(top)], init::DT, small, vec![1.0])
+        .with_walls(0, Wall::Hard, Wall::Hard)
+        .with_walls(1, Wall::Hard, Wall::Hard)
+        .with_piston(md_core::PistonDrive::Speed(0.0), start, 4.0)
+        .with_thermostat(th, o.get("contact", 0.5));
+    // Molecules start below the piston.
+    let lower = System::new([fixed::to_fixed(width), fixed::to_fixed(start)], init::DT, small, vec![1.0]).with_walls(0, Wall::Soft, Wall::Soft).with_walls(1, Wall::Soft, Wall::Soft);
+    let mut state = init::fluid(&lower, n, th, o.get("seed", 1.0) as u64);
+    state.vel = init::maxwell(&sys, &state.species, th, o.get("seed", 1.0) as u64);
+    Scenario { warmup: o.get("warmup", 4000.0) as usize, finish: Finish::None, marked: 0, grid: [4, 4], radii: vec![0.6], sys, state }
 }
 
 #[cfg(test)]

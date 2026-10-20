@@ -5,10 +5,12 @@ use crate::system::System;
 use gpu_prims::threefry;
 
 /// Walls are numbered `2 * axis + side` (side 0 at 0, side 1 at L); the membrane's two faces
-/// are 4 (hit from the low side) and 5 (from the high side).
-pub const WALLS: usize = 6;
+/// are 4 (hit from the low side) and 5 (from the high side); slot 6 books the bulk heat bath
+/// (Andersen thermostat) as if it were a wall.
+pub const WALLS: usize = 7;
 pub const MEMBRANE_LOW: usize = 4;
 pub const MEMBRANE_HIGH: usize = 5;
+pub const BATH: usize = 6;
 
 /// Did a step from `old` to `new` cross a membrane at `w`? Returns the mirrored coordinate and
 /// the face hit (exact; mirrors about w − ½).
