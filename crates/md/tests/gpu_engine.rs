@@ -177,3 +177,62 @@ fn energy_is_conserved() {
     eprintln!("energy per particle {e0:.5}; max deviation over 10 000 steps {worst:.2e}");
     assert!(worst < 2e-3, "worst {worst}");
 }
+
+/// Growth of a one-bit perturbation at the reversal page's parameters (density 0.5, T = 1).
+/// Prints the largest position difference between two copies over time, and the fitted rate.
+#[test]
+fn lyapunov_growth_at_page_parameters() {
+    let p = prims();
+    let n = 8000;
+    let sys = System::new(init::box_for(n, 0.5, 4.0 / 3.0), init::DT, Pair::wca(), vec![1.0]);
+    let mut s0 = init::fluid(&sys, n, 1.0, 7);
+    let mut warm = GpuEngine::new(&p, sys.clone(), &s0);
+    warm.step(1000);
+    s0 = block_on(warm.read_state());
+    init::set_temperature(&mut s0, &sys, 1.0);
+    let mut a = GpuEngine::new(&p, sys.clone(), &s0);
+    let mut b = GpuEngine::new(&p, sys.clone(), &s0);
+    b.flip_bit(0, 0, 0);
+    let mut rows = Vec::new();
+    let mut fit = Vec::new();
+    for k in 1..=40 {
+        a.step(100);
+        b.step(100);
+        let (sa, sb) = (block_on(a.read_state()), block_on(b.read_state()));
+        let (differ, max) = sa.position_difference(&sb, &sys);
+        let t = k as f64 * 100.0 * init::DT;
+        if max > 0.0 && max < 0.05 {
+            fit.push((t, max.ln()));
+        }
+        rows.push(format!("t={t:.1}: {differ} differ, max {max:.1e}"));
+    }
+    let nf = fit.len() as f64;
+    let (mt, my) = (fit.iter().map(|f| f.0).sum::<f64>() / nf, fit.iter().map(|f| f.1).sum::<f64>() / nf);
+    let slope = fit.iter().map(|f| (f.0 - mt) * (f.1 - my)).sum::<f64>() / fit.iter().map(|f| (f.0 - mt).powi(2)).sum::<f64>();
+    eprintln!("{}", rows.join("\n"));
+    eprintln!("growth rate of the largest deviation: {slope:.2} per τ (factor {:.1} per τ)", slope.exp());
+}
+
+/// The reversal page's protocol: forward, nudge, reverse, back to t = 0. Prints how far from
+/// the initial state the nudged run ends, for several forward durations.
+#[test]
+fn nudged_reversal_at_page_parameters() {
+    let p = prims();
+    let n = 8000;
+    let sys = System::new(init::box_for(n, 0.5, 4.0 / 3.0), init::DT, Pair::wca(), vec![1.0]);
+    let mut s0 = init::fluid(&sys, n, 1.0, 7);
+    let mut warm = GpuEngine::new(&p, sys.clone(), &s0);
+    warm.step(1000);
+    s0 = block_on(warm.read_state());
+    init::set_temperature(&mut s0, &sys, 1.0);
+    for steps in [1000, 2000, 3000, 4000, 6000] {
+        let mut e = GpuEngine::new(&p, sys.clone(), &s0);
+        e.step(steps);
+        e.flip_bit(0, 0, 0);
+        e.reverse();
+        e.step(steps);
+        e.reverse();
+        let (differ, max) = block_on(e.read_state()).position_difference(&s0, &sys);
+        eprintln!("forward {:.0} τ then back: {differ} differ, max {max:.2e} σ", steps as f64 * init::DT);
+    }
+}

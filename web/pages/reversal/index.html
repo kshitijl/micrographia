@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Un-stirring the Coffee</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 16 16%22%3E%3Ccircle cx=%228%22 cy=%228%22 r=%227%22 fill=%22%239a4a1e%22/%3E%3C/svg%3E" />
+    <link rel="stylesheet" href="../../src/lib/style.css" />
+  </head>
+  <body>
+    <nav class="topbar"><div class="wrap"><a href="../../index.html">Statistical mechanics, simulated</a></div></nav>
+    <main class="wrap">
+      <header class="question">
+        <div class="eyebrow">Arrow of time</div>
+        <h1>Why can't you un-stir cream from coffee, when every collision can run backwards?</h1>
+        <p class="lede">
+          The laws that move molecules work just as well in reverse. Film two molecules colliding,
+          play it backwards, and nothing looks wrong. So here is a cup of “coffee” with a blob of
+          “cream”, and a button that plays the film backwards: every velocity reversed, exactly.
+        </p>
+      </header>
+
+      <section class="lab">
+        <div class="stage" id="stage">
+          <canvas id="canvas" aria-label="Simulation of cream particles mixing into coffee particles"></canvas>
+          <div class="overlay" id="overlay">Starting the GPU…</div>
+        </div>
+        <aside class="panel">
+          <div class="buttons">
+            <button class="primary" id="run">Run</button>
+            <button id="reverse">Reverse time</button>
+            <button id="reset">Reset</button>
+          </div>
+          <label class="check">
+            <input type="checkbox" id="nudge" />
+            <span>When reversing, nudge one cream molecule by 2<sup>−32</sup> of its diameter
+              (0.0000000002&nbsp;σ)</span>
+          </label>
+          <div class="readouts">
+            <div class="readout"><div class="k">time (τ)</div><div class="v" id="time">0.0</div></div>
+            <div class="readout"><div class="k">direction</div><div class="v" id="dir">forward</div></div>
+            <div class="readout"><div class="k">mixed</div><div class="v" id="mix">0%</div></div>
+            <div class="readout"><div class="k">temperature</div><div class="v" id="temp">–</div></div>
+          </div>
+          <canvas class="plot" id="plot" aria-label="How mixed the cream is over elapsed time"></canvas>
+          <div class="status" id="status">Press Run, let the cream spread, then reverse time.</div>
+          <label class="row">Speed <span id="speedv">16 steps/frame</span>
+            <input type="range" id="speed" min="1" max="64" value="16" />
+          </label>
+          <label class="row">Molecules <span></span>
+            <select id="size">
+              <option value="2000">2,000</option>
+              <option value="8000" selected>8,000</option>
+              <option value="32000">32,000</option>
+              <option value="128000">128,000</option>
+            </select>
+          </label>
+        </aside>
+      </section>
+
+      <article class="notes">
+        <h2>What you're seeing</h2>
+        <p>
+          Each dot is a molecule: a disc that bounces off its neighbours. All of them are identical;
+          the cream ones are only coloured differently. Run the simulation and the cream spreads,
+          the way it does in a real cup. The “mixed” readout measures how evenly the cream is spread,
+          from 0% for the starting blob to 100% for cream everywhere in proportion.
+        </p>
+        <p>
+          Press <b>Reverse time</b> and every molecule's velocity flips. The system then retraces its
+          own history: the cream gathers itself back into the blob, and when the clock reaches zero
+          the page checks every bit of every molecule's position and velocity against the start.
+          They match exactly. Nothing in the laws of motion forbids un-stirring.
+        </p>
+
+        <h2>Then why doesn't it happen?</h2>
+        <p>
+          Tick the nudge box and reverse again. Before the velocities flip, one cream molecule moves by
+          2<sup>−32</sup> of its diameter, about a ten-billionth. For a while the reversed run still
+          heads back toward the blob. But collisions amplify small differences: each time a molecule
+          hits another slightly off-centre, the error grows. In this fluid the error grows by a factor
+          of about 25 per unit of time (we measure a Lyapunov exponent of 3.2 per τ). The nudged
+          molecule's neighbourhood is completely different after about 8 τ, and the disturbance then
+          spreads outward like a wave, reaching all 8,000 molecules by about 20 τ. Run forward for
+          10 τ or more before reversing, and the cream never makes it back.
+        </p>
+        <p>
+          So un-stirring needs velocities aimed with impossible precision. Of all the arrangements the
+          molecules could have, nearly all look mixed, and the ones that un-mix are a vanishingly thin,
+          precisely aimed set. The tiniest disturbance moves you off that set and back among the mixed
+          ones. That is what entropy counts, and why the arrow of time points the way it does.
+        </p>
+
+        <h2>How the reversal can be exact</h2>
+        <p>
+          Ordinary simulations store positions as floating-point numbers, which round slightly at every
+          step, so running them backwards doesn't retrace the path. This one stores each position as
+          a 64-bit integer (in units of 2<sup>−32</sup>&nbsp;σ) and each velocity as an integer
+          displacement per step. Moving a molecule is then an exact integer addition. Forces are still
+          computed in ordinary 32-bit floats on the GPU, but each force is turned into an integer
+          “kick” that depends only on the positions. The same positions always give the same kicks, so
+          the reversed steps undo the forward ones bit for bit.
+        </p>
+
+        <div class="caveat">
+          <h3>Caveats</h3>
+          <ul>
+            <li>
+              This is a 2D fluid of thousands of identical soft discs (a WCA fluid), not coffee. A
+              real cup has about 10<sup>25</sup> molecules.
+            </li>
+            <li>
+              A real cup is never isolated: it trades heat with the mug and the air, which disturbs it
+              far more than one bit ever could.
+            </li>
+            <li>
+              There is a famous demonstration (G. I. Taylor's) where dye in syrup really is un-stirred
+              by turning the crank backwards. That works for a different reason (slow, smooth flow and
+              very slow diffusion) and will get its own page.
+            </li>
+          </ul>
+        </div>
+      </article>
+    </main>
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>

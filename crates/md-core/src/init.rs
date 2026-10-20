@@ -88,6 +88,20 @@ pub fn zero_velocity_sum(vel: &mut [[i32; 2]]) {
     }
 }
 
+/// Rescale velocities so the (half-step) kinetic temperature is `t`, keeping the sum zero.
+pub fn set_temperature(state: &mut State, sys: &System, t: f64) {
+    let dof = (state.n() as f64 - 1.0).max(1.0);
+    let now = state.half_step_kinetic(sys) / dof;
+    if now <= 0.0 {
+        return;
+    }
+    let f = (t / now).sqrt();
+    for v in state.vel.iter_mut() {
+        *v = [(v[0] as f64 * f).round() as i32, (v[1] as f64 * f).round() as i32];
+    }
+    zero_velocity_sum(&mut state.vel);
+}
+
 /// A fluid of `n` particles of species 0 at `density` and temperature `t`.
 pub fn fluid(sys: &System, n: usize, t: f64, seed: u64) -> State {
     let pos = lattice(n, sys.box_len, 0.1, seed);

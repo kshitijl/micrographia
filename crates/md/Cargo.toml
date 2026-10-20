@@ -8,10 +8,10 @@ publish.workspace = true
 [dependencies]
 gpu-prims = { path = "../gpu-prims" }
 md-core = { path = "../md-core" }
+md-ref = { path = "../md-ref" }
 wgpu.workspace = true
 bytemuck.workspace = true
 
 [dev-dependencies]
-md-ref = { path = "../md-ref" }
 pollster.workspace = true
 naga = { version = "30.0.1", features = ["wgsl-in"] }

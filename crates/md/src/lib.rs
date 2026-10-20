@@ -1,6 +1,7 @@
 //! GPU MD engines. For now: `gpu-int-f32` (integer positions, f32 forces), 2D, NVE, with a
 //! cell list rebuilt every step.
 
+pub mod checks;
 pub mod engine;
 pub mod observe;
 

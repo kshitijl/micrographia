@@ -5,6 +5,7 @@ use std::sync::Arc;
 /// A device and queue, cheap to clone.
 #[derive(Clone)]
 pub struct Gpu {
+    pub adapter: wgpu::Adapter,
     pub device: wgpu::Device,
     pub queue: wgpu::Queue,
     pub info: Arc<wgpu::AdapterInfo>,
@@ -60,7 +61,7 @@ impl Gpu {
             })
             .await
             .map_err(|e| GpuError(format!("request_device failed: {e}")))?;
-        Ok(Self { device, queue, info: Arc::new(adapter.get_info()), features })
+        Ok(Self { info: Arc::new(adapter.get_info()), adapter, device, queue, features })
     }
 
     pub fn has_timestamps(&self) -> bool {
