@@ -39,6 +39,10 @@ export class SimHost {
     this.ready = this.init();
   }
 
+  get canvas(): HTMLCanvasElement {
+    return this.cfg.canvas;
+  }
+
   private async init() {
     const problem = await webgpuProblem();
     if (problem) {

@@ -35,17 +35,34 @@
             <span><i style="background: var(--cream)"></i>light (m = 1)</span>
             <span><i style="background: var(--species-2)"></i>heavy (m = 16)</span>
             <span><i style="background: var(--species-3)"></i>ball (m = <span id="bm">400</span>)</span>
+            <span><i style="background: var(--species-3); opacity: 0.5"></i>a ball's recent path</span>
           </div>
+          <div id="tools"></div>
           <label class="row">Ball mass <span id="bmv">400</span>
             <input type="range" id="ballmass" min="1" max="4" step="0.25" value="2.602" />
           </label>
           <canvas class="plot" id="ke" aria-label="Average kinetic energy per species"></canvas>
           <canvas class="plot" id="speed" aria-label="Typical speed per species"></canvas>
           <div class="status" id="status">Press Run. The averages need a while to settle, especially for the balls.</div>
+          <div id="energy"></div>
         </aside>
       </section>
 
       <article class="notes">
+        <h2>Reach in</h2>
+        <p>
+          Drag a box on the simulation to select the molecules in it, then kick them (three times
+          faster, nine times the energy), freeze them, or shove them all to the right. The total energy
+          jumps up or down at once, and then stays put: nothing else adds or removes energy. Watch the
+          averages too: the kicked molecules share their extra energy with everyone, and every kind,
+          light, heavy and ball, ends up with the same average again.
+        </p>
+        <p>
+          The entropy plot shows how spread out the molecules' energies are (Boltzmann's H-function),
+          against the most it could be for the current total energy. A kick or a freeze makes the
+          energies lopsided, opening a gap below the ceiling; collisions close it again within a few τ.
+          The trails behind the balls are their recent paths: Brownian motion.
+        </p>
         <h2>Same energy, different speeds</h2>
         <p>
           The top chart is each kind's average kinetic energy, with the line at kT. All three settle

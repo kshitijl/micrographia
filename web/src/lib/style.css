@@ -398,3 +398,15 @@ table.results th {
 .lab.calc .readouts {
   grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
 }
+
+/* The selection rectangle drawn over a simulation (lib/interact.ts). */
+.select-box {
+  position: absolute;
+  border: 1.5px dashed var(--highlight);
+  background: rgba(229, 72, 58, 0.08);
+  pointer-events: none;
+}
+.tools {
+  display: grid;
+  gap: 6px;
+}
