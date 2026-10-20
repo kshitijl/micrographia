@@ -43,6 +43,8 @@ struct Params {
     ncomp: vec2<u32>,
     // Andersen thermostat: (temperature, probability per particle per step, 0, 0).
     thermo: vec4<f32>,
+    // Membrane: (axis or 0xffffffff for none, bitmask of blocked species, position lo, hi).
+    membrane: vec4<u32>,
     // Per species pair a·4 + b: (rc², 4ε, σ², energy shift).
     pairs: array<vec4<f32>, 16>,
 }

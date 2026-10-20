@@ -13,4 +13,4 @@ pub mod walls;
 
 pub use fixed::{FRAC_BITS, ONE};
 pub use pair::Pair;
-pub use system::{State, System, Thermostat, Wall};
+pub use system::{Membrane, State, System, Thermostat, Wall};

@@ -102,9 +102,19 @@ pub fn set_temperature(state: &mut State, sys: &System, t: f64) {
     zero_velocity_sum(&mut state.vel);
 }
 
-/// A fluid of `n` particles of species 0 at `density` and temperature `t`.
+/// A fluid of `n` particles of species 0 at `density` and temperature `t`. On axes with walls
+/// the lattice keeps 1 σ clear of them (inside a soft wall's range the force is huge).
 pub fn fluid(sys: &System, n: usize, t: f64, seed: u64) -> State {
-    let pos = lattice(n, sys.box_len, 0.1, seed);
+    let margin = 1.0;
+    let inner = [0, 1].map(|a| if sys.periodic(a) { sys.box_len[a] } else { sys.box_len[a] - fixed::to_fixed(2.0 * margin) });
+    let mut pos = lattice(n, inner, 0.1, seed);
+    for p in pos.iter_mut() {
+        for a in 0..2 {
+            if !sys.periodic(a) {
+                p[a] += fixed::to_fixed(margin);
+            }
+        }
+    }
     let species = vec![0; n];
     let vel = maxwell(sys, &species, t, seed);
     State { pos, vel, species }

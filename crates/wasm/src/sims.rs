@@ -171,8 +171,9 @@ impl DiscSim {
         })
     }
 
-    /// Resolves to `{energy, impulse, hits}`, each `4 × per_wall` long (wall-major; walls are
-    /// x-low, x-high, y-low, y-high), split by compartment along each wall.
+    /// Resolves to `{energy, impulse, hits}`, each `6 × per_wall` long (wall-major; walls are
+    /// x-low, x-high, y-low, y-high, then the membrane hit from its low and high sides), split
+    /// by compartment along each wall.
     pub fn ledger(&self, per_wall: u32) -> js_sys::Promise {
         let fut = self.engine.buf.read_compartment_ledger(per_wall as usize);
         future_to_promise(async move {

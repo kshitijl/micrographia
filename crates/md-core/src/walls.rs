@@ -4,8 +4,21 @@
 use crate::system::System;
 use gpu_prims::threefry;
 
-/// Walls are numbered `2 * axis + side` (side 0 at 0, side 1 at L).
-pub const WALLS: usize = 4;
+/// Walls are numbered `2 * axis + side` (side 0 at 0, side 1 at L); the membrane's two faces
+/// are 4 (hit from the low side) and 5 (from the high side).
+pub const WALLS: usize = 6;
+pub const MEMBRANE_LOW: usize = 4;
+pub const MEMBRANE_HIGH: usize = 5;
+
+/// Did a step from `old` to `new` cross a membrane at `w`? Returns the mirrored coordinate and
+/// the face hit (exact; mirrors about w − ½).
+pub fn cross_membrane(old: i64, new: i64, w: i64) -> Option<(i64, usize)> {
+    match (old < w, new < w) {
+        (true, false) => Some((2 * w - 1 - new, MEMBRANE_LOW)),
+        (false, true) => Some((2 * w - 1 - new, MEMBRANE_HIGH)),
+        _ => None,
+    }
+}
 
 /// Mirror a coordinate that left `[0, l)` back inside. The mirrors are about −½ and l − ½
 /// position units, so each is an exact involution on integers.

@@ -59,7 +59,7 @@ pub struct Scenario {
     pub radii: Vec<f64>,
 }
 
-pub const NAMES: &[&str] = &["cream", "corner", "boltzmann", "heavy", "oilwater", "heatflow"];
+pub const NAMES: &[&str] = &["cream", "corner", "boltzmann", "heavy", "oilwater", "heatflow", "osmosis"];
 
 pub fn build(name: &str, o: &Options) -> Result<Scenario, String> {
     match name {
@@ -69,6 +69,7 @@ pub fn build(name: &str, o: &Options) -> Result<Scenario, String> {
         "heavy" => Ok(heavy(o)),
         "oilwater" => Ok(oilwater(o)),
         "heatflow" => Ok(heatflow(o)),
+        "osmosis" => Ok(osmosis(o)),
         _ => Err(format!("unknown scenario {name}")),
     }
 }
@@ -216,6 +217,33 @@ pub fn heatflow(o: &Options) -> Scenario {
         .with_compartments(0, log2w);
     let state = init::compartment_fluid(&sys, per_box, 0.5 * (th + tc), o.get("seed", 1.0) as u64);
     Scenario { warmup: o.get("warmup", 4000.0) as usize, finish: Finish::None, marked: 0, grid: [cols as u32, 2], radii: vec![0.5], sys, state }
+}
+
+/// Solvent (0) everywhere and solute (1) on the right, separated by a membrane in the middle
+/// that only solvent crosses; soft walls at both ends, a bulk heat bath. Options: n, density,
+/// solute (fraction of right-half molecules), temperature, attraction (solute–solvent LJ ε; 0
+/// for purely repulsive), seed.
+pub fn osmosis(o: &Options) -> Scenario {
+    let n = o.get("n", 16000.0) as usize;
+    let t = o.get("temperature", 1.0);
+    let attraction = o.get("attraction", 0.0);
+    let mut sys = System::new(init::box_for(n, o.get("density", 0.5), o.get("aspect", 2.0)), init::DT, Pair::wca(), vec![1.0, 1.0])
+        .with_walls(0, Wall::Soft, Wall::Soft)
+        .with_thermostat(t, 0.5);
+    if attraction > 0.0 {
+        sys = sys.with_pair(0, 1, Pair { eps: attraction, sigma: 1.0, rc: 2.5 });
+    }
+    let b = sys.box_f64();
+    let sys = sys.with_membrane(0, b[0] / 2.0, &[1]);
+    let seed = o.get("seed", 1.0) as u64;
+    let mut state = init::fluid(&sys, n, t, seed);
+    let f = o.get("solute", 0.08);
+    for i in 0..n {
+        if fixed::to_f64(state.pos[i][0]) > b[0] / 2.0 + 1.0 && gpu_prims::threefry::uniform(seed, 3, i as u32) < f {
+            state.species[i] = 1;
+        }
+    }
+    Scenario { warmup: o.get("warmup", 4000.0) as usize, finish: Finish::None, marked: 1, grid: [32, 1], radii: vec![0.5, 0.5], sys, state }
 }
 
 #[cfg(test)]

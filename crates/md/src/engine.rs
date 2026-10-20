@@ -43,6 +43,7 @@ pub struct Params {
     pub comp_shift: [u32; 2],
     pub ncomp: [u32; 2],
     pub thermo: [f32; 4],
+    pub membrane: [u32; 4],
     pub pairs: [[f32; 4]; 16],
 }
 
@@ -184,6 +185,13 @@ impl Params {
             thermo: match sys.thermostat {
                 Some(t) => [t.t as f32, (t.rate * sys.dt) as f32, 0.0, 0.0],
                 None => [0.0; 4],
+            },
+            membrane: match sys.membrane {
+                Some(m) => {
+                    let w = fixed64::split(m.position);
+                    [m.axis as u32, m.blocks, w[0], w[1]]
+                }
+                None => [u32::MAX, 0, 0, 0],
             },
             pairs,
         }

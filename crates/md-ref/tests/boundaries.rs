@@ -235,3 +235,34 @@ fn andersen_thermostat_sets_the_temperature() {
     eprintln!("Andersen at T = 0.8: light {:.3}, heavy {:.3}", t[0], t[1]);
     assert!((t[0] - 0.8).abs() < 0.04 && (t[1] - 0.8).abs() < 0.04);
 }
+
+/// A membrane that blocks one species: the solute stays on its side, the solvent crosses, and
+/// the dynamics (hard reflections at the membrane) stays exactly reversible.
+#[test]
+fn membrane_confines_solute_and_is_reversible() {
+    let n = 1200;
+    let sys = System::new(init::box_for(n, 0.4, 2.0), init::DT, Pair::wca(), vec![1.0, 1.0]).with_walls(0, Wall::Soft, Wall::Soft);
+    let b = sys.box_f64();
+    let sys = sys.with_membrane(0, b[0] / 2.0, &[1]);
+    let mut s0 = init::fluid(&sys, n, 1.0, 13);
+    for i in 0..n {
+        if fixed::to_f64(s0.pos[i][0]) > b[0] / 2.0 + 1.0 && gpu_prims::threefry::uniform(13, 3, i as u32) < 0.2 {
+            s0.species[i] = 1;
+        }
+    }
+    let left0 = s0.pos.iter().filter(|p| fixed::to_f64(p[0]) < b[0] / 2.0).count();
+    let mut e = IntEngine::<f32>::new(sys.clone(), s0.clone());
+    e.step(3000);
+    let left = e.state.pos.iter().filter(|p| fixed::to_f64(p[0]) < b[0] / 2.0).count();
+    for (i, p) in e.state.pos.iter().enumerate() {
+        if e.state.species[i] == 1 {
+            assert!(fixed::to_f64(p[0]) > b[0] / 2.0 - 0.5, "solute crossed the membrane");
+        }
+    }
+    assert!(e.ledger.hits[5] > 20, "solute should hit the membrane");
+    assert_ne!(left, left0, "solvent should cross the membrane");
+    e.reverse();
+    e.step(3000);
+    e.reverse();
+    assert_eq!(e.state, s0);
+}

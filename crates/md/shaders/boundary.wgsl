@@ -120,6 +120,29 @@ fn advance(i: u32) -> vec4<u32> {
     let p = pos[i];
     var x = add64(p.xy, i64_from_i32(v.x));
     var y = add64(p.zw, i64_from_i32(v.y));
+    // A semi-permeable membrane reflects blocked species (exact mirror about position − ½).
+    if (P.membrane.x < 2u && (P.membrane.y & (1u << species[i])) != 0u) {
+        let a = P.membrane.x;
+        let w = P.membrane.zw;
+        let before = select(p.zw, p.xy, a == 0u);
+        var now = select(y, x, a == 0u);
+        let was_low = lt64(before, w);
+        if (was_low != lt64(now, w)) {
+            now = sub64(sub64(add64(w, w), vec2<u32>(1u, 0u)), now);
+            let face = select(5u, 4u, was_low);
+            let vn = select(v.y, v.x, a == 0u);
+            let m = P.mass[species[i]];
+            ledger_add(face, ledger_slot(p, a), 1u, i32(round(2.0 * m * abs(f32(vn) / P.vstep) * LEDGER_SCALE)));
+            ledger_add(face, ledger_slot(p, a), 2u, 1);
+            if (a == 0u) {
+                x = now;
+                v.x = -v.x;
+            } else {
+                y = now;
+                v.y = -v.y;
+            }
+        }
+    }
     let wf = wall_f[i];
     if (wf.x != 0.0) {
         ledger_add(select(1u, 0u, wf.x > 0.0), ledger_slot(p, 0u), 1u, i32(round(abs(wf.x) * P.dt * LEDGER_SCALE)));

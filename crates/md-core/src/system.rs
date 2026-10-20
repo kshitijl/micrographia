@@ -46,6 +46,25 @@ pub struct System {
     /// A heat bath acting throughout the volume (Andersen): each step, each particle has
     /// probability `rate · Δt` of having its velocity redrawn at temperature `t`.
     pub thermostat: Option<Thermostat>,
+    /// A semi-permeable membrane: a thin wall across the box that reflects some species and
+    /// lets the others through.
+    pub membrane: Option<Membrane>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Membrane {
+    /// The membrane is perpendicular to this axis (which must have walls, not periodic).
+    pub axis: usize,
+    /// Position along the axis, in position units. Particles reflect about position − ½.
+    pub position: i64,
+    /// Bit s set if species s is blocked.
+    pub blocks: u32,
+}
+
+impl Membrane {
+    pub fn blocks(&self, species: u32) -> bool {
+        self.blocks & (1 << species) != 0
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -63,7 +82,7 @@ impl System {
     pub fn new(box_len: [i64; 2], dt: f64, pair: Pair, masses: Vec<f64>) -> Self {
         assert!(!masses.is_empty() && masses.len() <= MAX_SPECIES);
         let ns = masses.len();
-        let s = Self { box_len, dt, pairs: vec![pair; ns * ns], masses, walls: [None, None], gravity: [0.0, 0.0], seed: 1, compartments: [0, 0], thermostat: None };
+        let s = Self { box_len, dt, pairs: vec![pair; ns * ns], masses, walls: [None, None], gravity: [0.0, 0.0], seed: 1, compartments: [0, 0], thermostat: None, membrane: None };
         s.check();
         s
     }
@@ -123,6 +142,14 @@ impl System {
     pub fn compartment_of(&self, p: [i64; 2]) -> [i64; 2] {
         let c = |a: usize| if self.compartments[a] == 0 { 0 } else { p[a] >> self.compartments[a] };
         [c(0), c(1)]
+    }
+
+    /// A membrane across `axis` at `position_sigma` σ blocking the species in `blocked`.
+    pub fn with_membrane(mut self, axis: usize, position_sigma: f64, blocked: &[u32]) -> Self {
+        assert!(self.walls[axis].is_some(), "a membrane needs walls on its axis");
+        let blocks = blocked.iter().fold(0u32, |m, &s| m | 1 << s);
+        self.membrane = Some(Membrane { axis, position: crate::fixed::to_fixed(position_sigma), blocks });
+        self
     }
 
     pub fn with_thermostat(mut self, t: f64, rate: f64) -> Self {

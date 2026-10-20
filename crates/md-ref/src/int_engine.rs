@@ -154,8 +154,25 @@ impl<F: Real> IntEngine<F> {
                 if let Some((vx, vy)) = walls::andersen(&self.sys, i as u32, self.clock, m) {
                     v = [self.sys.to_step_displacement(vx), self.sys.to_step_displacement(vy)];
                 }
+                let old = x;
                 for a in 0..2 {
                     x[a] += v[a] as i64;
+                }
+                if let Some(mb) = self.sys.membrane {
+                    let a = mb.axis;
+                    if mb.blocks(self.state.species[i]) {
+                        if let Some((m, face)) = walls::cross_membrane(old[a], x[a], mb.position) {
+                            x[a] = m;
+                            let mass = self.sys.masses[self.state.species[i] as usize];
+                            let dp = 2.0 * mass * self.sys.velocity(v[a]).abs();
+                            v[a] = v[a].wrapping_neg();
+                            let c = self.ledger_compartment(i, a);
+                            self.ledger.impulse[face] += dp;
+                            self.ledger.hits[face] += 1;
+                            self.compartment_ledger.impulse[face][c] += dp;
+                            self.compartment_ledger.hits[face][c] += 1;
+                        }
+                    }
                 }
                 for a in 0..2 {
                     match self.sys.walls[a] {

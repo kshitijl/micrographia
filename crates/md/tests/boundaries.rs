@@ -201,3 +201,64 @@ fn andersen_thermostat_on_the_gpu() {
     eprintln!("GPU Andersen at T = 0.8: {t:.3}");
     assert!((t - 0.8).abs() < 0.04);
 }
+
+/// Osmotic pressure on a membrane against van 't Hoff's c kT, for a dilute solute in a dense
+/// repulsive solvent (no attraction anywhere). At 10% solute the measured value is ~20% below
+/// c kT (non-ideal: the solute is depleted next to the membrane); at 5% it is closer.
+#[test]
+fn osmotic_pressure_is_van_t_hoff() {
+    let p = prims();
+    let n = 20000;
+    let sys = System::new(init::box_for(n, 0.5, 2.0), init::DT, Pair::wca(), vec![1.0, 1.0])
+        .with_walls(0, Wall::Soft, Wall::Soft)
+        .with_thermostat(1.0, 0.5);
+    let b = sys.box_f64();
+    let sys = sys.with_membrane(0, b[0] / 2.0, &[1]);
+    let mut s0 = init::fluid(&sys, n, 1.0, 14);
+    let mut solute = 0;
+    for i in 0..n {
+        if md_core::fixed::to_f64(s0.pos[i][0]) > b[0] / 2.0 + 1.0 && gpu_prims::threefry::uniform(14, 3, i as u32) < 0.05 {
+            s0.species[i] = 1;
+            solute += 1;
+        }
+    }
+    let mut e = GpuEngine::new(&p, sys.clone(), &s0);
+    e.step(10000);
+    let before = block_on(e.read_ledger());
+    let steps = 100000;
+    e.step(steps);
+    let l = block_on(e.read_ledger());
+    let push = (l.impulse[5] - before.impulse[5]) - (l.impulse[4] - before.impulse[4]);
+    let pi = push / (steps as f64 * sys.dt * b[1]);
+    // Solute concentration in the right half (soft wall layer excluded).
+    let c = solute as f64 / (b[1] * (b[0] / 2.0 - 0.5));
+    eprintln!("osmotic pressure {pi:.5} vs van 't Hoff c kT {c:.5} ({solute} solute, {} hits)", l.hits[5] - before.hits[5]);
+    assert!((pi / c - 1.0).abs() < 0.2, "ratio {}", pi / c);
+}
+
+/// The membrane's pressure measurement with no solvent: a dilute gas on one side.
+#[test]
+fn membrane_pressure_of_a_dilute_gas() {
+    let p = prims();
+    let n = 20000;
+    let sys = System::new(init::box_for(n, 0.5, 2.0), init::DT, Pair::wca(), vec![1.0, 1.0])
+        .with_walls(0, Wall::Soft, Wall::Soft)
+        .with_thermostat(1.0, 0.5);
+    let b = sys.box_f64();
+    let sys = sys.with_membrane(0, b[0] / 2.0, &[1]);
+    let mut s0 = init::fluid(&sys, n, 1.0, 15);
+    // Keep only the would-be solute (now a dilute gas on the right), drop the rest.
+    let keep: Vec<usize> = (0..n).filter(|&i| md_core::fixed::to_f64(s0.pos[i][0]) > b[0] / 2.0 + 1.0 && gpu_prims::threefry::uniform(15, 3, i as u32) < 0.05).collect();
+    s0 = State { pos: keep.iter().map(|&i| s0.pos[i]).collect(), vel: keep.iter().map(|&i| s0.vel[i]).collect(), species: vec![1; keep.len()] };
+    let mut e = GpuEngine::new(&p, sys.clone(), &s0);
+    e.step(10000);
+    let before = block_on(e.read_ledger());
+    let steps = 100000;
+    e.step(steps);
+    let l = block_on(e.read_ledger());
+    let pi = ((l.impulse[5] - before.impulse[5]) - (l.impulse[4] - before.impulse[4])) / (steps as f64 * sys.dt * b[1]);
+    let wall = (l.impulse[1] - before.impulse[1]) / (steps as f64 * sys.dt * b[1]);
+    let c = keep.len() as f64 / (b[1] * (b[0] / 2.0 - 0.5));
+    eprintln!("dilute gas: membrane pressure {pi:.5}, far wall {wall:.5}, ρkT {c:.5}");
+    assert!((pi / c - 1.0).abs() < 0.1);
+}

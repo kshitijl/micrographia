@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Where Osmotic Pressure Comes From</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 16 16%22%3E%3Ccircle cx=%228%22 cy=%228%22 r=%227%22 fill=%22%239a4a1e%22/%3E%3C/svg%3E" />
+    <link rel="stylesheet" href="../../src/lib/style.css" />
+  </head>
+  <body>
+    <nav class="topbar"><div class="wrap"><a href="../../index.html">Statistical mechanics, simulated</a></div></nav>
+    <main class="wrap">
+      <header class="question">
+        <div class="eyebrow">Osmosis</div>
+        <h1>Why is osmosis an entropic force? Where does the push actually come from?</h1>
+        <p class="lede">
+          A membrane down the middle lets solvent molecules (blue) through but not solute molecules
+          (light). The solute starts on the right. Nothing here attracts anything: every molecule just
+          bounces off the others. Yet the membrane feels a steady push. Here is where it comes from,
+          measured collision by collision.
+        </p>
+      </header>
+
+      <section class="lab">
+        <div class="stage wide" id="stage">
+          <canvas id="canvas" aria-label="Solvent and solute molecules on two sides of a semi-permeable membrane"></canvas>
+          <div class="overlay" id="overlay">Starting the GPU…</div>
+        </div>
+        <aside class="panel">
+          <div class="buttons">
+            <button class="primary" id="run">Run</button>
+            <button id="record">Record point</button>
+            <button id="reset">Reset</button>
+          </div>
+          <label class="row">Solute share on the right <span id="cv">8%</span>
+            <input type="range" id="c" min="0.01" max="0.25" step="0.01" value="0.08" />
+          </label>
+          <label class="row">Temperature <span id="tv">1.00</span>
+            <input type="range" id="t" min="0.5" max="2" step="0.05" value="1" />
+          </label>
+          <label class="check"><input type="checkbox" id="attract" /><span>Let solute attract solvent</span></label>
+          <div class="readouts">
+            <div class="readout"><div class="k">push on membrane, Π</div><div class="v" id="pi">–</div></div>
+            <div class="readout"><div class="k">van 't Hoff c kT</div><div class="v" id="vth">–</div></div>
+            <div class="readout"><div class="k">pressure, left wall</div><div class="v" id="pl">–</div></div>
+            <div class="readout"><div class="k">pressure, right wall</div><div class="v" id="pr">–</div></div>
+          </div>
+          <canvas class="plot tall" id="plot" aria-label="Recorded osmotic pressures against solute concentration, with van 't Hoff's line"></canvas>
+          <div class="status" id="status">Press Run, let the averages settle, then record a point. Change the solute share or temperature and record again.</div>
+        </aside>
+      </section>
+
+      <article class="notes">
+        <h2>The push is solute molecules bouncing off the membrane</h2>
+        <p>
+          Solvent molecules pass through the membrane as if it were not there, so they cannot push on it.
+          Solute molecules cannot pass: every time one reaches the membrane it bounces back, and each
+          bounce gives the membrane a little kick toward the pure-solvent side. Add up the kicks per unit
+          time and length and you get the osmotic pressure Π. That is all the force there is. It is the
+          same kind of push a gas exerts on a wall, and for a dilute solute it has the same formula as an
+          ideal gas, van 't Hoff's law:
+        </p>
+        <p class="formula">Π = c kT</p>
+        <p>
+          with c the solute concentration. Record a few points at different concentrations and they fall
+          close to this line. At higher concentrations they fall below it: crowding near the membrane
+          keeps solute away from it a little.
+        </p>
+        <h2>Why “entropic”?</h2>
+        <p>
+          No attraction or repulsion between solute and solvent is needed: turn the attraction on and
+          the pressure barely changes. What matters is that solute molecules move around at temperature T
+          and are confined. Double the temperature and Π doubles, just as a gas pressure does. In
+          thermodynamic language, the solute molecules' entropy grows with the volume they can explore;
+          the force that would let them expand is Π = T (∂S/∂V). Forces that come from entropy like this
+          scale with temperature, unlike forces from attraction.
+        </p>
+        <h2>And the solvent?</h2>
+        <p>
+          Look at the two outer walls. The pressure on the right (solution) wall is higher than on the
+          left (pure solvent) by about Π: the whole solution is pushing harder. Solvent has flowed in from
+          the left until its own tendency to spread (its chemical potential) is the same on both sides;
+          diluting the solvent with solute lowers it, so solvent moves toward the solute. If the membrane
+          could move, it would be pushed left and the solution side would swell. That swelling is what
+          bursts a red blood cell placed in pure water, and why IV drips are saline.
+        </p>
+        <div class="caveat">
+          <h3>Caveats</h3>
+          <ul>
+            <li>2D soft discs; the solute is the same size as the solvent. A heat bath throughout keeps
+              the temperature fixed.</li>
+            <li>Pressures are time averages of noisy collisions; let them settle for a while before
+              recording. The wall pressures include the solvent and are much larger than Π.</li>
+          </ul>
+        </div>
+      </article>
+    </main>
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>
