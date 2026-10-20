@@ -206,12 +206,24 @@ impl DiscSim {
         })
     }
 
-    /// Resolves to the total potential energy (ε) at the last force evaluation.
+    /// Resolves to the total potential energy (ε) at the last force evaluation, including
+    /// m g h under gravity.
     pub fn potential_energy(&self) -> js_sys::Promise {
-        let fut = self.engine.buf.read_kicks();
+        let kicks = self.engine.buf.read_kicks();
+        // With gravity the potential energy also includes m g h (relative to the origin).
+        let g = self.engine.sys.gravity;
+        let gravity = (g != [0.0, 0.0]).then(|| (self.engine.read_state(), self.engine.sys.masses.clone()));
         future_to_promise(async move {
-            let (_, pe) = fut.await;
-            Ok(pe.iter().map(|&x| x as f64).sum::<f64>().into())
+            let (_, pe) = kicks.await;
+            let mut u: f64 = pe.iter().map(|&x| x as f64).sum();
+            if let Some((state, masses)) = gravity {
+                let s = state.await;
+                for i in 0..s.n() {
+                    let m = masses[s.species[i] as usize];
+                    u -= m * (g[0] * fixed::to_f64(s.pos[i][0]) + g[1] * fixed::to_f64(s.pos[i][1]));
+                }
+            }
+            Ok(u.into())
         })
     }
 

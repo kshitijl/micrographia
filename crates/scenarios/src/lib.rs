@@ -389,9 +389,10 @@ pub fn rubber(o: &Options) -> Scenario {
 
 /// A column of gas under gravity: light (species 0, m = 1) and heavy (species 1, m = heavy)
 /// small molecules (σ = 0.4, nearly ideal), soft floor and ceiling, periodic sideways, and
-/// either a bulk heat bath at `temperature` or none (isolated). `g` is set so that the light
-/// gas's scale height kT/(m g) is `scale` (a fraction of the column height). Options: n,
-/// heavy (mass), heavy_share, scale, temperature, bath (1 or 0), seed.
+/// either a bulk heat bath at `temperature` or none (isolated, the default). `g` is set so that
+/// the light gas's scale height kT/(m g) is `scale` (a fraction of the column height) times
+/// 1/`gravity`. Options: n, heavy (mass), heavy_share, scale, gravity (relative), temperature,
+/// bath (1 or 0), start (see [`AtmosphereStart`]), dt, seed.
 pub fn atmosphere(o: &Options) -> Scenario {
     let n = o.get("n", 6000.0) as usize;
     let t = o.get("temperature", 1.0);
@@ -400,20 +401,60 @@ pub fn atmosphere(o: &Options) -> Scenario {
     // Dilute: density 0.05 on average.
     let bl = init::box_for(n, 0.05, aspect);
     let h = fixed::to_f64(bl[1]);
-    let g = t / (o.get("scale", 0.35) * h);
-    let mut sys = System::new(bl, init::DT, small, vec![1.0, o.get("heavy", 4.0)]).with_walls(1, Wall::Soft, Wall::Soft).with_gravity([0.0, -g]);
-    if o.get("bath", 1.0) > 0.0 {
+    // Gravity in units of the default, which gives light molecules a scale height of 0.35 of the box.
+    let g = o.get("gravity", 1.0) * t / (o.get("scale", 0.35) * h);
+    let mut sys = System::new(bl, o.get("dt", init::DT), small, vec![1.0, o.get("heavy", 4.0)]).with_walls(1, Wall::Soft, Wall::Soft).with_gravity([0.0, -g]);
+    if o.get("bath", 0.0) > 0.0 {
         sys = sys.with_thermostat(t, 0.2);
     }
     let seed = o.get("seed", 1.0) as u64;
     let share = o.get("heavy_share", 0.3);
     let species: Vec<u32> = (0..n).map(|i| (gpu_prims::threefry::uniform(seed, 4, i as u32) < share) as u32).collect();
-    // Start in equilibrium: falling into shape would take hundreds of τ.
     // The soft floor and ceiling act within 1.12 σ of a molecule's centre, whatever its size.
-    let state = init::barometric(&sys, &species, t, 0.5, 1.1, seed);
-    Scenario { warmup: o.get("warmup", 2000.0) as usize, finish: Finish::None, marked: 1, grid: [1, 40], radii: vec![0.5, 0.7], sys, state }
+    let start = AtmosphereStart::from_code(o.get("start", 1.0)).unwrap_or(AtmosphereStart::Uniform);
+    let sample = |g: f64| init::barometric(&sys.clone().with_gravity([0.0, -g]), &species, t, 0.5, 1.1, seed);
+    let state = match start {
+        AtmosphereStart::Equilibrium => sample(g),
+        AtmosphereStart::Uniform => sample(0.0),
+        // Squeezed into the bottom (or, mirrored, the top) tenth or so.
+        AtmosphereStart::Bottom => sample(10.0 * t / h),
+        AtmosphereStart::Top => {
+            let mut s = sample(10.0 * t / h);
+            for p in s.pos.iter_mut() {
+                p[1] = bl[1] - p[1];
+            }
+            s
+        }
+    };
+    let warmup = if start == AtmosphereStart::Equilibrium { 2000.0 } else { 0.0 };
+    Scenario { warmup: o.get("warmup", warmup) as usize, finish: Finish::None, marked: 1, grid: [1, 40], radii: vec![0.5, 0.7], sys, state }
 }
 
+/// How the `atmosphere` gas starts.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum AtmosphereStart {
+    /// Already in the barometric distribution.
+    Equilibrium,
+    /// Spread evenly from floor to ceiling.
+    Uniform,
+    /// Squeezed against the floor.
+    Bottom,
+    /// Squeezed against the ceiling.
+    Top,
+}
+
+impl AtmosphereStart {
+    /// From the page's option code (0–3).
+    pub fn from_code(c: f64) -> Result<Self, String> {
+        Ok(match c as i64 {
+            0 => Self::Equilibrium,
+            1 => Self::Uniform,
+            2 => Self::Bottom,
+            3 => Self::Top,
+            _ => return Err(format!("unknown atmosphere start {c}")),
+        })
+    }
+}
 /// A heat-engine cylinder: small molecules (σ = 0.5, nearly ideal) under a fixed-speed piston,
 /// hard (insulating) walls, and a bulk heat bath that the page switches between hot, cold and
 /// off: thermal contact through the walls alone is too slow for cycles of practical length.

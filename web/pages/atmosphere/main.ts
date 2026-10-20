@@ -1,10 +1,13 @@
 import { $, cssVar, SimHost } from "../../src/lib/host";
-import { LinesPlot } from "../../src/lib/plot";
+import { BarPlot, LinesPlot } from "../../src/lib/plot";
 import type { DiscSim } from "../../src/lib/wasm";
 
 const BINS = 20;
-const heavyIn = $<HTMLInputElement>("heavy");
-const bath = $<HTMLInputElement>("bath");
+const startSel = $<HTMLSelectElement>("start");
+const gravityIn = $<HTMLInputElement>("gravity");
+const tempIn = $<HTMLInputElement>("heat");
+/** Gravity at 1×: the light gas's scale height is 0.35 of the column at kT = 1. */
+let g1 = 0;
 let counts = [new Float64Array(BINS), new Float64Array(BINS)];
 let ke = new Float64Array(BINS);
 let keN = new Float64Array(BINS);
@@ -79,14 +82,16 @@ const host = new SimHost({
   canvas: $<HTMLCanvasElement>("canvas"),
   overlay: $("overlay"),
   scenario: "atmosphere",
-  options: () => ({ n: 6000, heavy: Number(heavyIn.value), heavy_share: 0.3, scale: 0.35, temperature: 1, bath: bath.checked ? 1 : 0, seed: 11 }),
+  // No heat bath: the column is sealed off. Half the usual time step, for the hot starts.
+  options: () => ({ n: 6000, heavy: 4, heavy_share: 0.3, scale: 0.35, gravity: Number(gravityIn.value), temperature: 1, start: Number(startSel.value), dt: 0.0025, seed: 11 }),
   names: ["light gas", "heavy gas"],
   colors: ["--cream", "--species-3"],
-  stepsPerFrame: () => 100,
+  stepsPerFrame: () => 200,
   afterSteps: (sim) => readout(sim),
   onCreate: (sim) => {
     box = Array.from(sim.box_size());
-    g = 1 / (0.35 * box[1]);
+    g1 = 1 / (0.35 * box[1]);
+    g = Number(gravityIn.value) * g1;
     clear();
   },
 });
@@ -102,27 +107,66 @@ $("run").onclick = () => {
 };
 $("clear").onclick = clear;
 $("reset").onclick = restart;
-heavyIn.oninput = () => {
-  $("hv").textContent = heavyIn.value;
-  $("mv").textContent = heavyIn.value;
+startSel.onchange = restart;
+gravityIn.oninput = () => {
+  $("gv").textContent = `${Number(gravityIn.value).toFixed(1)}×`;
+  g = Number(gravityIn.value) * g1;
+  host.sim?.set_gravity(0, -g);
+  clear();
 };
-heavyIn.onchange = restart;
-bath.onchange = restart;
+// Heat or cool: rescale every molecule's velocity so the average kinetic energy is the target.
+tempIn.oninput = () => ($("tv").textContent = Number(tempIn.value).toFixed(1));
+tempIn.onchange = () =>
+  void host.exclusive(async (sim) => {
+    const { ke } = (await sim.kinetic_energies()) as { ke: Float32Array };
+    const now = ke.reduce((a, b) => a + b, 0) / ke.length;
+    sim.kick_region(-1, -1, box[0] + 1, box[1] + 1, Math.sqrt(Number(tempIn.value) / now), 0, 0);
+    clear();
+  });
+
+// ---- The slab picture: discrete pressure balance → the exponential. ----
+const SLAB_X = 3; // m g H / kT for the drawing
+const slabs = new BarPlot($<HTMLCanvasElement>("slabs"), {
+  labels: [],
+  yLabel: "density (bottom slab = 1)",
+  xLabel: "height",
+  color: () => cssVar("--accent"),
+  theoryColor: () => cssVar("--plot-back"),
+  ink: () => cssVar("--muted"),
+  rule: () => cssVar("--rule"),
+});
+function drawSlabs() {
+  const n = Number($<HTMLInputElement>("nslabs").value);
+  $("nslabsv").textContent = String(n);
+  // 60 bars; each slab covers 60/n of them.
+  const bars = 60;
+  const f = 1 - SLAB_X / n;
+  const values = Array.from({ length: bars }, (_, b) => Math.max(0, f) ** Math.floor((b * n) / bars));
+  const theory = Array.from({ length: bars }, (_, b) => Math.exp((-SLAB_X * (b + 0.5)) / bars));
+  slabs.set(values, theory, Array.from({ length: bars }, () => ""));
+  $("slabstatus").textContent =
+    n <= SLAB_X
+      ? `With ${n} slab${n > 1 ? "s" : ""} the steps are too coarse: the first slab's weight alone exceeds its pressure. More slabs.`
+      : `Each slab is (1 − ${SLAB_X}/${n}) = ${f.toFixed(3)} times the one below. At the top: ${f.toFixed(3)}^${n} = ${(f ** n).toFixed(4)}, against e^−${SLAB_X} = ${Math.exp(-SLAB_X).toFixed(4)}.`;
+}
+$<HTMLInputElement>("nslabs").oninput = drawSlabs;
+drawSlabs();
 
 declare global {
   interface Window {
-    atmosphereTest?: { ready: Promise<void>; run(n: number): Promise<{ slopes: number[]; predicted: number[]; tBottom: number; tTop: number }> };
+    atmosphereTest?: { ready: Promise<void>; run(n: number, settle?: number): Promise<{ slopes: number[]; predicted: number[]; tBottom: number; tTop: number }> };
   }
 }
 
 window.atmosphereTest = {
   ready: host.ready,
-  async run(n: number) {
+  async run(n: number, settle = 0) {
     await host.ready;
     return host.exclusive(async (sim) => {
+      sim.step(settle);
       clear();
       for (let k = 0; k < n; k++) {
-        sim.step(100);
+        sim.step(200);
         await readout(sim);
       }
       const masses = Array.from(sim.masses());

@@ -31,11 +31,21 @@
             <button id="clear">Restart averages</button>
             <button id="reset">Reset</button>
           </div>
-          <div class="legend"><span><i style="background: var(--cream)"></i>light (m = 1)</span><span><i style="background: var(--species-3)"></i>heavy (m = <span id="mv">4</span>)</span></div>
-          <label class="row">Heavy molecule mass <span id="hv">4</span>
-            <input type="range" id="heavy" min="1" max="8" step="0.5" value="4" />
+          <div class="legend"><span><i style="background: var(--cream)"></i>light (m = 1)</span><span><i style="background: var(--species-3)"></i>heavy (m = 4)</span></div>
+          <label class="row">Start with the gas <span></span>
+            <select id="start">
+              <option value="1" selected>spread evenly</option>
+              <option value="2">squeezed against the floor</option>
+              <option value="3">squeezed against the ceiling</option>
+              <option value="0">already settled</option>
+            </select>
           </label>
-          <label class="check"><input type="checkbox" id="bath" checked /><span>Keep the gas in contact with a heat bath</span></label>
+          <label class="row">Gravity <span id="gv">1.0×</span>
+            <input type="range" id="gravity" min="0" max="3" step="0.1" value="1" />
+          </label>
+          <label class="row">Heat or cool the gas to kT = <span id="tv">1.0</span>
+            <input type="range" id="heat" min="0.3" max="3" step="0.1" value="1" />
+          </label>
           <canvas class="plot tall" id="density" aria-label="Density of each kind of molecule against height, with exponential predictions"></canvas>
           <canvas class="plot" id="temp" aria-label="Temperature against height"></canvas>
           <div class="status" id="status">Press Run and let the profiles build up.</div>
@@ -43,6 +53,14 @@
       </section>
 
       <article class="notes">
+        <h2>Gravity, mass and temperature</h2>
+        <p>
+          The shape of the column depends on one number: m g / kT, the energy it costs to climb, compared
+          with the energy molecules have to spend. Doubling the mass or doubling gravity does the same
+          thing to where the molecules end up (heavier molecules only move more slowly), so the page has
+          a gravity slider and two kinds of molecule, and a temperature slider. Turn up gravity and the
+          air hugs the floor; heat the gas and it spreads up.
+        </p>
         <h2>Pressure is the weight of the air above</h2>
         <p>
           Each layer of gas has to hold up the weight of everything above it, and it does so by
@@ -59,12 +77,16 @@
         </p>
         <h2>So why is it colder on a mountain?</h2>
         <p>
-          Look at the temperature chart: in this column the temperature is the same at every height.
-          That is not a fluke. In equilibrium, gravity sorts molecules by height but not by speed: the
-          Boltzmann factor for height and the one for speed are separate, so the speed distribution,
-          and therefore the temperature, is the same everywhere. Untick the heat bath and it stays true
-          for an isolated column too. (Loschmidt argued the opposite in the 1870s, and Boltzmann and
-          Maxwell argued back; this is the answer.)
+          Look at the temperature chart: once the column settles, the temperature is the same at every
+          height. That is not a fluke, and nothing here forces it: the column is sealed off, with no
+          heat bath anywhere, and its total energy never changes. In equilibrium, gravity sorts
+          molecules by height but not by speed: the Boltzmann factor for height and the one for speed
+          are separate, so the speed distribution, and therefore the temperature, is the same
+          everywhere. Fewer molecules make it up high, but the ones that do are just as fast. (Loschmidt
+          argued the opposite in the 1870s, and Boltzmann and Maxwell argued back; this is the answer.)
+          Start the gas squeezed against the ceiling and watch it fall: the fall turns potential energy
+          into heat, and the column settles much hotter. Start it against the floor and it cools as it
+          spreads upward, doing work against gravity.
         </p>
         <p>
           The real atmosphere is colder aloft because it is not in equilibrium. Sunlight heats the
@@ -74,6 +96,27 @@
           atmosphere, so the temperature falls by roughly 6.5 °C per kilometre: the cooling of rising,
           expanding air, not an effect of height itself.
         </p>
+        <h2>The same thing with slabs</h2>
+        <p>
+          Cut the column into slabs. The gas in each slab has to hold up its own weight plus everything
+          above it, so the pressure at its bottom is its pressure at the top plus its weight per unit
+          width: p<sub>below</sub> = p<sub>above</sub> + n m g Δz. With p = n kT, each slab's density is
+          the one above it times (1 + m g Δz / kT); going upward, each slab is thinner than the one below
+          by the same factor. With N slabs over a height H that is (1 − x/N)<sup>k</sup> for slab k, where
+          x = m g H / kT. As the slabs get thinner this becomes the differential equation
+          dn/dz = −(m g / kT) n, whose solution is the exponential. Slide N up and watch the steps merge
+          into the curve.
+        </p>
+        <div class="lab calc">
+          <aside class="panel wide">
+            <label class="row">Number of slabs <span id="nslabsv">5</span>
+              <input type="range" id="nslabs" min="1" max="60" step="1" value="5" />
+            </label>
+            <canvas class="plot tall" id="slabs" aria-label="Density of each slab against height, with the exponential"></canvas>
+            <div class="legend"><span><i style="background: var(--accent)"></i>slabs, each holding up the ones above</span><span><i style="background: var(--plot-back)"></i>e<sup>−m g z / kT</sup></span></div>
+            <div class="status" id="slabstatus"></div>
+          </aside>
+        </div>
         <div class="caveat">
           <h3>Caveats</h3>
           <ul>
