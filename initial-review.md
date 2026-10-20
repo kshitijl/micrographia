@@ -389,7 +389,7 @@ Open questions (third round):
   line naming the ensemble ("Constant energy (the microcanonical ensemble): nothing adds or removes
   energy…", or which heat bath or piston changes it), written by the engine itself.
 - [ ] `smell`: a corridor 1600 σ long (38,400 molecules), with the time diffusion alone would take
-  to cross it (σ²/2D: tens of thousands of τ) next to the draught.
+  to cross it (length²/2D, from the measured D) next to the draught.
 - [ ] `reversal`: "One molecule" nudges a single molecule (click one to choose it; it is
   highlighted). Measured: one nudge 25 τ out spoils the return of all 8000.
 - [ ] `boltzmann`: starts with one box very hot. Answer to the wall question: yes, the forces are
