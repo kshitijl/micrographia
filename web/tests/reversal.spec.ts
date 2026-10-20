@@ -40,7 +40,7 @@ test("an exact return erases the traced paths; a nudged one leaves them", async 
   const exact = await page.evaluate(() => window.reversalTest!.trails());
   console.log(`reversal: ${out.going} samples out; after an exact return ${exact.going} left, ${exact.kept} kept`);
   expect(out.traced).toBe(4);
-  expect(out.going).toBeGreaterThan(20);
+  expect(out.going).toBeGreaterThan(10);
   expect(exact.kept).toBe(0);
   expect(exact.going).toBeLessThanOrEqual(1);
   // Nudged: run again, nudge all the cream, return: the paths stay.

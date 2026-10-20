@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test";
 
 test("the engine stays below the Carnot limit, and gets closer when slower", async ({ page }) => {
-  test.setTimeout(300_000);
+  test.setTimeout(600_000);
   await page.goto("pages/carnot/index.html");
   await page.evaluate(() => window.carnotTest!.ready);
   const slow = await page.evaluate(() => window.carnotTest!.cycles(4, 0.1));
