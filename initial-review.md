@@ -120,3 +120,55 @@ Open questions:
   Gaussian) and the red molecule's energy trace. Bring the groups back as a second section?
 - The old page's 20,000-molecule gas is replaced by 3,072 molecules; histograms of the pooled
   gas are a little noisier.
+
+## Second round of feedback
+
+### All pages
+
+1. Show a graph of total energy on every page, so you can see it is conserved, and then see a
+   big kick or a freeze push it up or down. Also entropy: approaching equipartition should make
+   it rise, and kicking a selection of molecules should push it down.
+2. In general: give users direct, reach-in interactivity (click around, select things, give
+   kicks or nudges, buttons that shake things up). Recorded in `CLAUDE.md`.
+3. Each page should say at the bottom what kind of simulation it is: molecular dynamics? Which
+   potentials (Lennard-Jones)? Constant energy or a thermostat? Etc.
+
+### `heavy`: light, heavy and bowling-ball molecules
+
+1. Buttons to give some molecules a big kick: e.g. drag a box to select molecules, then press a
+   button to kick them or freeze them.
+2. A little brown tail is drawn near the bowling balls. What is it?
+
+### `boltzmann`
+
+1. Interactivity: select a bunch of molecules and give them a kick.
+2. Question: how exactly does energy transfer if molecules can't cross?
+
+### `reversal`
+
+1. When the retracing is exact, erase the traced paths as the molecules retrace them (but not
+   if the retracing is not exact). Some kind of XOR in a buffer?
+2. Don't trace only cream: trace 2 cream and 2 coffee molecules.
+
+### `heatflow`: can heat flow from cold to hot?
+
+1. Hard for an untrained viewer to grasp what the simulation is doing: how does heat transfer
+   even work here? Before the main simulation, a couple of small interactive sims explaining:
+   molecules are coloured by speed (one panel); a hot molecule touching the cold plate gets cold
+   (and what is its speed then? does it take a fixed speed from the plate?), and the same for a
+   cold molecule touching the hot plate.
+2. The write-up says backwards heat flow is "a few fast molecules happened to hit the cold wall
+   and slow ones the hot wall". Isn't that the normal direction? Backwards needs, e.g., molecules
+   faster than usual hitting the hot plate and heating it further.
+
+### `oilwater`
+
+1. Allow the oil–water attraction to go beyond 1, to see what that does.
+
+### `osmosis`
+
+1. A "membrane push" number isn't fun. Two demos instead, where the motion is visible:
+   (a) a movable membrane, pure water on the left and solution on the right: the membrane moves
+   all the way left; (b) a U-tube with a fixed membrane at the bottom, pure water left, solution
+   right, under gravity: the water rises on the right and stops, and the height difference is
+   the van 't Hoff pressure.

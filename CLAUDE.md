@@ -21,3 +21,13 @@ its GPU molecular dynamics engine. See `README.md`, `docs/status.md` and `docs/a
   (GPU buffers, shaders, the CPU twins' inner loops) are designed for speed and correctness;
   type-level niceties there must not cost performance. The type discipline above applies mainly
   to glue code, configuration, scenarios and page logic.
+
+## Pages
+
+- Interactivity: users should be able to reach in and mess with the simulation. Click around,
+  select molecules (drag a box), give them kicks or nudges, freeze them, shake things up, change
+  parameters while running. Prefer that over passive watching.
+- Show a total-energy graph (and, where it means something, entropy) on simulation pages, so
+  conservation is visible and so is what a kick or a freeze does to it.
+- Each page says at the bottom what kind of simulation it is: method (molecular dynamics, ...),
+  potentials, ensemble (constant energy, thermostat, heat-bath walls), size, time step.
