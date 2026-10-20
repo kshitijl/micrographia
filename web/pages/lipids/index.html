@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Membranes That Build Themselves</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 16 16%22%3E%3Ccircle cx=%228%22 cy=%228%22 r=%227%22 fill=%22%239a4a1e%22/%3E%3C/svg%3E" />
+    <link rel="stylesheet" href="../../src/lib/style.css" />
+  </head>
+  <body>
+    <nav class="topbar"><div class="wrap"><a href="../../index.html">Statistical mechanics, simulated</a></div></nav>
+    <main class="wrap">
+      <header class="question">
+        <div class="eyebrow">Self-assembly</div>
+        <h1>How do lipid membranes assemble themselves? And what does heat, or acid, do to them?</h1>
+        <p class="lede">
+          Each lipid here is a head (blue) and a two-bead tail (light). Tails stick to tails; heads only
+          repel. Scatter a thousand of them at random and let them go: nobody tells them to build
+          anything.
+        </p>
+      </header>
+
+      <section class="lab">
+        <div class="stage" id="stage">
+          <canvas id="canvas" aria-label="Lipid molecules assembling into aggregates and membranes"></canvas>
+          <div class="overlay" id="overlay">Starting the GPU…</div>
+        </div>
+        <aside class="panel">
+          <div class="buttons">
+            <button class="primary" id="run">Run</button>
+            <button id="reset">Scatter again</button>
+          </div>
+          <label class="row">Temperature <span id="tv">1.00</span>
+            <input type="range" id="t" min="0.5" max="2.5" step="0.05" value="1" />
+          </label>
+          <label class="row">Tail stickiness <span id="ev">3.0</span>
+            <input type="range" id="eps" min="0.5" max="4" step="0.25" value="3" />
+          </label>
+          <label class="row">Head size (charged heads repel more) <span id="hv">1.00</span>
+            <input type="range" id="head" min="0.8" max="1.6" step="0.05" value="1" />
+          </label>
+          <div class="readouts">
+            <div class="readout"><div class="k">lipids in aggregates</div><div class="v" id="agg">–</div></div>
+            <div class="readout"><div class="k">largest aggregate</div><div class="v" id="big">–</div></div>
+          </div>
+          <canvas class="plot" id="plot" aria-label="Share of lipids in aggregates over time"></canvas>
+          <div class="status" id="status">Press Run.</div>
+        </aside>
+      </section>
+
+      <article class="notes">
+        <h2>Why they assemble</h2>
+        <p>
+          A tail surrounded by other tails has lower energy than a tail out on its own, so lipids gain
+          by clustering their tails together. But clustering costs freedom: a lipid stuck in an aggregate
+          can wander much less than a free one, which costs entropy. At a given temperature the balance
+          is set by the free energy F = E − TS: when tails are sticky enough, or the temperature low
+          enough, the energy gain wins and aggregates form. Heads cannot hide inside, so they end up on
+          the outside, facing the surrounding water.
+        </p>
+        <p>
+          The shape of what forms depends on the shape of the lipid. Lipids whose heads are about as wide
+          as their tails pack into flat sheets, two lipids thick with tails inside: bilayers (in this 2D
+          world, a bilayer is a strip). Make the heads bigger (as when heads carry more charge and repel
+          each other more) and the lipids become wedge-shaped; they then prefer to curl into round
+          micelles. Real cell membranes are bilayers of lipids with two long tails.
+        </p>
+        <h2>Energy or entropy?</h2>
+        <p>
+          Both, and in real water mostly entropy. This model has no water: the stickiness of tails stands
+          in for the hydrophobic effect. In real water, oily tails are not strongly attracted to each
+          other; rather, water molecules next to an oily tail lose freedom (they must arrange their
+          hydrogen bonds around it), and gathering the tails together frees that water. So the force that
+          builds membranes comes largely from the entropy of the surrounding water. A model that includes
+          the water explicitly could show that directly; this one folds it into the tail attraction.
+        </p>
+        <h2>Too hot, too acidic</h2>
+        <p>
+          Raise the temperature and entropy wins: aggregates shed lipids and eventually fall apart. Real
+          membranes do not dissolve at body temperature, but they do melt from an ordered gel to a fluid
+          state, and organisms adjust their lipids to stay fluid. Acidity changes the charge on lipid heads
+          (protonating them), which changes how strongly they repel each other. Here that is the head-size
+          slider: smaller, less repulsive heads pack into flatter sheets; larger ones favour micelles. Real
+          membranes made of lipids with charged heads change their structure with pH in this way.
+        </p>
+        <div class="caveat">
+          <h3>Caveats</h3>
+          <ul>
+            <li>A 2D, three-bead coarse-grained lipid (in the spirit of the Cooke–Deserno model), with
+              implicit solvent: a heat bath acts on every bead, and the solvent's hydrophobic effect is
+              an effective attraction between tails.</li>
+            <li>Head size stands in for electrostatic repulsion between charged heads; there are no
+              explicit charges or ions.</li>
+            <li>Assembly is slow at low temperature: aggregates can get stuck in imperfect shapes.</li>
+          </ul>
+        </div>
+      </article>
+    </main>
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>

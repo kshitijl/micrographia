@@ -59,7 +59,7 @@ pub struct Scenario {
     pub radii: Vec<f64>,
 }
 
-pub const NAMES: &[&str] = &["cream", "corner", "boltzmann", "heavy", "oilwater", "heatflow", "osmosis", "compress", "rubber", "atmosphere", "carnot", "boiling"];
+pub const NAMES: &[&str] = &["cream", "corner", "boltzmann", "heavy", "oilwater", "heatflow", "osmosis", "compress", "rubber", "atmosphere", "carnot", "boiling", "lipids"];
 
 pub fn build(name: &str, o: &Options) -> Result<Scenario, String> {
     match name {
@@ -75,6 +75,7 @@ pub fn build(name: &str, o: &Options) -> Result<Scenario, String> {
         "atmosphere" => Ok(atmosphere(o)),
         "carnot" => Ok(carnot(o)),
         "boiling" => Ok(boiling(o)),
+        "lipids" => Ok(lipids(o)),
         _ => Err(format!("unknown scenario {name}")),
     }
 }
@@ -439,6 +440,69 @@ pub fn boiling(o: &Options) -> Scenario {
     Scenario { warmup: o.get("warmup", 10000.0) as usize, finish: Finish::None, marked: 0, grid: [1, 80], radii: vec![0.5], sys, state }
 }
 
+/// Amphiphiles in an implicit solvent (a bulk bath): each "lipid" is a head bead (species 0)
+/// and `tail` tail beads (species 1) in a line, bonded by Kremer–Grest springs plus harmonic
+/// springs between next-nearest beads that keep it fairly straight. Tails attract each other (LJ, standing
+/// in for the hydrophobic effect); heads only repel, with an adjustable size standing in for the
+/// heads' charge. Options: lipids, density (beads per σ²), temperature, attraction (tail–tail
+/// ε), head (head σ, up to 1.6), seed.
+pub fn lipids(o: &Options) -> Scenario {
+    let count = o.get("lipids", 1000.0) as usize;
+    let tail = o.get("tail", 3.0) as usize;
+    let len = tail + 1;
+    let n = len * count;
+    let t = o.get("temperature", 1.0);
+    let head = o.get("head", 1.0).min(1.6);
+    let wca = |sigma: f64| Pair { eps: 1.0, sigma, rc: sigma * 2f64.powf(1.0 / 6.0) };
+    let bl = init::box_for(n, o.get("density", 0.25), o.get("aspect", 4.0 / 3.0));
+    // Head–head starts as WCA with the largest allowed head (so the cutoff never grows), then the
+    // real head size is set.
+    let mut sys = System::new(bl, init::DT, wca(1.6), vec![1.0, 1.0])
+        .with_pair(0, 1, wca(0.5 * (head + 1.0)))
+        .with_pair(1, 1, Pair { eps: o.get("attraction", 1.0), sigma: 1.0, rc: 2.5 })
+        .with_thermostat(t, 0.5);
+    sys = sys.with_pair(0, 0, Pair { eps: 1.0, sigma: head, rc: 1.6 * 2f64.powf(1.0 / 6.0) });
+    // Place straight lipids at random positions and orientations without overlaps.
+    let b = sys.box_f64();
+    let seed = o.get("seed", 1.0) as u64;
+    let mut pos: Vec<[f64; 2]> = Vec::with_capacity(n);
+    let mut draw = 0u32;
+    let mut bonds = Vec::new();
+    let clear = |pos: &Vec<[f64; 2]>, q: [f64; 2]| {
+        pos.iter().all(|p| {
+            let mut dx = (p[0] - q[0]).abs();
+            dx = dx.min(b[0] - dx);
+            let mut dy = (p[1] - q[1]).abs();
+            dy = dy.min(b[1] - dy);
+            dx * dx + dy * dy > 1.1 * 1.1
+        })
+    };
+    for l in 0..count {
+        loop {
+            let u = |k: u32| gpu_prims::threefry::uniform(seed, 7, 3 * draw + k);
+            let (x, y, a) = (u(0) * b[0], u(1) * b[1], u(2) * std::f64::consts::TAU);
+            draw += 1;
+            let beads: Vec<[f64; 2]> = (0..len).map(|k| [(x + 0.97 * k as f64 * a.cos()).rem_euclid(b[0]), (y + 0.97 * k as f64 * a.sin()).rem_euclid(b[1])]).collect();
+            if beads.iter().all(|&q| clear(&pos, q)) {
+                pos.extend(beads);
+                let id = (len * l) as u32;
+                for k in 0..len as u32 - 1 {
+                    bonds.push([id + k, id + k + 1, 0]);
+                    if k + 2 < len as u32 {
+                        bonds.push([id + k, id + k + 2, 1]);
+                    }
+                }
+                break;
+            }
+        }
+    }
+    let sys = sys.with_bonds(vec![md_core::BondType::kremer_grest(), md_core::BondType::Harmonic { k: 10.0, r0: 1.94 }], bonds);
+    let species: Vec<u32> = (0..n).map(|i| (i % len != 0) as u32).collect();
+    let vel = init::maxwell(&sys, &species, t, seed);
+    let state = State { pos: pos.iter().map(|p| [fixed::to_fixed(p[0]), fixed::to_fixed(p[1])]).collect(), vel, species };
+    Scenario { warmup: 0, finish: Finish::None, marked: 1, grid: [8, 8], radii: vec![0.5 * head, 0.5], sys, state }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -460,7 +524,7 @@ mod tests {
         for name in NAMES {
             let mut o = Options::default();
             // Small versions, so the CPU engine finishes quickly.
-            for (k, v) in [("n", 1500.0), ("boxes_x", 8.0), ("boxes_y", 6.0), ("columns", 16.0), ("chains", 8.0)] {
+            for (k, v) in [("n", 1500.0), ("boxes_x", 8.0), ("boxes_y", 6.0), ("columns", 16.0), ("chains", 8.0), ("lipids", 200.0)] {
                 o = o.with(k, v);
             }
             let sc = build(name, &o).unwrap();
