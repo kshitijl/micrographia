@@ -10,7 +10,8 @@ for (const scheme of ["light", "dark"] as const) {
       await page.setViewportSize({ width: 1280, height: 1000 });
       await page.goto(`pages/${p}/index.html`);
       await page.locator("#overlay").waitFor({ state: "hidden", timeout: 30_000 });
-      await page.locator("#run").click();
+      const start = page.locator("#run, #down").first();
+      await start.click();
       await page.waitForTimeout(2500);
       await page.screenshot({ path: `test-results/screens/${p}-${scheme}.png` });
     });

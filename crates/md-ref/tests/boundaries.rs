@@ -298,25 +298,24 @@ fn moving_piston_is_exactly_reversible() {
 }
 
 /// A free piston settles where the gas pressure balances the external force: the time-averaged
-/// pressure on the bottom wall equals the piston's external pressure.
+/// pressure on the bottom wall equals the piston's external pressure. No thermostat: with a bulk
+/// heat bath the gas's centre of mass wanders (it diffuses ~1 σ in 200 τ here) and the two
+/// walls' forces then differ by ~10% over such runs, although they agree on average.
 #[test]
 fn free_piston_balances_the_pressure() {
     let n = 600;
     let force = 15.0; // ε/σ over the whole width
     let (sys, s0) = gas_under_piston(n, 0.2, md_core::PistonDrive::Free { mass: 50.0, force }, 17);
     let width = sys.box_f64()[0];
-    let sys = sys.with_thermostat(1.0, 0.5);
     let mut e = IntEngine::<f32>::new(sys, s0);
     e.step(10000);
     let before = e.ledger.impulse[2];
-    // Long: the piston and the gas exchange momentum slowly, and averages converge slowly (over
-    // four seeds at 500 τ the bottom reads 2–8% high; without the thermostat within 1%).
-    let steps = 100000;
+    let steps = 60000;
     e.step(steps);
     let p_bottom = (e.ledger.impulse[2] - before) / (steps as f64 * e.sys.dt * width);
     let p_ext = force / width;
     eprintln!("bottom-wall pressure {p_bottom:.4}, piston's external pressure {p_ext:.4}");
-    assert!((p_bottom / p_ext - 1.0).abs() < 0.1);
+    assert!((p_bottom / p_ext - 1.0).abs() < 0.05);
 }
 
 /// Compression with no heat exchange heats the gas. Slow compression is adiabatic, T ∝ 1/A for
