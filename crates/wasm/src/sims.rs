@@ -256,6 +256,15 @@ impl DiscSim {
         self.engine.update_system(sys);
     }
 
+    /// Set the fan's speed (the thermostat's mean x velocity, σ/τ), keeping its region.
+    pub fn set_fan_speed(&mut self, u: f64) {
+        let mut sys = self.engine.sys.clone();
+        if let Some(th) = sys.thermostat.as_mut() {
+            th.drift = u;
+        }
+        self.engine.update_system(sys);
+    }
+
     /// Give every particle of `species` velocity (vx, vy) σ/τ (e.g. pull a pinned anchor).
     pub fn set_species_velocity(&mut self, species: u32, vx: f64, vy: f64) {
         self.engine.set_species_velocity(species, [vx, vy]);

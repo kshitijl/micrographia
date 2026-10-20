@@ -352,3 +352,66 @@ fn effusion_through_pores_follows_graham() {
     eprintln!("after 400 τ: {:.1}% of the light and {:.1}% of the heavy gas remain; rate ratio {ratio:.2} (Graham: 3)", 100.0 * l, 100.0 * h);
     assert!((ratio / 3.0 - 1.0).abs() < 0.2);
 }
+
+/// A fan (a thermostat with a drift, acting on one species in a slab) drives the gas round a
+/// periodic channel with frictionless (hard) walls until everything, including a species the
+/// fan ignores, moves at the fan's speed, at the fan's temperature in the moving frame. GPU and
+/// CPU twin.
+#[test]
+fn fan_drives_a_flow() {
+    let p = prims();
+    let n = 500;
+    let (w, h) = (80.0, 20.0);
+    let sys = System::new([md_core::fixed::to_fixed(w), md_core::fixed::to_fixed(h)], init::DT, Pair::wca(), vec![1.0, 4.0])
+        .with_walls(1, Wall::Hard, Wall::Hard)
+        .with_thermostat(1.0, 2.0)
+        .with_fan(1, 0.0, 20.0, 0.5);
+    let mut s0 = init::fluid(&sys, n, 1.0, 21);
+    for i in (0..n).step_by(20) {
+        s0.species[i] = 1;
+    }
+    let flow = |s: &State| {
+        let mut out = [[0.0; 3]; 2];
+        for i in 0..s.n() {
+            let k = s.species[i] as usize;
+            let v = s.vel[i].map(|x| sys.velocity(x));
+            out[k][0] += v[0];
+            out[k][1] += sys.masses[k] * (v[0] * v[0] + v[1] * v[1]);
+            out[k][2] += 1.0;
+        }
+        // (mean x velocity, kT in the frame moving with the mean) per species.
+        out.map(|[sv, s2, c]| {
+            let u = sv / c;
+            let m = if c == (n / 20) as f64 { 4.0 } else { 1.0 };
+            (u, 0.5 * (s2 / c - m * u * u))
+        })
+    };
+    let mut gpu = GpuEngine::new(&p, sys.clone(), &s0);
+    let mut cpu = IntEngine::<f32>::new(sys.clone(), s0.clone());
+    // The flow takes ~1500 steps to respond to the fan (it acts on a quarter of the box), and
+    // wanders on that time scale by ~0.06 σ/τ, so average 20 snapshots 1000 steps apart.
+    gpu.step(8000);
+    cpu.step(8000);
+    let (mut g, mut c) = ([(0.0, 0.0); 2], [(0.0, 0.0); 2]);
+    for _ in 0..20 {
+        gpu.step(1000);
+        cpu.step(1000);
+        for (acc, f) in [(&mut g, flow(&block_on(gpu.read_state()))), (&mut c, flow(&cpu.state))] {
+            for k in 0..2 {
+                acc[k].0 += f[k].0 / 20.0;
+                acc[k].1 += f[k].1 / 20.0;
+            }
+        }
+    }
+    eprintln!("fan: GPU {g:?}, CPU {c:?}");
+    for f in [g, c] {
+        for (k, (u, t)) in f.iter().enumerate() {
+            // Species 1 (25 particles) is noisier.
+            let tol = [0.06, 0.1][k];
+            assert!((u - 0.5).abs() < tol, "species {k} flows at {u:.3}, not 0.5");
+            assert!((t - 1.0).abs() < tol, "species {k} at kT {t:.3} in the moving frame");
+        }
+    }
+}
+
+

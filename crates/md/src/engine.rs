@@ -48,16 +48,17 @@ pub struct Params {
     pub piston_mode: u32,
     pub piston_kc: f32,
     pub piston_fext: f32,
-    pub _p1: u32,
+    pub thermo_species: u32,
     pub piston_min: [u32; 2],
     pub piston_max: [u32; 2],
     pub itab_len: u32,
     pub features: u32,
-    pub _p3: u32,
+    pub thermo_drift: i32,
     pub _p4: u32,
     pub itab_rc2: [u32; 16],
     pub bond_types: [[f32; 4]; 4],
     pub pairs: [[f32; 4]; 16],
+    pub fan: [u32; 4],
 }
 
 /// Words of the control buffer (see `params.wgsl`).
@@ -242,12 +243,12 @@ impl Params {
                 Some(PistonDrive::Free { force, .. }) => force as f32,
                 _ => 0.0,
             },
-            _p1: 0,
+            thermo_species: sys.thermostat.map_or(0, |t| t.species),
             piston_min: fixed64::split(sys.piston.map_or(0, |p| md_core::fixed::to_fixed(p.min))),
             piston_max: fixed64::split(sys.piston.map_or(0, |p| md_core::fixed::to_fixed(p.max))),
             itab_len: 0,
             features: sys.has_soft_walls() as u32,
-            _p3: 0,
+            thermo_drift: sys.thermostat.map_or(0, |t| sys.to_step_displacement(t.drift)),
             _p4: 0,
             itab_rc2: [0; 16],
             bond_types: {
@@ -261,6 +262,12 @@ impl Params {
                 t
             },
             pairs,
+            // The bath's x range, clamped to the box so that unsigned comparisons work.
+            fan: {
+                let r = sys.thermostat.map_or([0, 0], |t| t.region).map(|x| x.clamp(0, sys.box_len[0]));
+                let (lo, hi) = (fixed64::split(r[0]), fixed64::split(r[1]));
+                [lo[0], lo[1], hi[0], hi[1]]
+            },
         }
     }
 }

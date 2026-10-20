@@ -247,9 +247,11 @@ impl<F: Real> IntEngine<F> {
                 }
                 let m = self.sys.masses[self.state.species[i] as usize];
                 if !pinned {
-                    if let Some((vx, vy)) = walls::andersen(&self.sys, i as u32, self.clock, m) {
+                    if let Some((vx, vy)) = walls::andersen(&self.sys, i as u32, self.clock, self.state.species[i], x[0]) {
                         let before = [self.sys.velocity(v[0]), self.sys.velocity(v[1])];
                         v = [self.sys.to_step_displacement(vx), self.sys.to_step_displacement(vy)];
+                        // A fan's drift, added in integer units (as on the GPU).
+                        v[0] = v[0].wrapping_add(self.sys.to_step_displacement(self.sys.thermostat.unwrap().drift));
                         // Relative to the affine flow under a moving piston (see boundary.wgsl).
                         if self.sys.piston.is_some() {
                             let f = (fixed::to_f64(x[1]) / fixed::to_f64(self.piston_w)).clamp(0.0, 1.0);

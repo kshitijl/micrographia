@@ -115,9 +115,14 @@ pub fn soft_wall(d: f64) -> (f64, f64) {
 /// RNG stream for the Andersen thermostat.
 pub const STREAM_THERMO: u32 = 0x5448_524d;
 
-/// Andersen thermostat: Some(new velocity in σ/τ) if particle `id` is redrawn this step.
-pub fn andersen(sys: &System, id: u32, clock: u32, m: f64) -> Option<(f64, f64)> {
+/// Andersen thermostat: Some(new velocity in σ/τ, relative to the bath's drift) if particle
+/// `id` (species `s`, at x coordinate `x`) is redrawn this step.
+pub fn andersen(sys: &System, id: u32, clock: u32, s: u32, x: i64) -> Option<(f64, f64)> {
     let th = sys.thermostat?;
+    if !th.acts_on(s, x) {
+        return None;
+    }
+    let m = sys.masses[s as usize];
     let key = [sys.seed as u32, (sys.seed >> 32) as u32 ^ STREAM_THERMO];
     let r = threefry::threefry2x32([id, clock], key);
     if threefry::to_unit_f64([r[0], 0]) >= th.rate * sys.dt {

@@ -142,6 +142,19 @@ pub struct Thermostat {
     pub t: f64,
     /// Collision rate per particle (1/τ).
     pub rate: f64,
+    /// Bit s set if the bath acts on species s (pinned species never).
+    pub species: u32,
+    /// The bath acts only on particles with x in [lo, hi) (position units).
+    pub region: [i64; 2],
+    /// Mean x velocity of the redrawn particles (σ/τ): a bath with a drift is a fan.
+    pub drift: f64,
+}
+
+impl Thermostat {
+    /// Does the bath act on a particle of species `s` at x coordinate `x`?
+    pub fn acts_on(&self, s: u32, x: i64) -> bool {
+        self.species & (1 << s) != 0 && (self.region[0]..self.region[1]).contains(&x)
+    }
 }
 
 /// Ledger slots per wall: one per compartment along the other axis.
@@ -283,7 +296,21 @@ impl System {
     }
 
     pub fn with_thermostat(mut self, t: f64, rate: f64) -> Self {
-        self.thermostat = Some(Thermostat { t, rate });
+        let (species, region, drift) = match self.thermostat {
+            Some(th) => (th.species, th.region, th.drift),
+            None => (u32::MAX, [i64::MIN, i64::MAX], 0.0),
+        };
+        self.thermostat = Some(Thermostat { t, rate, species, region, drift });
+        self
+    }
+
+    /// Turn the thermostat into a fan: it acts only on `species` (a bitmask) between x0 and x1
+    /// (σ), redrawing their velocities around a mean x velocity `drift` (σ/τ).
+    pub fn with_fan(mut self, species: u32, x0: f64, x1: f64, drift: f64) -> Self {
+        let th = self.thermostat.as_mut().expect("a fan is a thermostat with a region: add the thermostat first");
+        th.species = species;
+        th.region = [fixed::to_fixed(x0), fixed::to_fixed(x1)];
+        th.drift = drift;
         self
     }
 

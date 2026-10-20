@@ -132,10 +132,15 @@ fn mirror64(x: vec2<u32>, l: vec2<u32>) -> Mirrored {
     return Mirrored(x, 2u);
 }
 
-// Andersen thermostat: with probability P.thermo.y, a new Maxwell velocity at P.thermo.x.
-// Counter-based on (particle id, clock), like md_core::walls::andersen.
+// Andersen thermostat: with probability P.thermo.y, a new Maxwell velocity at P.thermo.x, for
+// the species and x range it acts on, around a mean x velocity (a fan). Counter-based on
+// (particle id, clock), like md_core::walls::andersen.
 fn andersen(i: u32, v: vec2<i32>) -> vec2<i32> {
-    if (P.thermo.y <= 0.0 || is_pinned(species[i])) {
+    if (P.thermo.y <= 0.0 || is_pinned(species[i]) || (P.thermo_species & (1u << species[i])) == 0u) {
+        return v;
+    }
+    let px = pos[i].xy;
+    if (lt64(px, P.fan.xy) || !lt64(px, P.fan.zw)) {
         return v;
     }
     let id = ids[i];
@@ -150,7 +155,7 @@ fn andersen(i: u32, v: vec2<i32>) -> vec2<i32> {
     let sd = sqrt(P.thermo.x / m) * P.vstep;
     let rad = sqrt(-2.0 * log(unit_open(r.y)));
     let a = 6.2831853 * unit_open(r2.x);
-    var out = vec2<i32>(i32(round(sd * rad * cos(a))), i32(round(sd * rad * sin(a))));
+    var out = vec2<i32>(i32(round(sd * rad * cos(a))) + P.thermo_drift, i32(round(sd * rad * sin(a))));
     // Under a moving piston the gas flows (affinely, v = u y / h); the bath redraws velocities
     // relative to that flow, otherwise it would act as friction on it.
     if (P.piston_mode != 0u) {

@@ -53,7 +53,8 @@ struct Params {
     piston_mode: u32,
     piston_kc: f32,
     piston_fext: f32,
-    _p1: u32,
+    // Andersen thermostat: bit s set if it acts on species s.
+    thermo_species: u32,
     piston_min: vec2<u32>,
     piston_max: vec2<u32>,
     // All-integer forces: entries per table, and each ordered pair's squared cutoff in units of
@@ -61,13 +62,16 @@ struct Params {
     itab_len: u32,
     // Bit 0: there are soft walls (so integrate must read the per-particle wall forces).
     features: u32,
-    _p3: u32,
+    // The thermostat's mean x velocity (position units per step): a fan.
+    thermo_drift: i32,
     _p4: u32,
     itab_rc2: array<vec4<u32>, 4>,
     // Bond types: (kind 0 harmonic / 1 FENE, k, r0, 0).
     bond_types: array<vec4<f32>, 4>,
     // Per species pair a·4 + b: (rc², 4ε, σ², energy shift).
     pairs: array<vec4<f32>, 16>,
+    // The thermostat acts on x in [lo, hi): (lo.lo, lo.hi, hi.lo, hi.hi).
+    fan: vec4<u32>,
 }
 
 fn is_pinned(s: u32) -> bool {
