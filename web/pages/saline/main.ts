@@ -150,6 +150,7 @@ const LIMIT_B = 5.4;
 const WINDOW_B = 40; // readings, 0.5 τ apart
 const outsideB = $<HTMLSelectElement>("outsideB");
 let tensions: number[] = [];
+let ring: Float32Array | null = null; // the membrane beads' latest positions
 let tornB = false;
 let brokenB = new Set<string>();
 
@@ -173,6 +174,7 @@ function tensionColor(t: number): number[] {
 
 async function readoutB(sim: DiscSim) {
   const p = (await sim.positions(2)) as Float32Array;
+  ring = p;
   const len = (k: number) => {
     const [i, j] = [k, (k + 1) % BEADS_B];
     return Math.hypot(p[2 * i] - p[2 * j], p[2 * i + 1] - p[2 * j + 1]);
@@ -237,6 +239,7 @@ const hostB = new SimHost({
   afterSteps: (sim) => readoutB(sim),
   onCreate: async (sim) => {
     tensions = [];
+    saltSeed = 1;
     tornB = false;
     brokenB = new Set();
     plotB.clear();
@@ -247,6 +250,95 @@ const hostB = new SimHost({
     await readoutB(sim);
   },
 });
+
+// ---- Adding and removing salt by hand. ----
+// Salt molecules are bigger than water molecules. A water molecule is only turned into salt if
+// it has room for the bigger size: no water within 0.85 σ, no salt within 1.13 σ and no membrane
+// bead within 1.69 σ (the salt's repulsion ranges). Then nothing overlaps and adding salt costs no
+// energy at all. Taking salt out (salt → water) always has room.
+const ROOM = [0.85, 1.13, 1.69]; // by the neighbour's species: water, salt, membrane
+const BRUSH = 4; // σ, the brush's radius
+const POUR = 6; // σ: pour into the water this far from the cell (at its starting size) or more
+let saltSeed = 1; // for choosing molecules (reset with the simulation, so runs repeat)
+const saltRandom = () => ((saltSeed = (saltSeed * 1664525 + 1013904223) >>> 0) / 4294967296);
+
+/** Turn some molecules in `inside(x, y)` into salt (`add`) or back into water: each candidate
+ * with probability `fraction`. Call with the animation stopped (positions must not move between
+ * reading them and changing species). Returns how many changed. */
+async function changeSalt(sim: DiscSim, inside: (x: number, y: number) => boolean, add: boolean, fraction: number) {
+  const { pos, species } = (await sim.all_positions()) as { pos: Float32Array; species: Uint32Array };
+  const [w, h] = Array.from(sim.box_size());
+  const n = species.length;
+  const kind = species.slice();
+  const picked: number[] = [];
+  if (!add) {
+    for (let i = 0; i < n; i++) if (kind[i] === 1 && inside(pos[2 * i], pos[2 * i + 1]) && saltRandom() < fraction) picked.push(i);
+  } else {
+    // A grid of 2 σ cells, to find neighbours quickly (the box is periodic).
+    const [gx, gy] = [Math.floor(w / 2), Math.floor(h / 2)];
+    const cell = (x: number, y: number) => ((Math.floor((y / h) * gy) + gy) % gy) * gx + ((Math.floor((x / w) * gx) + gx) % gx);
+    const grid: number[][] = Array.from({ length: gx * gy }, () => []);
+    for (let i = 0; i < n; i++) grid[cell(pos[2 * i], pos[2 * i + 1])].push(i);
+    for (let i = 0; i < n; i++) {
+      const [x, y] = [pos[2 * i], pos[2 * i + 1]];
+      if (kind[i] !== 0 || !inside(x, y) || saltRandom() >= fraction) continue;
+      let room = true;
+      for (let oy = -1; oy <= 1 && room; oy++)
+        for (let ox = -1; ox <= 1 && room; ox++)
+          for (const j of grid[cell(x + ox * (w / gx), y + oy * (h / gy))]) {
+            if (j === i) continue;
+            let [dx, dy] = [pos[2 * j] - x, pos[2 * j + 1] - y];
+            dx -= w * Math.round(dx / w);
+            dy -= h * Math.round(dy / h);
+            if (dx * dx + dy * dy < ROOM[kind[j]] ** 2) {
+              room = false;
+              break;
+            }
+          }
+      if (room) {
+        kind[i] = 1;
+        picked.push(i);
+      }
+    }
+  }
+  sim.set_species(new Uint32Array(picked), add ? 1 : 0);
+  return picked.length;
+}
+
+const brushSel = $<HTMLSelectElement>("brushB");
+const canvasB = $<HTMLCanvasElement>("canvasB");
+let painting = false;
+let busyB = false;
+async function paint(e: PointerEvent) {
+  const sim = hostB.sim;
+  if (!sim || busyB) return;
+  busyB = true;
+  const r = canvasB.getBoundingClientRect();
+  const v = sim.view();
+  const x = v[0] + ((e.clientX - r.left) / r.width) * (v[2] - v[0]);
+  const y = v[3] - ((e.clientY - r.top) / r.height) * (v[3] - v[1]);
+  const add = brushSel.value === "add";
+  await hostB.exclusive((sim) => changeSalt(sim, (a, b) => (a - x) ** 2 + (b - y) ** 2 < BRUSH * BRUSH, add, add ? 0.5 : 0.6));
+  void hostB.energy?.sample(sim);
+  if (!hostB.running) sim.render();
+  busyB = false;
+}
+canvasB.addEventListener("pointerdown", (e) => {
+  canvasB.setPointerCapture(e.pointerId);
+  painting = true;
+  void paint(e);
+});
+canvasB.addEventListener("pointermove", (e) => painting && void paint(e));
+canvasB.addEventListener("pointerup", () => (painting = false));
+
+/** Pour salt into (or take it out of) the water around the cell, away from it: it then spreads. */
+function pour(sim: DiscSim, add: boolean) {
+  const [w, h] = Array.from(sim.box_size());
+  const far = (x: number, y: number) => Math.hypot(x - w / 2, y - h / 2) > RADIUS_B + POUR;
+  return changeSalt(sim, far, add, add ? 0.3 : 0.5);
+}
+$("saltB").onclick = () => void hostB.exclusive((sim) => pour(sim, true)).then(() => hostB.sim && hostB.energy?.sample(hostB.sim));
+$("freshB").onclick = () => void hostB.exclusive((sim) => pour(sim, false)).then(() => hostB.sim && hostB.energy?.sample(hostB.sim));
 
 $("runB").onclick = () => {
   hostB.running = !hostB.running;
@@ -263,6 +355,7 @@ declare global {
       ready: Promise<void>;
       run(outside: number, steps: number): Promise<{ area: number; burst: number }>;
       runB(outside: number, steps: number): Promise<{ tension: number; torn: boolean; tornAt: number }>;
+      dose(outside: number, add: boolean, doses: number, steps: number): Promise<{ trace: number[]; temps: number[]; changed: number[]; torn: boolean; tornAt: number }>;
     };
   }
 }
@@ -299,6 +392,29 @@ window.salineTest = {
         if (!tornB) tension = tensions.reduce((a, b) => a + b, 0) / tensions.length;
       }
       return { tension, torn: tornB, tornAt };
+    });
+  },
+  /** Start the big cell in `outside`, then every 20 τ pour salt in (or take it out) around it, `doses` times, running `steps` in all. The tension every 10 τ, and the temperature. */
+  async dose(outside: number, add: boolean, doses: number, steps: number) {
+    await hostB.ready;
+    outsideB.value = String(outside);
+    await hostB.create();
+    return hostB.exclusive(async (sim) => {
+      let tornAt = NaN;
+      const [trace, temps, changed] = [[] as number[], [] as number[], [] as number[]];
+      for (let k = 0; k < steps / 100; k++) {
+        if (k > 0 && k % 40 === 0 && k / 40 <= doses) changed.push(await pour(sim, add));
+        sim.step(100);
+        hostB.elapsed += 100;
+        await readoutB(sim);
+        if (tornB && Number.isNaN(tornAt)) tornAt = hostB.elapsed * sim.dt();
+        if (k % 20 === 19) {
+          trace.push(tensions.reduce((a, b) => a + b, 0) / tensions.length);
+          const { ke } = (await sim.kinetic_energies()) as { ke: Float32Array };
+          temps.push(ke.reduce((a, b) => a + b, 0) / ke.length);
+        }
+      }
+      return { trace, temps, changed, torn: tornB, tornAt };
     });
   },
 };

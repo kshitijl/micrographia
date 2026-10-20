@@ -303,17 +303,17 @@ struct RegionCmd {
     add: [i32; 2],
 }
 
-/// `convert_region`'s command, in the same uniform buffer as [`RegionCmd`].
+/// `set_species`'s command, in the same uniform buffer as [`RegionCmd`].
 #[repr(C)]
 #[derive(Clone, Copy, Debug, Default, bytemuck::Pod, bytemuck::Zeroable)]
-struct ConvertCmd {
-    lo: [f32; 2],
-    hi: [f32; 2],
-    from: u32,
+struct SetCmd {
+    count: u32,
     to: u32,
-    fraction: f32,
-    seed: u32,
+    _pad: [u32; 6],
 }
+
+/// How many ids `set_species` sends to the GPU at a time.
+const SET_CHUNK: usize = 1024;
 
 /// Positions as the GPU stores them: (x.lo, x.hi, y.lo, y.hi).
 pub fn pack_positions(pos: &[[i64; 2]]) -> Vec<[u32; 4]> {
@@ -558,7 +558,8 @@ pub struct GpuEngine {
     d_flip: Dispatch,
     d_flip_species: Dispatch,
     d_kick_region: Dispatch,
-    d_convert: Dispatch,
+    d_set_species: Dispatch,
+    set_list: wgpu::Buffer,
     /// Advances the clock for stochastic boundaries (only when there are any).
     d_tick: Option<Dispatch>,
     d_set_velocity: Dispatch,
@@ -623,6 +624,7 @@ impl GpuEngine {
             cmd: util::uniform_init(gpu, "region command", &RegionCmd::default()),
         };
         let g = util::groups(n, WG);
+        let set_list = util::storage(gpu, "set species list", SET_CHUNK as u64 * 4);
         let b = &buf;
         let md = util::shader(gpu, "md", &crate::md_source());
         let pl = |e: &str| util::pipeline(gpu, &md, e);
@@ -730,10 +732,13 @@ impl GpuEngine {
             d_flip_species: Dispatch::new_at(gpu, &pl("flip_species"), &[(0, &b.params), (1, &b.pos), (3, &b.species)], g),
             d_kick_region: Dispatch::new_at(gpu, &pl("kick_region"), &[(0, &b.params), (1, &b.pos), (2, &b.vel), (3, &b.species), (12, &b.cmd)], g),
             d_set_velocity: Dispatch::new_at(gpu, &pl("set_species_velocity"), &[(0, &b.params), (2, &b.vel), (3, &b.species)], g),
-            d_convert: {
-                let ro = util::shader(gpu, "reorder", &crate::reorder_source());
-                Dispatch::new_at(gpu, &util::pipeline(gpu, &ro, "convert_region"), &[(0, &b.params), (1, &b.pos), (3, &b.species), (4, &b.ids), (11, &b.cmd)], g)
-            },
+            d_set_species: Dispatch::new_at(
+                gpu,
+                &util::pipeline(gpu, &util::shader(gpu, "reorder", &crate::reorder_source()), "set_species"),
+                &[(0, &b.params), (3, &b.species), (4, &b.ids), (11, &b.cmd), (12, &set_list)],
+                g,
+            ),
+            set_list,
             reorder,
             path,
             sort_interval: 100,
@@ -975,14 +980,20 @@ impl GpuEngine {
         self.submit(|pass| self.d_kick_region.encode(pass));
     }
 
-    /// Change species `from` to `to` for each unpinned particle inside the rectangle `lo`–`hi` (σ),
-    /// with probability `fraction` (drawn from the particle's id and `seed`). Masses, sizes and
-    /// forces follow the new species from the next step; velocities are kept. Pages use it to add
-    /// or remove salt, say. The species must not be bonded or pinned.
-    pub fn convert_region(&mut self, lo: [f64; 2], hi: [f64; 2], from: u32, to: u32, fraction: f64, seed: u32) {
-        let c = ConvertCmd { lo: lo.map(|x| x as f32), hi: hi.map(|x| x as f32), from, to, fraction: fraction as f32, seed };
-        self.gpu().queue.write_buffer(&self.buf.cmd, 0, bytemuck::bytes_of(&c));
-        self.submit(|pass| self.d_convert.encode(pass));
+    /// Set the species of the particles with these ids. Masses, sizes and forces follow the new
+    /// species from the next step; positions and velocities are kept. Pages use it to add or
+    /// remove salt, say (choosing molecules with room for the new size, so nothing overlaps).
+    /// Particles in bonds or of pinned species should not be changed.
+    pub fn set_species(&mut self, ids: &[u32], species: u32) {
+        let mut ids = ids.to_vec();
+        ids.sort_unstable();
+        ids.dedup();
+        for chunk in ids.chunks(SET_CHUNK) {
+            let c = SetCmd { count: chunk.len() as u32, to: species, _pad: [0; 6] };
+            self.gpu().queue.write_buffer(&self.buf.cmd, 0, bytemuck::bytes_of(&c));
+            self.gpu().queue.write_buffer(&self.set_list, 0, bytemuck::cast_slice(chunk));
+            self.submit(|pass| self.d_set_species.encode(pass));
+        }
     }
 
     /// Give every particle of `species` the velocity `v` (σ/τ). For pinned species this sets a

@@ -383,6 +383,16 @@ Open questions (third round):
    unstretchable, more fragile springs, so they tear from too much membrane tension, as real cells
    do.
 
+### Fifth round of feedback
+
+1. `osmosis` classic U-tube: with the heat bath off, the temperature should fall: some of the
+   thermal kinetic energy pays for the potential energy of the water rising. Plot it, so we can
+   see that happen.
+2. `osmosis` U-tube: try 10× the molecules and see whether it still simulates smoothly.
+3. `atmosphere` fluid panel: something seems wrong; nothing happens, or nothing is rendered.
+4. `saline` big cell: smoothly add or remove salt and watch the change spread: a slider, a button,
+   or clicking to put salt in, then see the effect.
+
 ### Fourth round: done (to confirm)
 
 - [ ] Every energy plot shows the total energy of the whole simulation (not per molecule), with a

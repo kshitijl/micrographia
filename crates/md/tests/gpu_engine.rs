@@ -326,36 +326,21 @@ fn kick_region_touches_only_the_region() {
     assert!(frozen > 300, "only {frozen} particles in the region");
 }
 
-/// `convert_region` changes only particles of the given species inside the rectangle, about the
-/// requested fraction of them, and nothing else.
+/// `set_species` changes exactly the listed particles, and nothing else; more ids than one chunk
+/// works too.
 #[test]
-fn convert_region_changes_species_only_in_the_region() {
+fn set_species_changes_exactly_the_listed_particles() {
     let p = prims();
     let (one, s0) = fluid(3000, 0.5, Pair::wca(), 12);
     let sys = System::new(one.box_len, init::DT, Pair::wca(), vec![1.0, 1.0]);
-    let b = sys.box_f64();
-    let (lo, hi) = ([b[0] * 0.25, b[1] * 0.25], [b[0] * 0.75, b[1] * 0.75]);
-    let inside = |q: [i64; 2]| {
-        let (x, y) = (md_core::fixed::to_f64(q[0]), md_core::fixed::to_f64(q[1]));
-        x >= lo[0] && x < hi[0] && y >= lo[1] && y < hi[1]
-    };
     let mut e = GpuEngine::new(&p, sys.clone(), &s0);
-    e.convert_region(lo, hi, 0, 1, 0.5, 7);
+    e.step(300); // let storage be reordered
+    let picked: Vec<u32> = (0..3000).filter(|i| i % 3 == 0 || *i == 2999).collect();
+    e.set_species(&picked, 1);
     let s = block_on(e.read_state());
-    let (mut n_in, mut changed) = (0, 0);
-    for i in 0..3000 {
-        assert_eq!(s.pos[i], s0.pos[i]);
-        assert_eq!(s.vel[i], s0.vel[i]);
-        if inside(s0.pos[i]) {
-            n_in += 1;
-            changed += (s.species[i] == 1) as usize;
-        } else {
-            assert_eq!(s.species[i], 0);
-        }
+    for i in 0..3000u32 {
+        assert_eq!(s.species[i as usize], (i % 3 == 0 || i == 2999) as u32, "particle {i}");
     }
-    let f = changed as f64 / n_in as f64;
-    assert!((f - 0.5).abs() < 0.08, "{changed} of {n_in} changed");
-    // And back again, everywhere.
-    e.convert_region([0.0, 0.0], b, 1, 0, 1.0, 8);
+    e.set_species(&(0..3000).collect::<Vec<u32>>(), 0);
     assert!(block_on(e.read_state()).species.iter().all(|&x| x == 0));
 }

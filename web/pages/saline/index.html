@@ -52,14 +52,22 @@
       <h2>2. A big cell with a stiff membrane</h2>
       <section class="lab">
         <div class="stage" id="stageB">
-          <canvas id="canvasB" aria-label="One big cell whose membrane barely stretches, in a solution of water and salt"></canvas>
+          <canvas id="canvasB" style="cursor: crosshair; touch-action: none" aria-label="One big cell whose membrane barely stretches, in a solution of water and salt"></canvas>
           <div class="overlay" id="overlayB">Starting the GPU…</div>
         </div>
         <aside class="panel">
           <div class="buttons">
             <button class="primary" id="runB">Run</button>
+            <button id="saltB">Pour in salt</button>
+            <button id="freshB">Take salt out</button>
           </div>
-          <label class="row">Put the cell in <span></span>
+          <label class="row">Clicking and dragging on the water <span></span>
+            <select id="brushB">
+              <option value="add" selected>adds salt</option>
+              <option value="remove">removes salt</option>
+            </select>
+          </label>
+          <label class="row">Start with the cell in <span></span>
             <select id="outsideB">
               <option value="0" selected>pure water</option>
               <option value="0.5">saline (as salty as the cell)</option>
@@ -112,6 +120,14 @@
           barely lengthen, but every one of them pulls a little harder, and the bigger the cell, the
           harder the pull for the same salt. When the tension, averaged over 20 τ, passes its limit,
           the membrane tears at its most stretched spring and the salt spills out.
+        </p>
+        <p>
+          Try changing the salt while it runs. Start it in saline, then “Take salt out” a few times:
+          the salt at the edges of the dish turns into water, the fresher water spreads inward, and when
+          it reaches the cell the tension climbs until the membrane tears. Or start in brine and sprinkle
+          salt into the cell itself (click inside it), or wash the salt out around it. Salt molecules are
+          bigger than water ones, so each one you add squeezes its neighbours: watch the energy plot jump
+          a little with each pinch, which then turns into heat.
         </p>
         <p>
           Even in saline the tension isn't zero: the ring's thermal wriggling pulls the springs

@@ -391,11 +391,10 @@ impl DiscSim {
         self.engine.kick_region([x0.min(x1), y0.min(y1)], [x0.max(x1), y0.max(y1)], scale, [vx, vy]);
     }
 
-    /// Turn molecules of species `from` in the rectangle (x0, y0)–(x1, y1) (σ) into species `to`,
-    /// each with probability `fraction` (`seed` picks which): add salt to water, or take it out.
-    #[allow(clippy::too_many_arguments)]
-    pub fn convert_region(&mut self, x0: f64, y0: f64, x1: f64, y1: f64, from: u32, to: u32, fraction: f64, seed: u32) {
-        self.engine.convert_region([x0.min(x1), y0.min(y1)], [x0.max(x1), y0.max(y1)], from, to, fraction, seed);
+    /// Set the species of the molecules with these ids (as `all_positions` orders them): add salt
+    /// to water, or take it out. Choose molecules with room for their new size.
+    pub fn set_species(&mut self, ids: Vec<u32>, species: u32) {
+        self.engine.set_species(&ids, species);
     }
 
     /// "About this simulation": plain-language bullet points (method, forces, boundaries,

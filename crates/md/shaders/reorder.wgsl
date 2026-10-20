@@ -67,44 +67,33 @@ fn copy_back_meta(@builtin(global_invocation_id) gid: vec3<u32>) {
     ids[k] = tmp_d[k];
 }
 
-// Change the species of particles in a region: each unpinned particle of species
-// `from_species` inside the rectangle becomes `to_species` with probability `fraction`, drawn
-// from its id and `seed` (so the choice does not depend on storage order). The command shares
-// the region command's buffer.
-struct ConvertCmd {
-    lo: vec2<f32>,
-    hi: vec2<f32>,
-    from_species: u32,
+// Set the species of the particles whose ids are in `set_list` (sorted, `count` of them) to
+// `to_species`. The command shares the region command's buffer.
+struct SetCmd {
+    count: u32,
     to_species: u32,
-    fraction: f32,
-    seed: u32,
 }
-@group(0) @binding(11) var<uniform> K: ConvertCmd;
-
-fn lowbias32(v: u32) -> u32 {
-    var x = v;
-    x ^= x >> 16u;
-    x *= 0x7feb352du;
-    x ^= x >> 15u;
-    x *= 0x846ca68bu;
-    x ^= x >> 16u;
-    return x;
-}
+@group(0) @binding(11) var<uniform> S: SetCmd;
+@group(0) @binding(12) var<storage, read> set_list: array<u32>;
 
 @compute @workgroup_size(256)
-fn convert_region(@builtin(global_invocation_id) gid: vec3<u32>) {
+fn set_species(@builtin(global_invocation_id) gid: vec3<u32>) {
     let i = gid.x;
-    if (i >= P.n || species[i] != K.from_species || is_pinned(K.from_species)) {
+    if (i >= P.n || S.count == 0u) {
         return;
     }
-    let p = pos[i];
-    let x = coord_f32(p.xy);
-    let y = coord_f32(p.zw);
-    if (x < K.lo.x || x >= K.hi.x || y < K.lo.y || y >= K.hi.y) {
-        return;
+    let id = ids[i];
+    var lo = 0u;
+    var hi = S.count;
+    while (lo < hi) {
+        let mid = (lo + hi) / 2u;
+        if (set_list[mid] < id) {
+            lo = mid + 1u;
+        } else {
+            hi = mid;
+        }
     }
-    let u = f32(lowbias32(ids[i] ^ lowbias32(K.seed)) >> 8u) * (1.0 / 16777216.0);
-    if (u < K.fraction) {
-        species[i] = K.to_species;
+    if (lo < S.count && set_list[lo] == id) {
+        species[i] = S.to_species;
     }
 }

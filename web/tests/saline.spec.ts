@@ -27,3 +27,19 @@ test("the big stiff cell tears in pure water and holds in saline and brine", asy
   expect(r[2].torn).toBe(false);
   expect(r[1].tension).toBeGreaterThan(r[2].tension);
 });
+
+test("big cell: taking salt out around it tears it; pouring salt in slackens it; neither heats the water", async ({ page }) => {
+  test.setTimeout(300_000);
+  await page.goto("pages/saline/index.html");
+  await page.evaluate(() => window.salineTest!.ready);
+  const fresh = await page.evaluate(() => window.salineTest!.dose(0.5, false, 12, 80000));
+  const salty = await page.evaluate(() => window.salineTest!.dose(0.5, true, 4, 60000));
+  const f = (x: number[]) => x.map((v) => v.toFixed(2)).join(" ");
+  console.log(`saline (big cell), salt taken out: torn at ${fresh.tornAt} τ; tension ${f(fresh.trace)}; changed ${fresh.changed}`);
+  console.log(`saline (big cell), salt poured in: tension ${f(salty.trace)}; kT ${salty.temps[0].toFixed(3)} → ${salty.temps[salty.temps.length - 1].toFixed(3)}`);
+  // Measured: torn at 163 τ; with salt poured in the tension falls from 4.4 to ~3.6.
+  expect(fresh.torn).toBe(true);
+  expect(salty.torn).toBe(false);
+  expect(salty.trace[salty.trace.length - 1]).toBeLessThan(salty.trace[0] - 0.4);
+  for (const r of [fresh, salty]) expect(Math.abs(r.temps[r.temps.length - 1] / r.temps[0] - 1)).toBeLessThan(0.02);
+});
