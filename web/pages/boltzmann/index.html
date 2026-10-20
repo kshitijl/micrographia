@@ -40,6 +40,7 @@
               <option value="4">the left boxes hot, the right ones cold</option>
             </select>
           </label>
+          <div id="tools"></div>
           <label class="row">Speed <span id="speedv">8 steps/frame</span>
             <input type="range" id="speed" min="1" max="80" value="8" />
           </label>
@@ -68,7 +69,7 @@
           <div class="legend"><span><i style="background: var(--accent)"></i>total energy per molecule</span><span><i style="background: var(--plot-back)"></i>outlined box's kT</span></div>
           <canvas class="plot" id="entropy" aria-label="Entropy per molecule over time, and its maximum"></canvas>
           <div class="legend"><span><i style="background: var(--accent)"></i>entropy</span><span><i style="background: var(--muted)"></i>the most it can be</span></div>
-          <div class="status" id="status">Press Run. Click a box to outline it.</div>
+          <div class="status" id="status">Press Run. Click a box to outline it; drag to select molecules.</div>
         </aside>
       </section>
 
@@ -81,6 +82,24 @@
           smear the spikes into a smooth curve; over the next hundred τ the walls even out the boxes. The
           total energy line stays flat the whole time, while the outlined box's temperature wanders,
           settles and then keeps fluctuating a little.
+        </p>
+        <h2>How energy gets through a wall that molecules can't</h2>
+        <p>
+          Each wall between boxes is a hard line that no molecule can cross: a molecule reaching it
+          bounces straight back. But the molecules' repulsion reaches through it. A molecule just left
+          of a wall and one just right of it push each other apart exactly as if the wall were not there.
+          So when a fast molecule comes up to the wall, it shoves a slow molecule on the other side away,
+          slowing down itself: energy passes across, molecules stay put. It is how heat goes through the
+          wall of a mug, which is also made of atoms jostling their neighbours. Only molecules within a
+          molecule's width of a wall take part, which is why the boxes even out much more slowly than
+          each box settles inside.
+        </p>
+        <h2>Reach in</h2>
+        <p>
+          Drag a box on the simulation to select molecules, then kick them, freeze them or shove them.
+          The total energy jumps and then stays flat. The kicked molecules' energies make the histogram
+          lopsided, the entropy drops below its ceiling, and within a few τ collisions spread the energy
+          and the entropy climbs back.
         </p>
         <h2>Where the exponential comes from</h2>
         <p>

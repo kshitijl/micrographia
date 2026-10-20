@@ -1,6 +1,7 @@
 import { $, cssVar, SimHost } from "../../src/lib/host";
 import { BarPlot, LinesPlot } from "../../src/lib/plot";
 import { cssColor } from "../../src/lib/theme";
+import { Tools } from "../../src/lib/interact";
 import type { DiscSim } from "../../src/lib/wasm";
 
 const BOXES = [8, 6];
@@ -176,16 +177,18 @@ $("reset").onclick = () => void host.create().then(() => ($("run").textContent =
 startSel.onchange = () => void host.create().then(() => ($("run").textContent = "Run"));
 speedIn.oninput = () => ($("speedv").textContent = `${speedIn.value} steps/frame`);
 sourceSel.onchange = viewSel.onchange = () => redraw(1);
-$<HTMLCanvasElement>("canvas").onclick = (ev) => {
-  const c = ev.currentTarget as HTMLCanvasElement;
-  const r = c.getBoundingClientRect();
-  const x = ((ev.clientX - r.left) / r.width) * BOXES[0] * SIDE;
-  const y = (1 - (ev.clientY - r.top) / r.height) * BOXES[1] * SIDE;
-  outlined = boxOf(x, y);
-  boxKe = [];
-  for (const k of ["tbox"] as const) series[k] = series[k].map(() => NaN);
-  host.sim?.set_overlay(new Float32Array(overlay()));
-};
+new Tools({
+  host,
+  container: $("tools"),
+  after: (sim) => readout(sim),
+  // A click (without dragging) outlines the box under it.
+  onClick: (x, y) => {
+    outlined = boxOf(x, y);
+    boxKe = [];
+    series.tbox = series.tbox.map(() => NaN);
+    host.sim?.set_overlay(new Float32Array(overlay()));
+  },
+});
 
 declare global {
   interface Window {
