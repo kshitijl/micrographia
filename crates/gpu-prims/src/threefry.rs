@@ -36,11 +36,13 @@ pub fn uniform(seed: u64, stream: u32, i: u32) -> f64 {
     to_unit_f64(threefry2x32([i, stream], [seed as u32, (seed >> 32) as u32]))
 }
 
-/// A standard normal deviate (Box–Muller on two counter-based uniforms).
+/// A standard normal deviate (Box–Muller on two counter-based uniforms). Uses the pure-Rust
+/// `libm` so the result is the same bits on every platform (native or wasm), which keeps
+/// initial conditions, and so the all-integer golden hashes, portable.
 pub fn normal(seed: u64, stream: u32, i: u32) -> f64 {
     let u1 = 1.0 - uniform(seed, stream, 2 * i);
     let u2 = uniform(seed, stream, 2 * i + 1);
-    (-2.0 * u1.ln()).sqrt() * (std::f64::consts::TAU * u2).cos()
+    libm::sqrt(-2.0 * libm::log(u1)) * libm::cos(std::f64::consts::TAU * u2)
 }
 
 #[cfg(test)]

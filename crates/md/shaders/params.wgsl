@@ -56,6 +56,14 @@ struct Params {
     _p1: u32,
     piston_min: vec2<u32>,
     piston_max: vec2<u32>,
+    // All-integer forces: entries per table, and each ordered pair's squared cutoff in units of
+    // 2^-24 σ² (see md_core::table).
+    itab_len: u32,
+    // Bit 0: there are soft walls (so integrate must read the per-particle wall forces).
+    features: u32,
+    _p3: u32,
+    _p4: u32,
+    itab_rc2: array<vec4<u32>, 4>,
     // Bond types: (kind 0 harmonic / 1 FENE, k, r0, 0).
     bond_types: array<vec4<f32>, 4>,
     // Per species pair a·4 + b: (rc², 4ε, σ², energy shift).

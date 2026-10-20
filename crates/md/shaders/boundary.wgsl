@@ -179,7 +179,11 @@ fn in_pore(along: vec2<u32>) -> bool {
 // Leapfrog: v += kick + gravity; x += v; then periodic wrap or wall collision per axis.
 // Returns the new position (also stored).
 fn advance(i: u32) -> vec4<u32> {
-    let g = select(P.gravity, vec2<i32>(0, 0), is_pinned(species[i]));
+    // Only read what this system uses (uniform branches, so no divergence and no extra loads).
+    var g = P.gravity;
+    if (P.pinned != 0u && is_pinned(species[i])) {
+        g = vec2<i32>(0, 0);
+    }
     var v = andersen(i, vel[i] + kicks[i] + g);
     let p = pos[i];
     var x = add64(p.xy, i64_from_i32(v.x));
@@ -207,12 +211,14 @@ fn advance(i: u32) -> vec4<u32> {
             }
         }
     }
-    let wf = aux[i].yz;
-    if (wf.x != 0.0) {
-        ledger_add(select(1u, 0u, wf.x > 0.0), ledger_slot(p, 0u), 1u, i32(round(abs(wf.x) * P.dt * LEDGER_SCALE)));
-    }
-    if (wf.y != 0.0) {
-        ledger_add(select(3u, 2u, wf.y > 0.0), ledger_slot(p, 1u), 1u, i32(round(abs(wf.y) * P.dt * LEDGER_SCALE)));
+    if ((P.features & 1u) != 0u) {
+        let wf = aux[i].yz;
+        if (wf.x != 0.0) {
+            ledger_add(select(1u, 0u, wf.x > 0.0), ledger_slot(p, 0u), 1u, i32(round(abs(wf.x) * P.dt * LEDGER_SCALE)));
+        }
+        if (wf.y != 0.0) {
+            ledger_add(select(3u, 2u, wf.y > 0.0), ledger_slot(p, 1u), 1u, i32(round(abs(wf.y) * P.dt * LEDGER_SCALE)));
+        }
     }
     if ((P.periodic & 1u) != 0u) {
         x = wrap64(x, P.box_x);

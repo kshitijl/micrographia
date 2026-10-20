@@ -65,7 +65,7 @@ pub fn fixed_speed(sys: &System, species: &[u32], t: f64, seed: u64) -> Vec<[i32
         .map(|(i, &s)| {
             let speed = (2.0 * t / sys.masses[s as usize]).sqrt();
             let th = std::f64::consts::TAU * threefry::uniform(seed, STREAM_DIRECTION, i as u32);
-            [sys.to_step_displacement(speed * th.cos()), sys.to_step_displacement(speed * th.sin())]
+            [sys.to_step_displacement(speed * libm::cos(th)), sys.to_step_displacement(speed * libm::sin(th))]
         })
         .collect();
     zero_velocity_sum(&mut vel);

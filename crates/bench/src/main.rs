@@ -25,6 +25,8 @@ struct Args {
     shuffle: bool,
     /// Cell list every step instead of Verlet lists.
     cells: bool,
+    /// All-integer forces (gpu-int-int).
+    int: bool,
     skin: Option<f64>,
 }
 
@@ -39,6 +41,7 @@ fn parse() -> Args {
         cpu: false,
         shuffle: false,
         cells: false,
+        int: false,
         skin: None,
     };
     let argv: Vec<String> = std::env::args().skip(1).collect();
@@ -74,6 +77,7 @@ fn parse() -> Args {
             "--cpu" => a.cpu = true,
             "--shuffle" => a.shuffle = true,
             "--cells" => a.cells = true,
+            "--int" => a.int = true,
             "--skin" => {
                 i += 1;
                 a.skin = Some(argv[i].parse().expect("skin"));
@@ -151,7 +155,8 @@ fn md_case(prims: &Prims, args: &Args, n: usize) -> CaseResult {
         (false, None) => ForceMode::verlet_for(&sys, n),
         (false, Some(skin)) => ForceMode::verlet_with_skin(&sys, n, skin),
     };
-    let mut e = GpuEngine::with_mode(prims, sys, &s0, mode);
+    let arith = if args.int { md::Arith::Int } else { md::Arith::F32 };
+    let mut e = GpuEngine::with_options(prims, sys, &s0, mode, arith);
     // Warm up (and leave the lattice start behind).
     e.step(300);
     gpu.wait();
@@ -199,7 +204,8 @@ fn main() {
     println!("copy bandwidth: {bw:.0} GB/s (read + write)");
     let mode_name = if args.cells { "cells" } else { "verlet" };
     println!(
-        "\ngpu-int-f32, 2D {} fluid, density {}, {} initial storage order, {}",
+        "\n{}, 2D {} fluid, density {}, {} initial storage order, {}",
+        if args.int { "gpu-int-int" } else { "gpu-int-f32" },
         args.pair_name,
         args.density,
         if args.shuffle { "shuffled" } else { "lattice" },
@@ -218,10 +224,11 @@ fn main() {
         println!("{:>9} {:>11.0} {:>12.2} {:>9}{cols}", r.n, r.steps_per_s, r.ns_per_particle_step, r.rebuilds);
         let phases = r.phase_ns.iter().map(|(k, v)| format!("{}:{:.0}", json_str(k), v)).collect::<Vec<_>>().join(",");
         lines.push(format!(
-            "{{\"time\":{when},\"commit\":{},\"device\":{},\"engine\":\"gpu-int-f32\",\"mode\":{},\"order\":{},\"dim\":2,\"pair\":{},\"density\":{},\"n\":{},\
+            "{{\"time\":{when},\"commit\":{},\"device\":{},\"engine\":{},\"mode\":{},\"order\":{},\"dim\":2,\"pair\":{},\"density\":{},\"n\":{},\
              \"steps_per_s\":{:.1},\"ns_per_particle_step\":{:.3},\"phase_ns\":{{{phases}}},\"copy_gbps\":{bw:.1}}}",
             json_str(&commit),
             json_str(&device),
+            json_str(if args.int { "gpu-int-int" } else { "gpu-int-f32" }),
             json_str(mode_name),
             json_str(if args.shuffle { "shuffled" } else { "lattice" }),
             json_str(&args.pair_name),

@@ -7,3 +7,4 @@ publish.workspace = true
 
 [dependencies]
 gpu-prims = { path = "../gpu-prims" }
+libm = "0.2"

@@ -17,6 +17,8 @@
 @group(0) @binding(7) var<storage, read_write> nbr_count: array<u32>;
 @group(0) @binding(8) var<storage, read_write> ref_pos: array<vec4<u32>>;
 @group(0) @binding(9) var<storage, read_write> ctl: array<atomic<u32>>;
+// All-integer force tables (md_core::table::IntTables).
+@group(0) @binding(14) var<storage, read> itab: array<i32>;
 @group(0) @binding(10) var<storage, read_write> kicks: array<vec2<i32>>;
 @group(0) @binding(11) var<storage, read_write> aux: array<vec4<f32>>;
 @group(0) @binding(12) var<storage, read> ids: array<u32>;
@@ -93,4 +95,23 @@ fn integrate_list(@builtin(global_invocation_id) gid: vec3<u32>) {
     if (dot(d, d) >= P.half_skin2) {
         atomicMax(&ctl[CTL_REBUILD], 1u);
     }
+}
+
+// All-integer variant of `force_list`.
+@compute @workgroup_size(256)
+fn force_list_int(@builtin(global_invocation_id) gid: vec3<u32>) {
+    let i = gid.x;
+    if (i >= P.n) {
+        return;
+    }
+    let pi = pos[i];
+    let si = species[i];
+    var acc = Acc(vec2<i32>(0, 0), 0.0);
+    let m = nbr_count[i];
+    for (var k = 0u; k < m; k++) {
+        let j = nbr[k * P.n + i];
+        add_pair_int(&acc, pi, pos[j], si, species[j]);
+    }
+    kicks[i] = acc.k;
+    aux[i] = vec4<f32>(acc.u, 0.0, 0.0, 0.0);
 }

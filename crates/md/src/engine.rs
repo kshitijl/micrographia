@@ -51,6 +51,11 @@ pub struct Params {
     pub _p1: u32,
     pub piston_min: [u32; 2],
     pub piston_max: [u32; 2],
+    pub itab_len: u32,
+    pub features: u32,
+    pub _p3: u32,
+    pub _p4: u32,
+    pub itab_rc2: [u32; 16],
     pub bond_types: [[f32; 4]; 4],
     pub pairs: [[f32; 4]; 16],
 }
@@ -76,6 +81,18 @@ pub mod ctl {
     pub fn ledger(wall: usize, compartment: usize, field: usize) -> usize {
         LEDGER + 6 * (wall * MAX_COMPARTMENTS + compartment) + 2 * field
     }
+}
+
+/// The arithmetic of pair forces.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Arith {
+    /// f32 pair forces, rounded to integer kicks per pair (`gpu-int-f32`): bit-exact on one
+    /// device, exactly reversible.
+    F32,
+    /// All-integer pair forces from tables (`gpu-int-int`): bit-identical on every device and
+    /// to `md_ref::IntEngine::integer`. Pair forces only (no soft walls or piston in the same
+    /// kernel).
+    Int,
 }
 
 /// How pair forces find their partners.
@@ -228,6 +245,11 @@ impl Params {
             _p1: 0,
             piston_min: fixed64::split(sys.piston.map_or(0, |p| md_core::fixed::to_fixed(p.min))),
             piston_max: fixed64::split(sys.piston.map_or(0, |p| md_core::fixed::to_fixed(p.max))),
+            itab_len: 0,
+            features: sys.has_soft_walls() as u32,
+            _p3: 0,
+            _p4: 0,
+            itab_rc2: [0; 16],
             bond_types: {
                 let mut t = [[0f32; 4]; 4];
                 for (k, b) in sys.bond_types.iter().enumerate() {
@@ -281,6 +303,8 @@ pub struct Buffers {
     /// Bond partners by id, and the storage slot of each id.
     pub partners: wgpu::Buffer,
     pub slot_of: wgpu::Buffer,
+    /// All-integer force tables (a placeholder unless `Arith::Int`).
+    pub itab: wgpu::Buffer,
 }
 
 /// Put per-slot values into id order.
@@ -462,6 +486,7 @@ pub struct GpuEngine {
     pub prims: Prims,
     pub sys: System,
     pub mode: ForceMode,
+    pub arith: Arith,
     pub params: Params,
     pub buf: Buffers,
     path: Path,
@@ -491,10 +516,26 @@ impl GpuEngine {
     }
 
     pub fn with_mode(prims: &Prims, sys: System, state: &State, mode: ForceMode) -> Self {
+        Self::with_options(prims, sys, state, mode, Arith::F32)
+    }
+
+    pub fn with_options(prims: &Prims, sys: System, state: &State, mode: ForceMode, arith: Arith) -> Self {
         assert!(sys.masses.len() <= MAX_SPECIES);
         let gpu = &prims.gpu;
         let n = state.n() as u32;
-        let params = Params::new(&sys, n, mode);
+        let mut params = Params::new(&sys, n, mode);
+        let tables = (arith == Arith::Int).then(|| {
+            assert!(sys.piston.is_none() && !sys.has_soft_walls(), "integer forces cover pair forces only");
+            md_core::table::IntTables::new(&sys)
+        });
+        if let Some(t) = &tables {
+            params.itab_len = t.len as u32;
+            for a in 0..t.ns {
+                for b in 0..t.ns {
+                    params.itab_rc2[a * 4 + b] = t.rc2[a * t.ns + b];
+                }
+            }
+        }
         let buf = Buffers {
             gpu: gpu.clone(),
             n,
@@ -509,6 +550,10 @@ impl GpuEngine {
             ctl: util::storage_init(gpu, "ctl", &initial_ctl(&sys)),
             partners: util::storage_init(gpu, "partners", &sys.partner_table(n as usize)),
             slot_of: util::storage_init(gpu, "slot of", &(0..n).collect::<Vec<u32>>()),
+            itab: match &tables {
+                Some(t) => util::storage_init(gpu, "int tables", &t.data),
+                None => util::storage(gpu, "int tables", 4),
+            },
         };
         let g = util::groups(n, WG);
         let b = &buf;
@@ -520,9 +565,15 @@ impl GpuEngine {
         let path = match mode {
             ForceMode::CellList => {
                 let bin = BinPlan::new(prims, &b.keys, n, params.ncell);
-                Path::Cells(CellPath {
-                    cells: Dispatch::new_at(gpu, &pl("cells"), &[(0, &b.params), (1, &b.pos), (4, &b.keys)], g),
-                    force: Dispatch::new_at(
+                let force = if arith == Arith::Int {
+                    Dispatch::new_at(
+                        gpu,
+                        &pl("force_int"),
+                        &[(0, &b.params), (1, &b.pos), (3, &b.species), (5, &bin.starts), (6, &bin.counts), (7, &bin.sorted), (8, &b.kicks), (9, &b.aux), (15, &b.itab)],
+                        g,
+                    )
+                } else {
+                    Dispatch::new_at(
                         gpu,
                         &pl("force"),
                         &[
@@ -537,7 +588,11 @@ impl GpuEngine {
                             (11, &b.ctl),
                         ],
                         g,
-                    ),
+                    )
+                };
+                Path::Cells(CellPath {
+                    cells: Dispatch::new_at(gpu, &pl("cells"), &[(0, &b.params), (1, &b.pos), (4, &b.keys)], g),
+                    force,
                     integrate: Dispatch::new_at(
                         gpu,
                         &pl("integrate"),
@@ -563,12 +618,21 @@ impl GpuEngine {
                 list.push(build);
                 Path::List(ListPath {
                     rebuild: Gated::new(prims, &b.ctl, ctl::REBUILD, ctl::REBUILDS, list),
-                    force: Dispatch::new_at(
-                        gpu,
-                        &npl("force_list"),
-                        &[(0, &b.params), (1, &b.pos), (3, &b.species), (6, &nbr), (7, &nbr_count), (9, &b.ctl), (10, &b.kicks), (11, &b.aux)],
-                        g,
-                    ),
+                    force: if arith == Arith::Int {
+                        Dispatch::new_at(
+                            gpu,
+                            &npl("force_list_int"),
+                            &[(0, &b.params), (1, &b.pos), (3, &b.species), (6, &nbr), (7, &nbr_count), (10, &b.kicks), (11, &b.aux), (14, &b.itab)],
+                            g,
+                        )
+                    } else {
+                        Dispatch::new_at(
+                            gpu,
+                            &npl("force_list"),
+                            &[(0, &b.params), (1, &b.pos), (3, &b.species), (6, &nbr), (7, &nbr_count), (9, &b.ctl), (10, &b.kicks), (11, &b.aux)],
+                            g,
+                        )
+                    },
                     integrate: Dispatch::new_at(
                         gpu,
                         &npl("integrate_list"),
@@ -604,6 +668,7 @@ impl GpuEngine {
             prims: prims.clone(),
             sys,
             mode,
+            arith,
             params,
             buf,
             steps: 0,
@@ -746,6 +811,11 @@ impl GpuEngine {
         p.mbits = self.params.mbits;
         p.list_r2 = self.params.list_r2;
         p.half_skin2 = self.params.half_skin2;
+        p.itab_len = self.params.itab_len;
+        // Soft walls cannot appear at run time unless the engine read wall forces from the start.
+        p.features |= self.params.features;
+        p.itab_rc2 = self.params.itab_rc2;
+        assert!(self.arith == Arith::F32 || sys.pairs == self.sys.pairs, "integer tables are fixed at creation");
         self.gpu().queue.write_buffer(&self.buf.params, 0, bytemuck::bytes_of(&p));
         self.params = p;
         self.sys = sys;

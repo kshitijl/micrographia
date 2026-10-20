@@ -1,13 +1,13 @@
 //! Engine self-checks that run both natively and in the browser (where the shaders go through
 //! the browser's compiler rather than naga).
 
-use crate::{ForceMode, GpuEngine};
+use crate::{Arith, ForceMode, GpuEngine};
 use gpu_prims::checks::{CheckResult, SplitMix};
 use gpu_prims::Prims;
 use md_core::{init, Pair, State, System, Wall};
 use md_ref::IntEngine;
 
-pub const NAMES: &[&str] = &["md_kicks_vs_cpu", "md_run_to_run", "md_reversal", "md_permutation", "md_momentum", "md_verlet_vs_cells", "md_walls_reversal"];
+pub const NAMES: &[&str] = &["md_kicks_vs_cpu", "md_run_to_run", "md_reversal", "md_permutation", "md_momentum", "md_verlet_vs_cells", "md_walls_reversal", "md_int_golden"];
 
 pub async fn run(name: &str, prims: &Prims) -> CheckResult {
     match name {
@@ -18,6 +18,7 @@ pub async fn run(name: &str, prims: &Prims) -> CheckResult {
         "md_momentum" => momentum(prims).await,
         "md_verlet_vs_cells" => verlet_vs_cells(prims).await,
         "md_walls_reversal" => walls_reversal(prims).await,
+        "md_int_golden" => int_golden(prims).await,
         _ => Err(format!("unknown check {name}")),
     }
 }
@@ -149,4 +150,30 @@ pub async fn walls_reversal(prims: &Prims) -> CheckResult {
         return Err("walls + gravity + mixture: reversal did not restore the state".into());
     }
     Ok(format!("exact reversal with walls ({hits} hits), gravity and a binary mixture"))
+}
+
+/// The setup for the all-integer golden hash: a binary LJ mixture of 3000 particles.
+pub fn golden_int_setup() -> (System, State) {
+    let sys = System::new(init::box_for(3000, 0.6, 1.0), init::DT, Pair::lj(2.5), vec![1.0, 2.0]).with_pair(0, 1, Pair { eps: 0.7, sigma: 1.05, rc: 2.5 });
+    let mut s = init::fluid(&sys, 3000, 1.0, 2026);
+    for i in (0..3000).step_by(4) {
+        s.species[i] = 1;
+    }
+    s.vel = init::maxwell(&sys, &s.species, 1.0, 2026);
+    (sys, s)
+}
+
+/// State hash of `golden_int_setup` after 1000 steps with all-integer forces, on any device.
+pub const GOLDEN_INT_HASH: u64 = 0x3aae_ff68_0a2f_0278;
+
+/// All-integer forces give the same bits on every device: compare with the golden hash.
+pub async fn int_golden(prims: &Prims) -> CheckResult {
+    let (sys, s0) = golden_int_setup();
+    let mut e = GpuEngine::with_options(prims, sys, &s0, ForceMode::CellList, Arith::Int);
+    e.step(1000);
+    let h = e.read_state().await.hash();
+    if h != GOLDEN_INT_HASH {
+        return Err(format!("all-integer hash {h:016x}, golden {GOLDEN_INT_HASH:016x}"));
+    }
+    Ok(format!("all-integer forces reproduce the golden hash {h:016x}"))
 }

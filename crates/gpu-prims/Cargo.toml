@@ -9,6 +9,7 @@ publish.workspace = true
 wgpu.workspace = true
 bytemuck.workspace = true
 futures-channel = "0.3"
+libm = "0.2"
 
 [dev-dependencies]
 pollster.workspace = true

@@ -9,6 +9,7 @@ pub mod fixed;
 pub mod init;
 pub mod pair;
 pub mod system;
+pub mod table;
 pub mod walls;
 
 pub use fixed::{FRAC_BITS, ONE};

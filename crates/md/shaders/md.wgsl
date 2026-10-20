@@ -16,6 +16,8 @@
 @group(0) @binding(9) var<storage, read_write> aux: array<vec4<f32>>;
 @group(0) @binding(10) var<storage, read> ids: array<u32>;
 @group(0) @binding(11) var<storage, read_write> ctl: array<atomic<u32>>;
+// All-integer force tables (md_core::table::IntTables).
+@group(0) @binding(15) var<storage, read> itab: array<i32>;
 // Bond partners by particle id: (partner id, bond type) × 4, padded with 0xffffffff.
 @group(0) @binding(13) var<storage, read> partners: array<vec4<u32>>;
 @group(0) @binding(14) var<storage, read_write> slot_of: array<u32>;
@@ -164,7 +166,10 @@ fn reverse(@builtin(global_invocation_id) gid: vec3<u32>) {
     if (i >= P.n) {
         return;
     }
-    let g = select(P.gravity, vec2<i32>(0, 0), is_pinned(species[i]));
+    var g = P.gravity;
+    if (P.pinned != 0u && is_pinned(species[i])) {
+        g = vec2<i32>(0, 0);
+    }
     vel[i] = -(vel[i] + kicks[i] + g);
 }
 
@@ -177,4 +182,34 @@ fn flip(@builtin(global_invocation_id) gid: vec3<u32>) {
         p[P.flip_word] ^= P.flip_mask;
         pos[i] = p;
     }
+}
+
+// All-integer variant of `force`: bit-identical on every device (pairs only).
+@compute @workgroup_size(256)
+fn force_int(@builtin(global_invocation_id) gid: vec3<u32>) {
+    let i = gid.x;
+    if (i >= P.n) {
+        return;
+    }
+    let pi = pos[i];
+    let si = species[i];
+    let cc = cell_coords(pi);
+    var acc = Acc(vec2<i32>(0, 0), 0.0);
+    for (var oy = 0u; oy < 3u; oy++) {
+        let cy = (cc.y + P.ncy + oy - 1u) % P.ncy;
+        for (var ox = 0u; ox < 3u; ox++) {
+            let cx = (cc.x + P.ncx + ox - 1u) % P.ncx;
+            let cell = cy * P.ncx + cx;
+            let start = cell_start[cell];
+            let end = start + cell_count[cell];
+            for (var k = start; k < end; k++) {
+                let j = cell_items[k];
+                if (j != i) {
+                    add_pair_int(&acc, pi, pos[j], si, species[j]);
+                }
+            }
+        }
+    }
+    kicks[i] = acc.k;
+    aux[i] = vec4<f32>(acc.u, 0.0, 0.0, 0.0);
 }

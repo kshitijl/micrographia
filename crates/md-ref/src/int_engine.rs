@@ -42,6 +42,8 @@ pub struct IntEngine<F: Real> {
     pub piston_v: i32,
     /// Work done by the gas on the piston (ε).
     pub piston_work: f64,
+    /// All-integer pair forces (`cpu-int-int`), if set: bit-identical to the GPU's `Arith::Int`.
+    pub int_tables: Option<md_core::table::IntTables>,
 }
 
 impl<F: Real> IntEngine<F> {
@@ -79,7 +81,15 @@ impl<F: Real> IntEngine<F> {
             piston_w,
             piston_v,
             piston_work: 0.0,
+            int_tables: None,
         }
+    }
+
+    /// `cpu-int-int`: the same engine with all-integer pair forces.
+    pub fn integer(sys: System, state: State) -> Self {
+        let mut e = Self::new(sys, state);
+        e.int_tables = Some(md_core::table::IntTables::new(&e.sys));
+        e
     }
 
     fn cell_list(&self) -> CellList {
@@ -128,6 +138,16 @@ impl<F: Real> IntEngine<F> {
                 }
                 let dx = self.separation(pi[0], pj[0], 0);
                 let dy = self.separation(pi[1], pj[1], 1);
+                if let Some(t) = &self.int_tables {
+                    let sj = s.species[j];
+                    if let Some(k) = t.kick(si as u32, sj, [dx, dy]) {
+                        kx = kx.wrapping_add(k[0]);
+                        ky = ky.wrapping_add(k[1]);
+                        let (fx, fy) = (fixed::to_f64(dx), fixed::to_f64(dy));
+                        pe_i += F::from_f64(self.sys.pair(si as u32, sj).energy(fx * fx + fy * fy));
+                    }
+                    return;
+                }
                 let (Some(fx), Some(fy)) = (F::sep(dx), F::sep(dy)) else { return };
                 if let Some((fr, u)) = self.consts[si * ns + s.species[j] as usize].eval(fx, fy) {
                     let a = -fr * c;

@@ -271,6 +271,7 @@ version = "0.1.0"
 dependencies = [
  "bytemuck",
  "futures-channel",
+ "libm",
  "naga",
  "pollster",
  "wgpu",
@@ -436,6 +437,7 @@ name = "md-core"
 version = "0.1.0"
 dependencies = [
  "gpu-prims",
+ "libm",
 ]
 
 [[package]]
