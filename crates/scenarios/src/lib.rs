@@ -59,7 +59,7 @@ pub struct Scenario {
     pub radii: Vec<f64>,
 }
 
-pub const NAMES: &[&str] = &["cream", "corner", "boltzmann", "heavy", "oilwater", "heatflow", "osmosis", "compress", "rubber", "atmosphere", "carnot", "boiling", "lipids", "balloon", "smell", "binding", "fep"];
+pub const NAMES: &[&str] = &["cream", "corner", "boltzmann", "heavy", "oilwater", "heatflow", "osmosis", "compress", "rubber", "atmosphere", "carnot", "boiling", "lipids", "balloon", "smell", "binding", "fep", "cell"];
 
 pub fn build(name: &str, o: &Options) -> Result<Scenario, String> {
     match name {
@@ -80,6 +80,7 @@ pub fn build(name: &str, o: &Options) -> Result<Scenario, String> {
         "smell" => Ok(smell(o)),
         "binding" => Ok(binding(o)),
         "fep" => Ok(fep(o)),
+        "cell" => Ok(cell(o)),
         _ => Err(format!("unknown scenario {name}")),
     }
 }
@@ -708,6 +709,67 @@ pub fn fep(o: &Options) -> Scenario {
     Scenario { warmup: o.get("warmup", 2000.0) as usize, finish: Finish::None, marked: 1, grid: [8, 8], radii: vec![0.5, 0.55, 0.5, 0.1], sys, state }
 }
 
+/// A model cell in a solution: a ring of bonded membrane beads (species 2) whose gaps let small
+/// solvent molecules (species 0, σ = 0.5) through but not solute particles (species 1, "salt",
+/// σ = 1). Inside, the solute share is `inside`; outside it is `outside` (0 for pure water). A
+/// bulk heat bath keeps the temperature. Options: n, width, radius, beads, inside, outside,
+/// stiffness, seed.
+pub fn cell(o: &Options) -> Scenario {
+    let w = o.get("width", 64.0);
+    let radius = o.get("radius", 10.0);
+    let beads = o.get("beads", 44.0) as usize;
+    let small = |sigma: f64| Pair { eps: 1.0, sigma, rc: sigma * 2f64.powf(1.0 / 6.0) };
+    let sys = System::new([fixed::to_fixed(w), fixed::to_fixed(w)], init::DT, small(0.5), vec![1.0, 1.0, 1.0])
+        .with_pair(0, 1, small(0.75))
+        .with_pair(1, 1, small(1.0))
+        .with_pair(0, 2, small(0.5))
+        .with_pair(1, 2, small(1.5))
+        .with_pair(2, 2, small(1.0))
+        .with_thermostat(1.0, 0.5);
+    let c = [w / 2.0, w / 2.0];
+    let spacing = std::f64::consts::TAU * radius / beads as f64;
+    let mut pos: Vec<[f64; 2]> = (0..beads)
+        .map(|k| {
+            let a = std::f64::consts::TAU * k as f64 / beads as f64;
+            [c[0] + radius * a.cos(), c[1] + radius * a.sin()]
+        })
+        .collect();
+    let mut species = vec![2u32; beads];
+    let mut bonds: Vec<[u32; 3]> = (0..beads as u32).map(|k| [k, (k + 1) % beads as u32, 0]).collect();
+    // Bending stiffness: springs between next-nearest beads keep the ring smooth.
+    let next = 2.0 * radius * (std::f64::consts::TAU / beads as f64).sin();
+    bonds.extend((0..beads as u32).map(|k| [k, (k + 2) % beads as u32, 1]));
+    // Fluid on a lattice, away from the membrane; solute chosen at random by region.
+    let density = o.get("density", 0.8);
+    let a = (1.0 / density).sqrt();
+    let n_side = (w / a) as usize;
+    let seed = o.get("seed", 1.0) as u64;
+    let (fin, fout) = (o.get("inside", 0.15), o.get("outside", 0.0));
+    let mut draw = 0u32;
+    for j in 0..n_side {
+        for i in 0..n_side {
+            let p = [(i as f64 + 0.5) * a, (j as f64 + 0.5) * a];
+            let r = ((p[0] - c[0]).powi(2) + (p[1] - c[1]).powi(2)).sqrt();
+            if (r - radius).abs() < 1.2 {
+                continue;
+            }
+            let f = if r < radius { fin } else { fout };
+            let u = gpu_prims::threefry::uniform(seed, 5, draw);
+            draw += 1;
+            // Solute is bigger: only place it on every other site to avoid overlaps.
+            let solute = u < f && (i + j) % 2 == 0 && (r - radius).abs() > 1.8;
+            pos.push(p);
+            species.push(solute as u32);
+        }
+    }
+    let k = o.get("stiffness", 20.0);
+    let bend = o.get("bend", 0.5 * k);
+    let sys = sys.with_bonds(vec![md_core::BondType::Harmonic { k, r0: spacing }, md_core::BondType::Harmonic { k: bend, r0: next }], bonds);
+    let vel = init::maxwell(&sys, &species, 1.0, seed);
+    let state = State { pos: pos.iter().map(|p| [fixed::to_fixed(p[0]), fixed::to_fixed(p[1])]).collect(), vel, species };
+    Scenario { warmup: 0, finish: Finish::None, marked: 1, grid: [8, 8], radii: vec![0.25, 0.5, 0.5], sys, state }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -729,7 +791,7 @@ mod tests {
         for name in NAMES {
             let mut o = Options::default();
             // Small versions, so the CPU engine finishes quickly.
-            for (k, v) in [("n", 1500.0), ("boxes_x", 8.0), ("boxes_y", 6.0), ("columns", 16.0), ("chains", 8.0), ("lipids", 200.0)] {
+            for (k, v) in [("n", 1500.0), ("boxes_x", 8.0), ("boxes_y", 6.0), ("columns", 16.0), ("chains", 8.0), ("lipids", 200.0), ("width", 40.0), ("radius", 8.0)] {
                 o = o.with(k, v);
             }
             let sc = build(name, &o).unwrap();
