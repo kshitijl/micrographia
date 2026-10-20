@@ -1,0 +1,23 @@
+[workspace]
+resolver = "3"
+members = ["crates/*", "xtask"]
+
+[workspace.package]
+edition = "2024"
+license = "MIT OR Apache-2.0"
+publish = false
+
+[workspace.dependencies]
+wgpu = "30.0.1"
+bytemuck = { version = "1", features = ["derive"] }
+pollster = "0.4"
+
+# Physics tests run long trajectories; optimize them (and dependencies in dev builds).
+[profile.test]
+opt-level = 3
+
+[profile.dev.package."*"]
+opt-level = 2
+
+[profile.release]
+debug = 1

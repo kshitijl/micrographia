@@ -333,6 +333,27 @@ overhead.
   melting.**
 - **M6, 3D:** Brownian motion with the Yeh–Hummer correction; the mW water evaluation.
 
+## Later: exploratory directions
+
+### Quantum chemistry of very small systems
+Explore whether a few tiny electronic-structure demos fit the project, as a separate engine
+(`qchem`) that shares only the GPU primitives. Possible ladder, from easy to ambitious:
+
+1. **Hydrogen atom:** solve the Schrödinger equation on a 3D grid (imaginary-time propagation
+   or a sparse eigen-solver) and show orbitals and energies against the exact −13.6 eV / n².
+2. **Helium atom:** two electrons, where electron–electron repulsion first matters. Compare
+   Hartree–Fock (−2.862 Hartree) with the exact energy (−2.9037 Hartree); the gap is the
+   correlation energy. Diffusion or variational Monte Carlo is a natural fit, because walkers
+   are particles and the GPU engine is good at particles.
+3. **Water molecule:** show the electron density shifting toward the oxygen and away from the
+   hydrogens, the partial charges, and the resulting dipole moment (experiment: 1.85 D).
+   Hartree–Fock or simple DFT in a small Gaussian basis.
+4. **Water hydrogen bond (most ambitious):** the water dimer. Binding energy ~5 kcal/mol at the
+   high-level reference; Hartree–Fock gets the sign right but misses part of it. This ties the
+   quantum picture to the classical water models used elsewhere.
+
+All [verify] before use; none of this is scheduled.
+
 ## Open decisions
 - Bit budgets for positions, velocities and forces; whether the Tier 2 integer force path
   becomes the default.
