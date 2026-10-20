@@ -1,32 +1,9 @@
 // gpu-int-f32: integer positions and velocities, f32 pair forces converted to integer kicks
-// per pair. Requires fixed64.wgsl. CPU twin: md-ref IntEngine<f32>.
+// per pair. Requires fixed64.wgsl and params.wgsl. CPU twin: md-ref IntEngine<f32>.
 //
 // Positions are vec4<u32>(x.lo, x.hi, y.lo, y.hi) in units of 2^-32 σ; velocities are the
 // i32 displacement per step in the same units.
 
-struct Params {
-    n: u32,
-    ncx: u32,
-    ncy: u32,
-    ncell: u32,
-    box_x: vec2<u32>,
-    box_y: vec2<u32>,
-    half_x: vec2<u32>,
-    half_y: vec2<u32>,
-    box_f: vec2<f32>,
-    cell_scale: vec2<f32>,
-    rc2: f32,
-    eps4: f32,
-    sigma2: f32,
-    shift: f32,
-    kick_c: vec4<f32>,
-    flip_index: u32,
-    flip_word: u32,
-    flip_mask: u32,
-    _pad: u32,
-}
-
-@group(0) @binding(0) var<uniform> P: Params;
 @group(0) @binding(1) var<storage, read_write> pos: array<vec4<u32>>;
 @group(0) @binding(2) var<storage, read_write> vel: array<vec2<i32>>;
 @group(0) @binding(3) var<storage, read> species: array<u32>;
@@ -36,52 +13,7 @@ struct Params {
 @group(0) @binding(7) var<storage, read> cell_items: array<u32>;
 @group(0) @binding(8) var<storage, read_write> kicks: array<vec2<i32>>;
 @group(0) @binding(9) var<storage, read_write> pe: array<f32>;
-
-// A coordinate in σ, for cell assignment only (any rounding here is harmless: cells are wider
-// than the cutoff by a margin).
-fn coord_f32(x: vec2<u32>) -> f32 {
-    return f32(x.y) + ldexp(f32(x.x), -32);
-}
-
-fn cell_coords(p: vec4<u32>) -> vec2<u32> {
-    let cx = min(u32(coord_f32(p.xy) * P.cell_scale.x), P.ncx - 1u);
-    let cy = min(u32(coord_f32(p.zw) * P.cell_scale.y), P.ncy - 1u);
-    return vec2<u32>(cx, cy);
-}
-
-// Exact minimum image of a separation d in [-L, L).
-fn min_image64(d: vec2<u32>, l: vec2<u32>, half: vec2<u32>) -> vec2<u32> {
-    if (!lt64(d, half)) {
-        return sub64(d, l);
-    }
-    if (lt64(d, neg64(half))) {
-        return add64(d, l);
-    }
-    return d;
-}
-
-// Separation in σ through units of 2^-28 σ; antisymmetric bit for bit. Beyond 8 σ returns a
-// huge value so the pair fails the cutoff test.
-fn sep_f32(d: vec2<u32>) -> f32 {
-    let hi = bitcast<i32>(d.y);
-    if (hi < -8 || hi > 7) {
-        return 1e30;
-    }
-    let neg = hi < 0;
-    let a = select(d, neg64(d), neg);
-    let m = ldexp(f32((a.y << 28u) | (a.x >> 4u)), -28);
-    return select(m, -m, neg);
-}
-
-fn wrap64(x: vec2<u32>, l: vec2<u32>) -> vec2<u32> {
-    if (is_neg64(x)) {
-        return add64(x, l);
-    }
-    if (!lt64(x, l)) {
-        return sub64(x, l);
-    }
-    return x;
-}
+@group(0) @binding(10) var<storage, read> ids: array<u32>;
 
 @compute @workgroup_size(256)
 fn cells(@builtin(global_invocation_id) gid: vec3<u32>) {
@@ -166,12 +98,13 @@ fn reverse(@builtin(global_invocation_id) gid: vec3<u32>) {
     vel[i] = -(vel[i] + kicks[i]);
 }
 
-// XOR one bit into one word of one particle's position.
-@compute @workgroup_size(1)
+// XOR one bit into one word of the position of the particle whose id is P.flip_index.
+@compute @workgroup_size(256)
 fn flip(@builtin(global_invocation_id) gid: vec3<u32>) {
-    if (gid.x == 0u) {
-        var p = pos[P.flip_index];
+    let i = gid.x;
+    if (i < P.n && ids[i] == P.flip_index) {
+        var p = pos[i];
         p[P.flip_word] ^= P.flip_mask;
-        pos[P.flip_index] = p;
+        pos[i] = p;
     }
 }

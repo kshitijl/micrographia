@@ -19,6 +19,7 @@ pub const COMPACT_WGSL: &str = include_str!("../shaders/compact.wgsl");
 pub const FIXED64_WGSL: &str = include_str!("../shaders/fixed64.wgsl");
 pub const THREEFRY_WGSL: &str = include_str!("../shaders/threefry.wgsl");
 pub const CHECK_WGSL: &str = include_str!("../shaders/check_kernels.wgsl");
+pub const GATE_WGSL: &str = include_str!("../shaders/gate.wgsl");
 
 #[repr(C)]
 #[derive(Clone, Copy, Pod, Zeroable)]
@@ -60,6 +61,7 @@ pub fn shader_sources() -> Vec<(&'static str, String)> {
         ("bin_count", BIN_COUNT_WGSL.to_string()),
         ("bin_scatter", BIN_SCATTER_WGSL.to_string()),
         ("compact", COMPACT_WGSL.to_string()),
+        ("gate", GATE_WGSL.to_string()),
         ("check", check_source()),
     ]
 }
@@ -79,6 +81,7 @@ pub struct Prims {
     bin_count: wgpu::ComputePipeline,
     bin_scatter: wgpu::ComputePipeline,
     compact: wgpu::ComputePipeline,
+    gate: wgpu::ComputePipeline,
     /// Bound as `offsets` when a scan level has no block offsets.
     dummy: wgpu::Buffer,
 }
@@ -98,6 +101,7 @@ impl Prims {
             bin_count: p("bin_count", BIN_COUNT_WGSL, "bin_count"),
             bin_scatter: p("bin_scatter", BIN_SCATTER_WGSL, "bin_scatter"),
             compact: p("compact", COMPACT_WGSL, "compact"),
+            gate: p("gate", GATE_WGSL, "gate"),
             dummy: util::storage(gpu, "dummy", 16),
         }
     }
@@ -185,6 +189,10 @@ impl ScanPlan {
             d.encode(pass);
         }
     }
+
+    pub fn dispatches(&self) -> Vec<Dispatch> {
+        self.dispatches.clone()
+    }
 }
 
 /// Counting sort of item indices by key (unstable: order within a key is unspecified).
@@ -227,6 +235,50 @@ impl BinPlan {
         // The counts become the scatter cursors, and end up as the counts again.
         self.clear.encode(pass);
         self.scatter.encode(pass);
+    }
+
+    /// The dispatches of `encode`, in order.
+    pub fn dispatches(&self) -> Vec<Dispatch> {
+        let mut v = vec![self.clear.clone(), self.count.clone()];
+        v.extend(self.scan.dispatches());
+        v.push(self.clear.clone());
+        v.push(self.scatter.clone());
+        v
+    }
+}
+
+/// A list of dispatches that runs only if `flags[0]` is nonzero when the gate executes (the
+/// gate then clears it). Decided on the GPU through indirect dispatch, so a simulation loop
+/// never waits for the host. `stats[0]` counts the times the gate opened.
+pub struct Gated {
+    gate: Dispatch,
+    args: wgpu::Buffer,
+    list: Vec<Dispatch>,
+}
+
+impl Gated {
+    pub fn new(prims: &Prims, flags: &wgpu::Buffer, stats: &wgpu::Buffer, list: Vec<Dispatch>) -> Self {
+        let gpu = &prims.gpu;
+        let base: Vec<u32> = list.iter().map(|d| d.groups).collect();
+        let base_buf = util::storage_init(gpu, "gate base", &base);
+        let args = gpu.device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("gate args"),
+            size: (list.len().max(1) * 12) as u64,
+            usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::INDIRECT,
+            mapped_at_creation: false,
+        });
+        let params = util::uniform_init(gpu, "gate", &Params4::n(list.len() as u32));
+        let gate = Dispatch::new(gpu, &prims.gate, &[flags, &base_buf, &args, stats, &params], 1);
+        Self { gate, args, list }
+    }
+
+    pub fn encode(&self, pass: &mut wgpu::ComputePass<'_>) {
+        self.gate.encode(pass);
+        for (k, d) in self.list.iter().enumerate() {
+            pass.set_pipeline(&d.pipeline);
+            pass.set_bind_group(0, &d.bind_group, &[]);
+            pass.dispatch_workgroups_indirect(&self.args, 12 * k as u64);
+        }
     }
 }
 

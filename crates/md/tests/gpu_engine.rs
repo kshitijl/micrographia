@@ -1,7 +1,7 @@
 //! `gpu-int-f32` against the CPU configurations, and its exactness properties.
 
 use gpu_prims::{Gpu, Prims};
-use md::GpuEngine;
+use md::{ForceMode, GpuEngine};
 use md_core::{init, Pair, State, System};
 use md_ref::{FloatEngine, IntEngine};
 use pollster::block_on;
@@ -76,14 +76,16 @@ fn run_to_run_identical() {
 fn reversal_is_exact() {
     let p = prims();
     let (sys, s0) = fluid(5000, 0.6, Pair::wca(), 3);
-    let mut e = GpuEngine::new(&p, sys, &s0);
-    e.step(2000);
-    e.reverse();
-    e.step(2000);
-    e.reverse();
-    let s = block_on(e.read_state());
-    assert_eq!(s.hash(), s0.hash(), "state after forward + reverse differs from the start");
-    assert_eq!(e.steps, 0);
+    for mode in [ForceMode::CellList, ForceMode::verlet_for(&sys, s0.n())] {
+        let mut e = GpuEngine::with_mode(&p, sys.clone(), &s0, mode);
+        e.step(2000);
+        e.reverse();
+        e.step(2000);
+        e.reverse();
+        let s = block_on(e.read_state());
+        assert_eq!(s.hash(), s0.hash(), "{mode:?}: state after forward + reverse differs from the start");
+        assert_eq!(e.steps, 0);
+    }
 }
 
 #[test]
@@ -234,5 +236,37 @@ fn nudged_reversal_at_page_parameters() {
         e.reverse();
         let (differ, max) = block_on(e.read_state()).position_difference(&s0, &sys);
         eprintln!("forward {:.0} τ then back: {differ} differ, max {max:.2e} σ", steps as f64 * init::DT);
+    }
+}
+
+#[test]
+fn spatial_reordering_does_not_change_the_trajectory() {
+    let p = prims();
+    let (sys, s0) = fluid(6000, 0.6, Pair::lj(2.5), 9);
+    let mut a = GpuEngine::with_mode(&p, sys.clone(), &s0, ForceMode::CellList);
+    let mut b = GpuEngine::with_mode(&p, sys, &s0, ForceMode::CellList);
+    a.sort_interval = 0;
+    b.sort_interval = 7;
+    a.step(1500);
+    b.step(1500);
+    assert_eq!(block_on(a.read_state()).hash(), block_on(b.read_state()).hash());
+}
+
+/// Same pairs, order-independent integer sums: the two force paths must agree bit for bit.
+#[test]
+fn cell_list_and_verlet_lists_give_identical_trajectories() {
+    let p = prims();
+    for (pair, density) in [(Pair::wca(), 0.6), (Pair::lj(2.5), 0.7)] {
+        let (sys, s0) = fluid(6000, density, pair, 10);
+        let mut a = GpuEngine::with_mode(&p, sys.clone(), &s0, ForceMode::CellList);
+        let mode = ForceMode::verlet_for(&sys, s0.n());
+        let mut b = GpuEngine::with_mode(&p, sys, &s0, mode);
+        a.step(3000);
+        b.step(3000);
+        let (rebuilds, overflow) = block_on(b.buf.read_list_stats());
+        eprintln!("rc={:.2}: {rebuilds} list rebuilds in 3000 steps", pair.rc);
+        assert!(!overflow);
+        assert!(rebuilds > 1 && rebuilds < 3000);
+        assert_eq!(block_on(a.read_state()).hash(), block_on(b.read_state()).hash());
     }
 }

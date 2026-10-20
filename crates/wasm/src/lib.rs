@@ -1,3 +1,6 @@
+// Browser only: natively this crate is empty, so `cargo test --workspace` skips it.
+#![cfg(target_arch = "wasm32")]
+
 //! The browser API: simulations for pages, and the self-tests that run the native test suites'
 //! GPU checks under the browser's WebGPU implementation.
 

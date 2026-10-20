@@ -47,13 +47,18 @@ impl System {
         (v * self.dt * ONE as f64).round() as i32
     }
 
-    /// Cells per axis for a cell list: as many as fit with side ≥ rc plus a margin for float
-    /// rounding of the cell assignment.
+    /// Cells per axis for a cell list with cutoff rc.
     pub fn cells(&self) -> [u32; 2] {
-        let margin = 1e-3 + 1e-6 * self.box_f64()[0].max(self.box_f64()[1]);
+        self.cells_for(self.pair.rc)
+    }
+
+    /// Cells per axis for a cell list of radius `r`: as many as fit with side ≥ r plus a margin
+    /// for float rounding of the cell assignment.
+    pub fn cells_for(&self, r: f64) -> [u32; 2] {
         let b = self.box_f64();
-        let c = [(b[0] / (self.pair.rc + margin)).floor() as u32, (b[1] / (self.pair.rc + margin)).floor() as u32];
-        assert!(c[0] >= 3 && c[1] >= 3, "box too small for the cutoff: {c:?} cells");
+        let margin = 1e-3 + 1e-6 * b[0].max(b[1]);
+        let c = [(b[0] / (r + margin)).floor() as u32, (b[1] / (r + margin)).floor() as u32];
+        assert!(c[0] >= 3 && c[1] >= 3, "box too small for radius {r}: {c:?} cells");
         c
     }
 }

@@ -47,3 +47,7 @@ fn atomic64() {
 fn threefry() {
     check("threefry");
 }
+#[test]
+fn gate() {
+    check("gate");
+}

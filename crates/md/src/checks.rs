@@ -1,13 +1,13 @@
 //! Engine self-checks that run both natively and in the browser (where the shaders go through
 //! the browser's compiler rather than naga).
 
-use crate::GpuEngine;
+use crate::{ForceMode, GpuEngine};
 use gpu_prims::checks::{CheckResult, SplitMix};
 use gpu_prims::Prims;
 use md_core::{init, Pair, State, System};
 use md_ref::IntEngine;
 
-pub const NAMES: &[&str] = &["md_kicks_vs_cpu", "md_run_to_run", "md_reversal", "md_permutation", "md_momentum"];
+pub const NAMES: &[&str] = &["md_kicks_vs_cpu", "md_run_to_run", "md_reversal", "md_permutation", "md_momentum", "md_verlet_vs_cells"];
 
 pub async fn run(name: &str, prims: &Prims) -> CheckResult {
     match name {
@@ -16,6 +16,7 @@ pub async fn run(name: &str, prims: &Prims) -> CheckResult {
         "md_reversal" => reversal(prims).await,
         "md_permutation" => permutation(prims).await,
         "md_momentum" => momentum(prims).await,
+        "md_verlet_vs_cells" => verlet_vs_cells(prims).await,
         _ => Err(format!("unknown check {name}")),
     }
 }
@@ -108,4 +109,20 @@ pub async fn momentum(prims: &Prims) -> CheckResult {
         return Err(format!("integer momentum drifted to {p:?}"));
     }
     Ok("integer momentum exactly zero after 1000 steps".into())
+}
+
+pub async fn verlet_vs_cells(prims: &Prims) -> CheckResult {
+    let (sys, s0) = fluid(5000, Pair::lj(2.5), 6);
+    let mut a = GpuEngine::with_mode(prims, sys.clone(), &s0, ForceMode::CellList);
+    let mut b = GpuEngine::with_mode(prims, sys.clone(), &s0, ForceMode::verlet_for(&sys, s0.n()));
+    a.step(1000);
+    b.step(1000);
+    let (rebuilds, overflow) = b.buf.read_list_stats().await;
+    if overflow {
+        return Err("neighbour list overflowed".into());
+    }
+    if a.read_state().await != b.read_state().await {
+        return Err("Verlet-list and cell-list trajectories differ".into());
+    }
+    Ok(format!("identical trajectories over 1000 steps ({rebuilds} list rebuilds, decided on the GPU)"))
 }

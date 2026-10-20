@@ -4,7 +4,7 @@
 //! the wasm crate (the browser's shader compiler), so both toolchains are covered.
 
 use crate::fixed64;
-use crate::prims::{BinPlan, CompactPlan, Params4, Prims, ReducePlan, Scalar, ScanPlan};
+use crate::prims::{BinPlan, CompactPlan, Gated, Params4, Prims, ReducePlan, Scalar, ScanPlan};
 use crate::threefry;
 use crate::util::{self, Dispatch, WG};
 
@@ -30,7 +30,7 @@ impl SplitMix {
 /// Sizes around the block boundaries, plus one large odd size that needs two scan levels.
 pub const SIZES: &[u32] = &[1, 2, 255, 256, 257, 1023, 1024, 1025, 4097, 65_537, (1 << 20) + 3];
 
-pub const NAMES: &[&str] = &["reduce_u32", "reduce_f32", "scan", "bin", "bin_one_key", "compact", "atomic64", "threefry"];
+pub const NAMES: &[&str] = &["reduce_u32", "reduce_f32", "scan", "bin", "bin_one_key", "compact", "atomic64", "threefry", "gate"];
 
 pub async fn run(name: &str, prims: &Prims) -> CheckResult {
     match name {
@@ -42,6 +42,7 @@ pub async fn run(name: &str, prims: &Prims) -> CheckResult {
         "compact" => compact(prims).await,
         "atomic64" => atomic64(prims).await,
         "threefry" => threefry_check(prims).await,
+        "gate" => gate(prims).await,
         _ => Err(format!("unknown check {name}")),
     }
 }
@@ -229,4 +230,28 @@ pub async fn threefry_check(prims: &Prims) -> CheckResult {
         }
     }
     Ok(format!("{n} draws match the CPU twin bit for bit"))
+}
+
+/// A gated fill runs only when the flag is set, and the gate clears the flag.
+pub async fn gate(prims: &Prims) -> CheckResult {
+    let gpu = &prims.gpu;
+    let target = util::storage(gpu, "target", 4096 * 4);
+    let flags = util::storage_init(gpu, "flags", &[0u32, 0]);
+    let stats = util::storage(gpu, "stats", 4);
+    let g = Gated::new(prims, &flags, &stats, vec![prims.fill(&target, 4096, 7)]);
+    submit(prims, |p| g.encode(p));
+    if util::read::<u32>(gpu, &target, 4096).await.iter().any(|&x| x != 0) {
+        return Err("closed gate still ran its dispatches".into());
+    }
+    gpu.queue.write_buffer(&flags, 0, bytemuck::bytes_of(&1u32));
+    submit(prims, |p| g.encode(p));
+    if util::read::<u32>(gpu, &target, 4096).await.iter().any(|&x| x != 7) {
+        return Err("open gate did not run its dispatches".into());
+    }
+    let f = util::read::<u32>(gpu, &flags, 1).await[0];
+    let s = util::read::<u32>(gpu, &stats, 1).await[0];
+    if f != 0 || s != 1 {
+        return Err(format!("after opening: flag {f} (want 0), count {s} (want 1)"));
+    }
+    Ok("indirect dispatch runs only when the GPU-side flag is set".into())
 }
