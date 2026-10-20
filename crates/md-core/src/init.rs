@@ -188,3 +188,30 @@ mod tests {
         assert!(p.iter().all(|q| (0..b[0]).contains(&q[0]) && (0..b[1]).contains(&q[1])));
     }
 }
+
+/// Polymer melt or solution: `chains` chains of `length` beads laid out as straight horizontal
+/// rows (bead spacing `bond` σ), rows spread over the box, with Kremer–Grest bonds between
+/// neighbours along each chain. Returns the bond list (ids are row-major) and positions; the box
+/// must be wide enough for one chain per row segment.
+pub fn chains(sys: &System, chains: usize, length: usize, bond: f64) -> (Vec<[i64; 2]>, Vec<[u32; 3]>) {
+    let b = [fixed::to_f64(sys.box_len[0]), fixed::to_f64(sys.box_len[1])];
+    let per_row = ((b[0] - 2.0) / (length as f64 * bond + 1.0)).floor().max(1.0) as usize;
+    let rows = chains.div_ceil(per_row);
+    let dy = (b[1] - 2.0) / rows as f64;
+    assert!(dy >= 1.0, "box too small for {chains} chains of {length}");
+    let mut pos = Vec::with_capacity(chains * length);
+    let mut bonds = Vec::new();
+    for c in 0..chains {
+        let (row, col) = (c / per_row, c % per_row);
+        let x0 = 1.0 + col as f64 * (length as f64 * bond + 1.0);
+        let y = 1.0 + (row as f64 + 0.5) * dy;
+        for k in 0..length {
+            let id = pos.len() as u32;
+            pos.push([fixed::to_fixed(x0 + k as f64 * bond), fixed::to_fixed(y)]);
+            if k > 0 {
+                bonds.push([id - 1, id, 0]);
+            }
+        }
+    }
+    (pos, bonds)
+}

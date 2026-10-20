@@ -135,7 +135,7 @@ fn mirror64(x: vec2<u32>, l: vec2<u32>) -> Mirrored {
 // Andersen thermostat: with probability P.thermo.y, a new Maxwell velocity at P.thermo.x.
 // Counter-based on (particle id, clock), like md_core::walls::andersen.
 fn andersen(i: u32, v: vec2<i32>) -> vec2<i32> {
-    if (P.thermo.y <= 0.0) {
+    if (P.thermo.y <= 0.0 || is_pinned(species[i])) {
         return v;
     }
     let id = ids[i];
@@ -155,7 +155,8 @@ fn andersen(i: u32, v: vec2<i32>) -> vec2<i32> {
 // Leapfrog: v += kick + gravity; x += v; then periodic wrap or wall collision per axis.
 // Returns the new position (also stored).
 fn advance(i: u32) -> vec4<u32> {
-    var v = andersen(i, vel[i] + kicks[i] + P.gravity);
+    let g = select(P.gravity, vec2<i32>(0, 0), is_pinned(species[i]));
+    var v = andersen(i, vel[i] + kicks[i] + g);
     let p = pos[i];
     var x = add64(p.xy, i64_from_i32(v.x));
     var y = add64(p.zw, i64_from_i32(v.y));

@@ -24,6 +24,7 @@ pub trait Real:
     /// A fixed-point pair separation as a float in σ, or `None` if it is beyond 8 σ.
     fn sep(d: i64) -> Option<Self>;
     fn floor(self) -> Self;
+    fn sqrt(self) -> Self;
 }
 
 impl Real for f32 {
@@ -47,6 +48,9 @@ impl Real for f32 {
     fn floor(self) -> Self {
         f32::floor(self)
     }
+    fn sqrt(self) -> Self {
+        f32::sqrt(self)
+    }
 }
 
 impl Real for f64 {
@@ -69,6 +73,9 @@ impl Real for f64 {
     }
     fn floor(self) -> Self {
         f64::floor(self)
+    }
+    fn sqrt(self) -> Self {
+        f64::sqrt(self)
     }
 }
 
@@ -106,5 +113,42 @@ impl<F: Real> PairConsts<F> {
         let fr = F::from_f64(6.0) * self.eps4 * s6 * (F::from_f64(2.0) * s6 - one) / r2;
         let u = self.eps4 * s6 * (s6 - one) - self.shift;
         Some((fr, u))
+    }
+}
+
+/// Bond constants in the engine's float type: (kind 0 harmonic / 1 FENE, k, r0).
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct BondConsts<F> {
+    pub fene: bool,
+    pub k: F,
+    pub r0: F,
+}
+
+impl<F: Real> BondConsts<F> {
+    pub fn new(b: &md_core::BondType) -> Self {
+        match *b {
+            md_core::BondType::Harmonic { k, r0 } => Self { fene: false, k: F::from_f64(k), r0: F::from_f64(r0) },
+            md_core::BondType::Fene { k, r0 } => Self { fene: true, k: F::from_f64(k), r0: F::from_f64(r0) },
+        }
+    }
+
+    /// (−U'(r)/r, U) at squared separation r2. Same operations as `bonds.wgsl`.
+    #[inline(always)]
+    pub fn eval(&self, r2: F) -> (F, F) {
+        let one = F::from_f64(1.0);
+        let half = F::from_f64(0.5);
+        if self.fene {
+            let mut x = r2 / (self.r0 * self.r0);
+            let cap = F::from_f64(0.999999);
+            if x > cap {
+                x = cap;
+            }
+            let u = -half * self.k * self.r0 * self.r0 * F::from_f64((one - x).to_f64().ln());
+            (-self.k / (one - x), u)
+        } else {
+            let r = r2.sqrt();
+            let dr = r - self.r0;
+            (-self.k * dr / r, half * self.k * dr * dr)
+        }
     }
 }

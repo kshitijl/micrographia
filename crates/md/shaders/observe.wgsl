@@ -10,7 +10,8 @@ struct ObsParams {
     scale: vec2<f32>,
     // Δt-to-velocity factor 2^-32 / Δt, so v = f32(v_int) * vel_scale.
     vel_scale: f32,
-    _pad: f32,
+    // Bit s set if species s is pinned (excluded from kinetic energy).
+    pinned: u32,
     mass: vec4<f32>,
 }
 
@@ -50,5 +51,6 @@ fn kinetic(@builtin(global_invocation_id) gid: vec3<u32>) {
         return;
     }
     let v = vec2<f32>(vel[i]) * P.vel_scale;
-    ke[i] = 0.5 * P.mass[species[i]] * dot(v, v);
+    let s = species[i];
+    ke[i] = select(0.5 * P.mass[s] * dot(v, v), 0.0, (P.pinned & (1u << s)) != 0u);
 }

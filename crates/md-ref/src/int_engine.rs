@@ -1,5 +1,5 @@
 use crate::cells::{cell_of, CellList};
-use crate::real::{PairConsts, Real};
+use crate::real::{BondConsts, PairConsts, Real};
 use crate::Energy;
 use md_core::walls::{self, CompartmentLedger, Ledger};
 use md_core::{fixed, State, System, Wall};
@@ -24,6 +24,9 @@ pub struct IntEngine<F: Real> {
     pub sys: System,
     pub state: State,
     consts: Vec<PairConsts<F>>,
+    bond_consts: Vec<BondConsts<F>>,
+    /// Bond partners by id: (partner id, type) pairs, padded with u32::MAX.
+    partners: Vec<[u32; 2 * md_core::system::MAX_BONDS]>,
     kick_c: Vec<F>,
     gravity: [i32; 2],
     cells: [u32; 2],
@@ -44,6 +47,8 @@ pub struct IntEngine<F: Real> {
 impl<F: Real> IntEngine<F> {
     pub fn new(sys: System, state: State) -> Self {
         let consts = sys.pairs.iter().map(PairConsts::new).collect();
+        let bond_consts = sys.bond_types.iter().map(BondConsts::new).collect();
+        let partners = sys.partner_table(state.n());
         let kick_c = (0..sys.species() as u32).map(|s| F::from_f64(sys.kick_coeff(s))).collect();
         let cells = sys.cells();
         let gravity = sys.gravity_kick();
@@ -62,6 +67,8 @@ impl<F: Real> IntEngine<F> {
             sys,
             state,
             consts,
+            bond_consts,
+            partners,
             kick_c,
             gravity,
             cells,
@@ -129,6 +136,23 @@ impl<F: Real> IntEngine<F> {
                     pe_i += u;
                 }
             });
+            // Bonds: rounded per bond, like pairs, so Newton's third law stays exact.
+            let mut bond_pe = F::from_f64(0.0);
+            for k in 0..md_core::system::MAX_BONDS {
+                let j = self.partners[i][2 * k];
+                if j == u32::MAX {
+                    break;
+                }
+                let bc = self.bond_consts[self.partners[i][2 * k + 1] as usize];
+                let pj = s.pos[j as usize];
+                let (Some(fx), Some(fy)) = (F::sep(self.separation(pi[0], pj[0], 0)), F::sep(self.separation(pi[1], pj[1], 1))) else { continue };
+                let (fr, u) = bc.eval(fx * fx + fy * fy);
+                let a = -fr * c;
+                kx = kx.wrapping_add((a * fx).round_even().to_i32());
+                ky = ky.wrapping_add((a * fy).round_even().to_i32());
+                bond_pe += u;
+            }
+            pe += 0.5 * bond_pe.to_f64();
             let mut wall_pe = 0.0;
             for a in 0..2 {
                 let Some(ws) = self.sys.walls[a] else { continue };
@@ -196,12 +220,16 @@ impl<F: Real> IntEngine<F> {
                 let mut v = self.state.vel[i];
                 let mut x = self.state.pos[i];
                 let home = self.sys.compartment_of(x);
+                let pinned = self.sys.is_pinned(self.state.species[i]);
                 for a in 0..2 {
-                    v[a] = v[a].wrapping_add(kicks[i][a]).wrapping_add(self.gravity[a]);
+                    let g = if pinned { 0 } else { self.gravity[a] };
+                    v[a] = v[a].wrapping_add(kicks[i][a]).wrapping_add(g);
                 }
                 let m = self.sys.masses[self.state.species[i] as usize];
-                if let Some((vx, vy)) = walls::andersen(&self.sys, i as u32, self.clock, m) {
-                    v = [self.sys.to_step_displacement(vx), self.sys.to_step_displacement(vy)];
+                if !pinned {
+                    if let Some((vx, vy)) = walls::andersen(&self.sys, i as u32, self.clock, m) {
+                        v = [self.sys.to_step_displacement(vx), self.sys.to_step_displacement(vy)];
+                    }
                 }
                 let old = x;
                 for a in 0..2 {
@@ -306,9 +334,11 @@ impl<F: Real> IntEngine<F> {
     /// reversing again restores the initial state bit for bit (when every wall is hard).
     pub fn reverse(&mut self) {
         let Forces { kicks, piston_force, .. } = self.forces();
-        for (v, k) in self.state.vel.iter_mut().zip(&kicks) {
+        for (i, (v, k)) in self.state.vel.iter_mut().zip(&kicks).enumerate() {
+            let pinned = self.sys.is_pinned(self.state.species[i]);
             for a in 0..2 {
-                v[a] = v[a].wrapping_add(k[a]).wrapping_add(self.gravity[a]).wrapping_neg();
+                let g = if pinned { 0 } else { self.gravity[a] };
+                v[a] = v[a].wrapping_add(k[a]).wrapping_add(g).wrapping_neg();
             }
         }
         if let Some(p) = self.sys.piston {

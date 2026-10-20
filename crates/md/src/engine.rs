@@ -4,7 +4,7 @@ use gpu_prims::util::{self, Dispatch, WG};
 use gpu_prims::{fixed64, Gpu, Prims};
 use md_core::system::MAX_SPECIES;
 use md_core::walls::{CompartmentLedger, Ledger, LEDGER_SCALE, WALLS};
-use md_core::{PistonDrive, State, System, Wall};
+use md_core::{BondType, PistonDrive, State, System, Wall};
 use std::future::Future;
 
 /// Mirrors `struct Params` in `params.wgsl`.
@@ -32,7 +32,7 @@ pub struct Params {
     pub nspecies: u32,
     pub seed_lo: u32,
     pub seed_hi: u32,
-    pub _p0: u32,
+    pub pinned: u32,
     pub gravity: [i32; 2],
     pub vstep: f32,
     pub dt: f32,
@@ -50,6 +50,7 @@ pub struct Params {
     pub _p1: u32,
     pub piston_min: [u32; 2],
     pub piston_max: [u32; 2],
+    pub bond_types: [[f32; 4]; 4],
     pub pairs: [[f32; 4]; 16],
 }
 
@@ -179,7 +180,7 @@ impl Params {
             nspecies: ns as u32,
             seed_lo: sys.seed as u32,
             seed_hi: (sys.seed >> 32) as u32,
-            _p0: 0,
+            pinned: sys.pinned,
             gravity: sys.gravity_kick(),
             vstep: (sys.dt * md_core::ONE as f64) as f32,
             dt: sys.dt as f32,
@@ -219,6 +220,16 @@ impl Params {
             _p1: 0,
             piston_min: fixed64::split(sys.piston.map_or(0, |p| md_core::fixed::to_fixed(p.min))),
             piston_max: fixed64::split(sys.piston.map_or(0, |p| md_core::fixed::to_fixed(p.max))),
+            bond_types: {
+                let mut t = [[0f32; 4]; 4];
+                for (k, b) in sys.bond_types.iter().enumerate() {
+                    t[k] = match *b {
+                        BondType::Harmonic { k, r0 } => [0.0, k as f32, r0 as f32, 0.0],
+                        BondType::Fene { k, r0 } => [1.0, k as f32, r0 as f32, 0.0],
+                    };
+                }
+                t
+            },
             pairs,
         }
     }
@@ -259,6 +270,9 @@ pub struct Buffers {
     pub aux: wgpu::Buffer,
     /// Control words: list flags, clock, piston, wall ledger (see [`ctl`]).
     pub ctl: wgpu::Buffer,
+    /// Bond partners by id, and the storage slot of each id.
+    pub partners: wgpu::Buffer,
+    pub slot_of: wgpu::Buffer,
 }
 
 /// Put per-slot values into id order.
@@ -353,10 +367,12 @@ struct Reorder {
     keys: Dispatch,
     bin: BinPlan,
     passes: [Dispatch; 4],
+    /// Refresh the id → slot map (only needed with bonds).
+    invert: Option<Dispatch>,
 }
 
 impl Reorder {
-    fn new(prims: &Prims, buf: &Buffers, params: &Params) -> Self {
+    fn new(prims: &Prims, buf: &Buffers, params: &Params, invert: Option<Dispatch>) -> Self {
         let gpu = &prims.gpu;
         let n = buf.n;
         let m = util::shader(gpu, "reorder", &crate::reorder_source());
@@ -378,6 +394,7 @@ impl Reorder {
                 Dispatch::new_at(gpu, &pl("copy_back_meta"), &[(0, &b.params), (3, &b.species), (4, &b.ids), (9, &tmp_c), (10, &tmp_d)], g),
             ],
             bin,
+            invert,
         }
     }
 
@@ -385,6 +402,7 @@ impl Reorder {
         let mut v = vec![self.keys.clone()];
         v.extend(self.bin.dispatches());
         v.extend(self.passes.iter().cloned());
+        v.extend(self.invert.clone());
         v
     }
 
@@ -444,6 +462,8 @@ pub struct GpuEngine {
     d_flip: Dispatch,
     /// Advances the clock for stochastic boundaries (only when there are any).
     d_tick: Option<Dispatch>,
+    /// Bond forces (after the pair forces), if there are bonds.
+    d_bonds: Option<Dispatch>,
     /// Piston kernels: clear its force sum, move it, reverse it.
     d_piston: Option<[Dispatch; 3]>,
     /// Cell-list mode only: reorder storage into Morton order every this many steps (0 =
@@ -478,12 +498,16 @@ impl GpuEngine {
             kicks: util::storage(gpu, "kicks", n as u64 * 8),
             aux: util::storage(gpu, "aux", n as u64 * 16),
             ctl: util::storage_init(gpu, "ctl", &initial_ctl(&sys)),
+            partners: util::storage_init(gpu, "partners", &sys.partner_table(n as usize)),
+            slot_of: util::storage_init(gpu, "slot of", &(0..n).collect::<Vec<u32>>()),
         };
         let g = util::groups(n, WG);
         let b = &buf;
         let md = util::shader(gpu, "md", &crate::md_source());
         let pl = |e: &str| util::pipeline(gpu, &md, e);
-        let reorder = Reorder::new(prims, b, &params);
+        let has_bonds = !sys.bonds.is_empty();
+        let invert = has_bonds.then(|| Dispatch::new_at(gpu, &pl("invert_ids"), &[(0, &b.params), (10, &b.ids), (14, &b.slot_of)], g));
+        let reorder = Reorder::new(prims, b, &params, invert);
         let path = match mode {
             ForceMode::CellList => {
                 let bin = BinPlan::new(prims, &b.keys, n, params.ncell);
@@ -547,9 +571,17 @@ impl GpuEngine {
             }
         };
         Self {
-            d_reverse: Dispatch::new_at(gpu, &pl("reverse"), &[(0, &b.params), (2, &b.vel), (8, &b.kicks)], g),
+            d_reverse: Dispatch::new_at(gpu, &pl("reverse"), &[(0, &b.params), (2, &b.vel), (3, &b.species), (8, &b.kicks)], g),
             // Any walls could be made thermal later (update_system), so keep a clock for them.
             d_tick: (!sys.periodic(0) || !sys.periodic(1) || sys.thermostat.is_some()).then(|| Dispatch::new_at(gpu, &pl("tick"), &[(11, &b.ctl)], 1)),
+            d_bonds: has_bonds.then(|| {
+                Dispatch::new_at(
+                    gpu,
+                    &pl("bond_force"),
+                    &[(0, &b.params), (1, &b.pos), (3, &b.species), (8, &b.kicks), (9, &b.aux), (10, &b.ids), (13, &b.partners), (14, &b.slot_of)],
+                    g,
+                )
+            }),
             d_piston: sys.piston.is_some().then(|| {
                 let one = |e: &str| Dispatch::new_at(gpu, &pl(e), &[(0, &b.params), (11, &b.ctl)], 1);
                 [Dispatch::new_at(gpu, &pl("piston_clear"), &[(11, &b.ctl)], 1), one("piston_move"), one("piston_flip")]
@@ -612,6 +644,9 @@ impl GpuEngine {
                 l.rebuild.encode(pass);
                 l.force.encode(pass);
             }
+        }
+        if let Some(b) = &self.d_bonds {
+            b.encode(pass);
         }
     }
 
@@ -687,6 +722,7 @@ impl GpuEngine {
         assert_eq!(sys.box_len, self.sys.box_len);
         assert_eq!(sys.species(), self.sys.species());
         assert_eq!(sys.compartments, self.sys.compartments);
+        assert!(sys.bonds == self.sys.bonds || *sys.bonds == *self.sys.bonds, "bonds cannot change at run time");
         assert_eq!(sys.walls.map(|w| w.is_some()), self.sys.walls.map(|w| w.is_some()));
         assert_eq!(sys.thermostat.is_some(), self.sys.thermostat.is_some(), "the thermostat can be retuned, not added or removed");
         assert_eq!(sys.piston.map(|p| std::mem::discriminant(&p.drive)), self.sys.piston.map(|p| std::mem::discriminant(&p.drive)));
@@ -751,6 +787,7 @@ impl GpuEngine {
         q.write_buffer(&self.buf.vel, 0, bytemuck::cast_slice(&state.vel));
         q.write_buffer(&self.buf.species, 0, bytemuck::cast_slice(&state.species));
         q.write_buffer(&self.buf.ids, 0, bytemuck::cast_slice(&(0..self.n()).collect::<Vec<u32>>()));
+        q.write_buffer(&self.buf.slot_of, 0, bytemuck::cast_slice(&(0..self.n()).collect::<Vec<u32>>()));
         self.request_rebuild();
         self.steps = 0;
         self.since_sort = 0;

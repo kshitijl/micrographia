@@ -16,6 +16,9 @@
 @group(0) @binding(9) var<storage, read_write> aux: array<vec4<f32>>;
 @group(0) @binding(10) var<storage, read> ids: array<u32>;
 @group(0) @binding(11) var<storage, read_write> ctl: array<atomic<u32>>;
+// Bond partners by particle id: (partner id, bond type) × 4, padded with 0xffffffff.
+@group(0) @binding(13) var<storage, read> partners: array<vec4<u32>>;
+@group(0) @binding(14) var<storage, read_write> slot_of: array<u32>;
 
 @compute @workgroup_size(256)
 fn cells(@builtin(global_invocation_id) gid: vec3<u32>) {
@@ -92,6 +95,58 @@ fn piston_flip() {
     piston_reverse();
 }
 
+// Bonds, after the pair forces: add each bond's kick, rounded per bond like pairs (so
+// Newton's third law stays exact). Same operations as md-ref's BondConsts::eval.
+@compute @workgroup_size(256)
+fn bond_force(@builtin(global_invocation_id) gid: vec3<u32>) {
+    let i = gid.x;
+    if (i >= P.n) {
+        return;
+    }
+    let id = ids[i];
+    let pi = pos[i];
+    let c = P.kick_c[species[i]];
+    var k = kicks[i];
+    var u = 0.0;
+    for (var h = 0u; h < 2u; h++) {
+        let e = partners[2u * id + h];
+        for (var q = 0u; q < 2u; q++) {
+            let other = select(e.z, e.x, q == 0u);
+            let ty = select(e.w, e.y, q == 0u);
+            if (other == 0xffffffffu) {
+                continue;
+            }
+            let f = sep2(pi, pos[slot_of[other]]);
+            let r2 = f.x * f.x + f.y * f.y;
+            let bt = P.bond_types[ty];
+            var fr = 0.0;
+            if (bt.x > 0.5) {
+                let x = min(r2 / (bt.z * bt.z), 0.999999);
+                fr = -bt.y / (1.0 - x);
+                u += 0.5 * (-0.5 * bt.y * bt.z * bt.z * log(1.0 - x));
+            } else {
+                let r = sqrt(r2);
+                let dr = r - bt.z;
+                fr = -bt.y * dr / r;
+                u += 0.5 * (0.5 * bt.y * dr * dr);
+            }
+            let a = -fr * c;
+            k += vec2<i32>(i32(round(a * f.x)), i32(round(a * f.y)));
+        }
+    }
+    kicks[i] = k;
+    aux[i].x += u;
+}
+
+// After a spatial reorder: where is each id stored?
+@compute @workgroup_size(256)
+fn invert_ids(@builtin(global_invocation_id) gid: vec3<u32>) {
+    let k = gid.x;
+    if (k < P.n) {
+        slot_of[ids[k]] = k;
+    }
+}
+
 // Time reversal: v ← −(v + kick(x) + g).
 @compute @workgroup_size(256)
 fn reverse(@builtin(global_invocation_id) gid: vec3<u32>) {
@@ -99,7 +154,8 @@ fn reverse(@builtin(global_invocation_id) gid: vec3<u32>) {
     if (i >= P.n) {
         return;
     }
-    vel[i] = -(vel[i] + kicks[i] + P.gravity);
+    let g = select(P.gravity, vec2<i32>(0, 0), is_pinned(species[i]));
+    vel[i] = -(vel[i] + kicks[i] + g);
 }
 
 // XOR one bit into one word of the position of the particle whose id is P.flip_index.

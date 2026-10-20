@@ -51,6 +51,46 @@ pub struct System {
     pub membrane: Option<Membrane>,
     /// A piston: a soft wall that replaces the top (y-high) wall and moves.
     pub piston: Option<Piston>,
+    /// Bond potentials, and the bonded pairs (particle ids a, b and a bond type index). Shared,
+    /// so systems stay cheap to clone.
+    pub bond_types: Vec<BondType>,
+    pub bonds: std::sync::Arc<Vec<[u32; 3]>>,
+    /// Bit s set if species s is pinned: it feels no forces, keeps its velocity (often zero),
+    /// and is ignored by heat baths and temperature measurements.
+    pub pinned: u32,
+}
+
+/// At most this many bonds per particle (the GPU keeps a fixed-size partner table).
+pub const MAX_BONDS: usize = 4;
+pub const MAX_BOND_TYPES: usize = 4;
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum BondType {
+    /// U = ½ k (r − r0)².
+    Harmonic { k: f64, r0: f64 },
+    /// FENE, U = −½ k R0² ln(1 − (r/R0)²) (Kremer–Grest uses k = 30, R0 = 1.5 with WCA).
+    Fene { k: f64, r0: f64 },
+}
+
+impl BondType {
+    /// The Kremer–Grest bead–spring bond (with WCA between all beads).
+    pub fn kremer_grest() -> Self {
+        BondType::Fene { k: 30.0, r0: 1.5 }
+    }
+
+    /// −U'(r)/r (so the force on a is f_over_r · (r_a − r_b)) and U, in f64.
+    pub fn eval(&self, r2: f64) -> (f64, f64) {
+        match *self {
+            BondType::Harmonic { k, r0 } => {
+                let r = r2.sqrt();
+                (-k * (r - r0) / r, 0.5 * k * (r - r0) * (r - r0))
+            }
+            BondType::Fene { k, r0 } => {
+                let x = (r2 / (r0 * r0)).min(0.999_999);
+                (-k / (1.0 - x), -0.5 * k * r0 * r0 * (1.0 - x).ln())
+            }
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -103,7 +143,7 @@ impl System {
     pub fn new(box_len: [i64; 2], dt: f64, pair: Pair, masses: Vec<f64>) -> Self {
         assert!(!masses.is_empty() && masses.len() <= MAX_SPECIES);
         let ns = masses.len();
-        let s = Self { box_len, dt, pairs: vec![pair; ns * ns], masses, walls: [None, None], gravity: [0.0, 0.0], seed: 1, compartments: [0, 0], thermostat: None, membrane: None, piston: None };
+        let s = Self { box_len, dt, pairs: vec![pair; ns * ns], masses, walls: [None, None], gravity: [0.0, 0.0], seed: 1, compartments: [0, 0], thermostat: None, membrane: None, piston: None, bond_types: vec![], bonds: Default::default(), pinned: 0 };
         s.check();
         s
     }
@@ -183,6 +223,48 @@ impl System {
         self
     }
 
+    /// Bond types and bonded pairs `[id_a, id_b, type]`.
+    pub fn with_bonds(mut self, types: Vec<BondType>, bonds: Vec<[u32; 3]>) -> Self {
+        assert!(types.len() <= MAX_BOND_TYPES);
+        let mut count = std::collections::HashMap::new();
+        for b in &bonds {
+            assert!((b[2] as usize) < types.len());
+            for id in [b[0], b[1]] {
+                let c = count.entry(id).or_insert(0usize);
+                *c += 1;
+                assert!(*c <= MAX_BONDS, "particle {id} has more than {MAX_BONDS} bonds");
+            }
+        }
+        self.bond_types = types;
+        self.bonds = std::sync::Arc::new(bonds);
+        self
+    }
+
+    /// Pin species `s`: no forces act on it, and baths ignore it.
+    pub fn with_pinned(mut self, s: u32) -> Self {
+        self.pinned |= 1 << s;
+        self
+    }
+
+    pub fn is_pinned(&self, s: u32) -> bool {
+        self.pinned & (1 << s) != 0
+    }
+
+    /// Bond partners of every particle (by id), padded with `u32::MAX`, and the bond type.
+    pub fn partner_table(&self, n: usize) -> Vec<[u32; 2 * MAX_BONDS]> {
+        let mut t = vec![[u32::MAX; 2 * MAX_BONDS]; n];
+        let mut used = vec![0usize; n];
+        for b in self.bonds.iter() {
+            for (me, other) in [(b[0], b[1]), (b[1], b[0])] {
+                let k = used[me as usize];
+                t[me as usize][2 * k] = other;
+                t[me as usize][2 * k + 1] = b[2];
+                used[me as usize] += 1;
+            }
+        }
+        t
+    }
+
     pub fn with_thermostat(mut self, t: f64, rate: f64) -> Self {
         self.thermostat = Some(Thermostat { t, rate });
         self
@@ -234,6 +316,9 @@ impl System {
     /// Converts force (ε/σ) into an integer kick (position units per step) for a species:
     /// Δv·Δt = F Δt² / m.
     pub fn kick_coeff(&self, species: u32) -> f64 {
+        if self.is_pinned(species) {
+            return 0.0;
+        }
         self.dt * self.dt / self.masses[species as usize] * ONE as f64
     }
 

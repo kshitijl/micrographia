@@ -27,7 +27,8 @@ struct Params {
     nspecies: u32,
     seed_lo: u32,
     seed_hi: u32,
-    _p0: u32,
+    // Bit s set if species s is pinned (no forces, no gravity, ignored by heat baths).
+    pinned: u32,
     // Integer gravity kick per step, and Δt·2³² (σ/τ → position units per step).
     gravity: vec2<i32>,
     vstep: f32,
@@ -53,8 +54,14 @@ struct Params {
     _p1: u32,
     piston_min: vec2<u32>,
     piston_max: vec2<u32>,
+    // Bond types: (kind 0 harmonic / 1 FENE, k, r0, 0).
+    bond_types: array<vec4<f32>, 4>,
     // Per species pair a·4 + b: (rc², 4ε, σ², energy shift).
     pairs: array<vec4<f32>, 16>,
+}
+
+fn is_pinned(s: u32) -> bool {
+    return (P.pinned & (1u << s)) != 0u;
 }
 
 @group(0) @binding(0) var<uniform> P: Params;

@@ -17,7 +17,7 @@ struct ObsParams {
     marked: u32,
     scale: [f32; 2],
     vel_scale: f32,
-    _pad: f32,
+    pinned: u32,
     mass: [f32; 4],
 }
 
@@ -49,7 +49,7 @@ impl Observer {
         let b = engine.sys.box_f64();
         let mut mass = [1f32; 4];
         for (s, m) in engine.sys.masses.iter().enumerate() {
-            mass[s] = *m as f32;
+            mass[s] = m.min(1e30) as f32;
         }
         let params = ObsParams {
             n: engine.n(),
@@ -58,7 +58,7 @@ impl Observer {
             marked,
             scale: [(grid[0] as f64 / b[0]) as f32, (grid[1] as f64 / b[1]) as f32],
             vel_scale: (UNIT / engine.sys.dt) as f32,
-            _pad: 0.0,
+            pinned: engine.sys.pinned,
             mass,
         };
         let m = util::shader(&gpu, "observe", &crate::observe_source());
