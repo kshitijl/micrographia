@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>How Smells Travel</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 16 16%22%3E%3Ccircle cx=%228%22 cy=%228%22 r=%227%22 fill=%22%239a4a1e%22/%3E%3C/svg%3E" />
+    <link rel="stylesheet" href="../../src/lib/style.css" />
+  </head>
+  <body>
+    <nav class="topbar"><div class="wrap"><a href="../../index.html">Statistical mechanics, simulated</a></div></nav>
+    <main class="wrap">
+      <header class="question">
+        <div class="eyebrow">Diffusion and flow</div>
+        <h1>How long would a smell take to cross a room on its own?</h1>
+        <p class="lede">
+          A puff of “smell” molecules (light) in a gas, inside a long corridor. Leave the air still and
+          the puff spreads by diffusion alone. Switch on a gentle draught and see what actually carries
+          smells across a room.
+        </p>
+      </header>
+
+      <section>
+        <div class="stage wide" id="stage">
+          <canvas id="canvas" aria-label="A corridor of gas with a puff of marked molecules spreading"></canvas>
+          <div class="overlay" id="overlay">Starting the GPU…</div>
+        </div>
+      </section>
+      <section class="lab" style="margin-top: 20px">
+        <div class="panel">
+          <canvas class="plot tall" id="plot" aria-label="Spread and drift of the puff over time"></canvas>
+          <div class="legend"><span><i style="background: var(--accent)"></i>spread (standard deviation along the corridor)</span><span><i style="background: var(--plot-back)"></i>distance the puff's centre has moved</span></div>
+        </div>
+        <aside class="panel">
+          <div class="buttons">
+            <button class="primary" id="run">Run</button>
+            <button id="reset">New puff</button>
+          </div>
+          <label class="row">Draught <span id="dv">off</span>
+            <input type="range" id="draught" min="0" max="0.004" step="0.0005" value="0" />
+          </label>
+          <div class="readouts">
+            <div class="readout"><div class="k">time</div><div class="v" id="time">0</div></div>
+            <div class="readout"><div class="k">diffusion coefficient D</div><div class="v" id="d">–</div></div>
+            <div class="readout"><div class="k">spread</div><div class="v" id="spread">–</div></div>
+            <div class="readout"><div class="k">drift</div><div class="v" id="drift">–</div></div>
+          </div>
+          <div class="status" id="status">Press Run with the draught off first.</div>
+        </aside>
+      </section>
+
+      <article class="notes">
+        <h2>Diffusion is slow over long distances</h2>
+        <p>
+          Each smell molecule is knocked about by collisions and wanders at random. Wandering at random
+          does not get you far: after a time t the typical distance from where you started grows only as
+          √t, not as t. In one direction the spread is
+        </p>
+        <p class="formula">spread = √(2 D t)</p>
+        <p>
+          with D the diffusion coefficient, which the page measures from how fast the spread grows. To go
+          twice as far takes four times as long. For a smell molecule in air D is about 0.1 cm²/s; crossing
+          a 5 m room by diffusion alone would take about (500 cm)² / (2 × 0.1 cm²/s) ≈ 1.25 million
+          seconds: two weeks.
+        </p>
+        <h2>So what carries smells?</h2>
+        <p>
+          Air currents. Even a gentle draught of a few centimetres per second moves a smell across a room
+          in a minute or two: drift grows in proportion to t. Turn the draught on here and the puff's centre
+          moves steadily while its spread barely matters. The draught also smears the puff out, because air
+          near the walls moves more slowly than air in the middle (Taylor dispersion): in still air the puff
+          stays round, in moving air it stretches into a streak. Convection from warm bodies, heaters and
+          cooking keeps indoor air moving all the time, which is why you smell the toast in the next room
+          within seconds. (Here the draught takes a while to get going: the push accelerates the gas, and
+          friction with the walls only gradually sets up a steady flow.)
+        </p>
+        <div class="caveat">
+          <h3>Caveats</h3>
+          <ul>
+            <li>2D, and the smell molecules are the same as the gas molecules apart from their colour (real
+              odour molecules are bigger and diffuse a little more slowly).</li>
+            <li>The draught is driven by a steady push on every molecule; the corridor's walls are kept at a
+              fixed temperature to carry away the heat the flow makes.</li>
+          </ul>
+        </div>
+      </article>
+    </main>
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>

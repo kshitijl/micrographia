@@ -1,7 +1,7 @@
 import { test } from "@playwright/test";
 
 // Screenshots of every page after a short run, for visual review (not assertions).
-const pages = ["reversal", "corner", "boltzmann", "heavy", "heatflow", "oilwater", "osmosis", "compress", "rubber", "atmosphere", "carnot", "boiling", "lipids", "balloon"];
+const pages = ["reversal", "corner", "boltzmann", "heavy", "heatflow", "oilwater", "osmosis", "compress", "rubber", "atmosphere", "carnot", "boiling", "lipids", "balloon", "smell"];
 
 for (const scheme of ["light", "dark"] as const) {
   for (const p of pages) {
