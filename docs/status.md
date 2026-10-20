@@ -81,7 +81,7 @@ a CUDA machine).
 
 ## Since the first status report
 
-- More pages (17 in all): rubber band (entropic spring), atmosphere (barometric, isothermal
+- More pages (18 in all, with the FEP page): rubber band (entropic spring), atmosphere (barometric, isothermal
   column), Carnot engine and heat pump (0.31 vs the 0.33 limit when slow), boiling (vapour
   pressure, Clausius–Clapeyron, latent heat ~4 ε), lipid self-assembly, helium balloon
   (Graham's law, 2.67 vs 2.69), smell (diffusion vs draught).
@@ -90,13 +90,16 @@ a CUDA machine).
   hash `3aaeff680a2f0278` reproduced natively, in Chrome and in WebKit.
 - The whole browser suite passes in Chrome and in Playwright's WebKit.
 
-## In progress: drug binding and FEP
+## Drug binding and FEP
 
-`scenarios::binding` (16 boxes, each with a pocket and ligand A or B) and `scenarios::fep`
-(ligand tethered in the pocket and in bulk, for alchemical A→B windows) exist and build, but are
-not tuned. The ignored test `crates/md/tests/binding.rs` shows occupancies are still too low
-and noisy (equal ligands gave ΔΔG = −0.5 kT): the pocket needs to bind more strongly, and runs
-need many more binding events, before the FEP page can be validated against direct counting.
+The `fep` page measures a relative binding free energy two ways. Direct counting uses 48 boxes,
+each with a pocket and ligand A or B, and counts time bound against time far away. The alchemical
+calculation runs 11 λ windows with the ligand tethered in the pocket and in bulk solvent, and
+combines the two legs with TI and exponential-averaging FEP. In native tests the cycle gives
+−1.19 (bound leg) − 0.28 (free leg) = −1.47 kT, against −1.21 to −1.27 kT from direct counting
+(three seeds). The browser test gave TI −1.47, FEP −1.47 and direct −1.60 kT. "Unbound" has to
+mean far from the pocket: ligands stuck to the pocket's outside otherwise blur the comparison
+(see `crates/md/tests/binding.rs`).
 
 ## Next
 

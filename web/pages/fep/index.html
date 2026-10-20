@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Predicting Drug Binding</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 16 16%22%3E%3Ccircle cx=%228%22 cy=%228%22 r=%227%22 fill=%22%239a4a1e%22/%3E%3C/svg%3E" />
+    <link rel="stylesheet" href="../../src/lib/style.css" />
+  </head>
+  <body>
+    <nav class="topbar"><div class="wrap"><a href="../../index.html">Statistical mechanics, simulated</a></div></nav>
+    <main class="wrap">
+      <header class="question">
+        <div class="eyebrow">Drug discovery</div>
+        <h1>How do computers predict which drug candidate binds best?</h1>
+        <p class="lede">
+          A drug works by sticking to a pocket on a target protein. Chemists make many small variants of
+          a molecule and want to know which sticks best. Here is a toy version: a pocket, a ligand A,
+          and a modified ligand B. First we measure the answer the slow way, by watching them bind and
+          unbind. Then we compute it with alchemy: turning A into B inside the computer.
+        </p>
+      </header>
+
+      <h2>1. The experiment: count binding</h2>
+      <section class="lab">
+        <div class="stage" id="stage1">
+          <canvas id="canvas1" aria-label="64 small boxes, each with a binding pocket and one ligand in a solvent"></canvas>
+          <div class="overlay" id="overlay1">Starting the GPU…</div>
+        </div>
+        <aside class="panel">
+          <div class="buttons">
+            <button class="primary" id="run1">Run</button>
+          </div>
+          <div class="legend"><span><i style="background: var(--accent)"></i>pocket</span><span><i style="background: var(--cream)"></i>ligand A</span><span><i style="background: var(--species-3)"></i>ligand B</span></div>
+          <label class="row">B's stickiness to the pocket (A: 1.2) <span id="lpv">1.50</span>
+            <input type="range" id="lp" min="0.8" max="2" step="0.05" value="1.5" />
+          </label>
+          <label class="row">B's attraction to the solvent (A: 0.5) <span id="lsv">0.30</span>
+            <input type="range" id="ls" min="0.1" max="0.8" step="0.05" value="0.3" />
+          </label>
+          <div class="readouts">
+            <div class="readout"><div class="k">A bound : far</div><div class="v" id="ka">–</div></div>
+            <div class="readout"><div class="k">B bound : far</div><div class="v" id="kb">–</div></div>
+            <div class="readout"><div class="k">ΔΔG measured</div><div class="v" id="ddg1">–</div></div>
+            <div class="readout"><div class="k">snapshots</div><div class="v" id="n1">0</div></div>
+          </div>
+          <div class="status" id="status1">Half the boxes hold A, half hold B. Press Run and let the counts build up (a minute or two).</div>
+        </aside>
+      </section>
+
+      <h2>2. The calculation: alchemy</h2>
+      <section class="lab">
+        <div class="stage wide" id="stage2">
+          <canvas id="canvas2" aria-label="Left: the ligand held in the pocket. Right: the ligand held in solvent."></canvas>
+          <div class="overlay" id="overlay2">Starting the GPU…</div>
+        </div>
+        <aside class="panel">
+          <div class="buttons">
+            <button class="primary" id="run2">Run the A → B calculation</button>
+          </div>
+          <div class="readouts">
+            <div class="readout"><div class="k">window λ</div><div class="v" id="lam">–</div></div>
+            <div class="readout"><div class="k">ΔG in the pocket</div><div class="v" id="gb">–</div></div>
+            <div class="readout"><div class="k">ΔG in solvent</div><div class="v" id="gf">–</div></div>
+            <div class="readout"><div class="k">ΔΔG predicted</div><div class="v" id="ddg2">–</div></div>
+          </div>
+          <canvas class="plot tall" id="plot" aria-label="Average dU/dλ in each window, for the pocket leg and the solvent leg"></canvas>
+          <div class="legend"><span><i style="background: var(--accent)"></i>in the pocket</span><span><i style="background: var(--plot-back)"></i>in solvent</span></div>
+          <div class="status" id="status2">The left box holds the ligand in the pocket; the right box holds an identical ligand in plain solvent.</div>
+        </aside>
+      </section>
+
+      <article class="notes">
+        <h2>Binding is a free energy</h2>
+        <p>
+          How tightly a ligand binds is measured by how much more time it spends bound than free. That
+          ratio is a Boltzmann factor of the binding free energy, so a difference of ΔΔG between two
+          ligands means their binding constants differ by e<sup>−ΔΔG/kT</sup>. At body temperature,
+          1.4 kcal/mol is a factor of 10 in potency: tiny changes in a molecule can matter enormously.
+          Part 1 measures ΔΔG directly, by counting. It works here because the toy ligands bind and unbind
+          every few hundred time units. Real drugs stay bound for seconds to hours, far beyond any
+          simulation, so counting is hopeless.
+        </p>
+        <h2>The alchemical trick</h2>
+        <p>
+          Free energy depends only on start and end, not on the path between them. So instead of the
+          physical path (ligand flying in and out of the pocket), take an unphysical one: in the computer,
+          slowly change ligand A into ligand B while it sits in the pocket, by changing its interactions
+          step by step (λ from 0 to 1). Do the same with the ligand in plain solvent. These two
+          transformations close a cycle with the two binding processes:
+        </p>
+        <p class="formula">ΔΔG<sub>bind</sub> = ΔG<sub>A→B, in pocket</sub> − ΔG<sub>A→B, in solvent</sub></p>
+        <p>
+          Each ΔG comes from averages over short simulations at each λ. Thermodynamic integration adds up
+          the average slope ⟨∂U/∂λ⟩ (the chart); free-energy perturbation uses ⟨e<sup>−ΔU/kT</sup>⟩ between
+          neighbouring windows. Neither needs a single binding event. This is the method behind
+          commercial tools such as Schrödinger's FEP+ (built on the Desmond molecular dynamics engine),
+          used every day to decide which molecules chemists should make next.
+        </p>
+        <h2>How well does it agree?</h2>
+        <p>
+          In our native tests the alchemical prediction and the direct count agree to about 0.2 kT
+          (≈ 0.1 kcal/mol); repeated direct counts scatter by about the same. Part of the remaining gap is
+          a definition: the calculation holds the ligand at the pocket's centre with a spring, while the
+          count calls anything within 0.8 σ of the centre “bound”.
+        </p>
+        <div class="caveat">
+          <h3>Caveats</h3>
+          <ul>
+            <li>2D, one-bead ligands and a five-bead pocket in a simple Lennard-Jones solvent. Real FEP
+              handles flexible molecules, explicit water and atoms appearing or vanishing (which needs
+              “soft-core” potentials); here only interaction strengths change, so no soft core is needed.</li>
+            <li>The spring that holds each ligand in place is the same for A and B, so it cancels in the
+              cycle.</li>
+            <li>Energies in units of kT; ε is the Lennard-Jones well depth.</li>
+          </ul>
+        </div>
+      </article>
+    </main>
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>

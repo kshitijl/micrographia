@@ -581,8 +581,9 @@ fn solvent_in(x0: f64, y0: f64, w: f64, h: f64, density: f64, avoid: &[[f64; 2]]
 /// Binding in many small boxes: each 2^log2_box σ compartment has a pocket (pinned species 2)
 /// and one ligand, A (species 1) in half the boxes and B (species 3) in the rest, in a
 /// Lennard-Jones solvent (species 0) held at a temperature. Ligands differ only in how strongly
-/// they stick to the pocket (`eps_a`, `eps_b`). Options: boxes_x, boxes_y, log2_box,
-/// density, temperature, eps_a, eps_b, eps_ls (ligand–solvent), seed.
+/// they stick to the pocket (`eps_a`, `eps_b`) and, optionally, to the solvent (`eps_ls`,
+/// `eps_ls_b`). Options: boxes_x, boxes_y, log2_box, density, temperature, eps_a, eps_b,
+/// eps_ls, eps_ls_b, seed.
 pub fn binding(o: &Options) -> Scenario {
     let (bx, by) = (o.get("boxes_x", 4.0) as usize, o.get("boxes_y", 4.0) as usize);
     let log2 = o.get("log2_box", 4.0) as u32;
@@ -596,7 +597,7 @@ pub fn binding(o: &Options) -> Scenario {
         .with_compartments(0, log2)
         .with_compartments(1, log2)
         .with_pair(0, 1, lj(o.get("eps_ls", 0.5)))
-        .with_pair(0, 3, lj(o.get("eps_ls", 0.5)))
+        .with_pair(0, 3, lj(o.get("eps_ls_b", o.get("eps_ls", 0.5))))
         .with_pair(0, 2, wca)
         .with_pair(1, 2, lj(o.get("eps_a", 0.6)))
         .with_pair(3, 2, lj(o.get("eps_b", 0.9)))
