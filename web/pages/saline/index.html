@@ -20,6 +20,7 @@
         </p>
       </header>
 
+      <h2>1. Four small cells</h2>
       <section class="lab">
         <div class="stage" id="stage">
           <canvas id="canvas" aria-label="A ring-shaped cell membrane in a solution of water and salt"></canvas>
@@ -48,6 +49,34 @@
         </aside>
       </section>
 
+      <h2>2. A big cell with a stiff membrane</h2>
+      <section class="lab">
+        <div class="stage" id="stageB">
+          <canvas id="canvasB" aria-label="One big cell whose membrane barely stretches, in a solution of water and salt"></canvas>
+          <div class="overlay" id="overlayB">Starting the GPU…</div>
+        </div>
+        <aside class="panel">
+          <div class="buttons">
+            <button class="primary" id="runB">Run</button>
+          </div>
+          <label class="row">Put the cell in <span></span>
+            <select id="outsideB">
+              <option value="0" selected>pure water</option>
+              <option value="0.5">saline (as salty as the cell)</option>
+              <option value="1">brine (twice as salty)</option>
+            </select>
+          </label>
+          <div class="legend"><span>membrane tension:</span><span><i style="background: var(--species-2)"></i>slack</span><span><i style="background: #fff; box-shadow: 0 0 0 1px var(--muted)"></i>as in saline</span><span><i style="background: var(--highlight)"></i>near tearing</span><span><i style="background: var(--muted)"></i>torn</span></div>
+          <div class="readouts">
+            <div class="readout"><div class="k">membrane tension</div><div class="v" id="tensionB">–</div></div>
+            <div class="readout"><div class="k">it tears at</div><div class="v" id="limitB">–</div></div>
+          </div>
+          <canvas class="plot tall" id="plotB" aria-label="Membrane tension over time, with the tearing limit"></canvas>
+          <div class="legend"><span><i style="background: var(--accent)"></i>tension (20 τ average)</span><span><i style="background: var(--highlight)"></i>tearing limit</span></div>
+          <div class="status" id="statusB">Press Run.</div>
+        </aside>
+      </section>
+
       <article class="notes">
         <h2>Water moves toward the salt</h2>
         <p>
@@ -73,6 +102,22 @@
             shrinking in very salty blood can tear the small blood vessels around them. Very salty drinks
             dehydrate you for the same reason.</li>
         </ul>
+        <h2>Why the big cell tears</h2>
+        <p>
+          The second panel's cell is one ring of 154 beads, 35 σ across, joined by springs about seven
+          times stiffer than the small cells' and with no spare membrane: it starts as round as it can
+          be. Water cannot swell it, so it pushes on it instead. The salt inside presses outward with its
+          osmotic pressure, and a round membrane holds that pressure by tension, pulling along itself
+          like the skin of a balloon: tension = pressure × radius (Laplace's law, in 2D). The springs
+          barely lengthen, but every one of them pulls a little harder, and the bigger the cell, the
+          harder the pull for the same salt. When the tension, averaged over 20 τ, passes its limit,
+          the membrane tears at its most stretched spring and the salt spills out.
+        </p>
+        <p>
+          Even in saline the tension isn't zero: the ring's thermal wriggling pulls the springs
+          slightly longer on average. That baseline is what the colours call “as in saline”; pure water
+          adds the osmotic pull on top, and brine takes it away (the cell crumples a little instead).
+        </p>
         <div class="caveat">
           <h3>Caveats</h3>
           <ul>
@@ -84,6 +129,8 @@
               bursts once it has swollen to its limit (an area, averaged over 10 τ, of 272 σ², where cells
               in saline settle at about 210); the membrane then tears where it is most stretched.</li>
             <li>Even in saline the ring's thermal wiggling makes its area fluctuate; compare averages.</li>
+            <li>The big cell has no heat bath: its energy is constant (the small cells sit in a gentle
+              bath). Tearing removes three springs and the little energy they held.</li>
             <li>Ions are uncharged particles here; real salt dissociates into two ions, which doubles its
               osmotic effect.</li>
           </ul>

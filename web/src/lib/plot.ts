@@ -11,7 +11,18 @@ export class TimePlot {
 
   constructor(
     private canvas: HTMLCanvasElement,
-    private opts: { yMin: number; yMax: number; yLabel: string; xLabel: string; colors: () => string[]; ink: () => string; rule: () => string },
+    private opts: {
+      yMin: number;
+      yMax: number;
+      yLabel: string;
+      xLabel: string;
+      /** Line colour by series; the series of each point colours the segment ending there. */
+      colors: () => string[];
+      ink: () => string;
+      rule: () => string;
+      /** Dashed horizontal lines, such as a limit. */
+      lines?: { y: number; color: () => string }[];
+    },
   ) {
     new ResizeObserver(() => this.draw()).observe(canvas);
   }
@@ -74,6 +85,15 @@ export class TimePlot {
       g.beginPath();
       g.moveTo(x(m.t), pad.t);
       g.lineTo(x(m.t), H - pad.b);
+      g.stroke();
+      g.setLineDash([]);
+    }
+    for (const l of this.opts.lines ?? []) {
+      g.strokeStyle = l.color();
+      g.setLineDash([5, 4]);
+      g.beginPath();
+      g.moveTo(pad.l, y(l.y));
+      g.lineTo(W - pad.r, y(l.y));
       g.stroke();
       g.setLineDash([]);
     }

@@ -65,3 +65,50 @@ fn membrane_stretch() {
         eprintln!("k {k} bend {bend} rest {rest} inside {inside} outside {outside}: area {:.0}; 2 τ-averaged spring length / rest after 100 τ: mean {:.3}, max {worst:.3}", area / na, mean_late / late);
     }
 }
+
+/// Big stiff cells (the saline page's second panel): the membrane tension, k·(mean spring length
+/// − rest), averaged over the whole ring and over `WINDOW` τ, in pure water, saline and brine.
+/// Env: K, RADIUS, BEADS, WIDTH, INSIDE, WINDOW, FRAMES (of 0.5 τ).
+#[test]
+#[ignore]
+fn big_cell_tension() {
+    let p = Prims::new(&block_on(Gpu::new()).unwrap());
+    let env = |k: &str, d: f64| std::env::var(k).map_or(d, |v| v.parse().unwrap());
+    let (k, radius, beads, inside) = (env("K", 150.0), env("RADIUS", 25.0), env("BEADS", 110.0) as usize, env("INSIDE", 0.35));
+    let window = (env("WINDOW", 10.0) * 2.0) as usize;
+    let rest = env("REST", 1.0);
+    for outside in [0.0, inside, env("BRINE", 0.9)] {
+        let o = Options::default()
+            .with("rest", rest)
+            .with("cells_x", 1.0)
+            .with("cells_y", 1.0)
+            .with("width", env("WIDTH", 72.0))
+            .with("radius", radius)
+            .with("beads", beads as f64)
+            .with("inside", inside)
+            .with("outside", outside)
+            .with("stiffness", k)
+            .with("bend", env("BEND", 0.5 * k))
+            .with("bath", env("BATH", 1.0))
+            .with("seed", 19.0);
+        let sc = build("cell", &o).unwrap();
+        let r0 = rest * std::f64::consts::TAU * radius / beads as f64;
+        let mut e = GpuEngine::new(&p, sc.sys.clone(), &sc.state);
+        let mut line = String::new();
+        let (mut sum, mut n) = (0.0, 0);
+        for f in 0..env("FRAMES", 400.0) as usize {
+            e.step(100); // 0.5 τ
+            let s = block_on(e.read_positions());
+            for b in 0..beads {
+                let (a, c) = (s[b], s[(b + 1) % beads]);
+                sum += (fixed::to_f64(a[0] - c[0]).powi(2) + fixed::to_f64(a[1] - c[1]).powi(2)).sqrt();
+                n += 1;
+            }
+            if (f + 1) % window == 0 {
+                line += &format!(" {:.2}", k * (sum / n as f64 - r0));
+                (sum, n) = (0.0, 0);
+            }
+        }
+        eprintln!("outside {outside}: tension every {} τ:{line}", window / 2);
+    }
+}

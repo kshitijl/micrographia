@@ -801,11 +801,11 @@ pub fn fep(o: &Options) -> Scenario {
 /// A model cell in a solution: a ring of bonded membrane beads (species 2) whose gaps let small
 /// solvent molecules (species 0, σ = 0.5) through but not solute particles (species 1, "salt",
 /// σ = 1). Inside, the solute share is `inside`; outside it is `outside` (0 for pure water). A
-/// bulk heat bath keeps the temperature. With several cells (`cells_x` × `cells_y`, each in a
+/// bulk heat bath keeps the temperature (`bath` 0: none, constant energy). With several cells (`cells_x` × `cells_y`, each in a
 /// square of side `width`), the membrane beads come first in id order: cell c's beads are ids
 /// c·beads … c·beads + beads − 1, in order round the ring. Options: cells_x, cells_y, width,
 /// radius, beads, density, inside, outside, stiffness, bend, rest (spring rest length over the
-/// starting spacing), seed.
+/// starting spacing), bath, seed.
 pub fn cell(o: &Options) -> Scenario {
     // A grid of cells, each in its own square of side `width` σ.
     let (cx_n, cy_n) = (o.get("cells_x", 1.0) as usize, o.get("cells_y", 1.0) as usize);
@@ -819,8 +819,8 @@ pub fn cell(o: &Options) -> Scenario {
         .with_pair(1, 1, small(1.0))
         .with_pair(0, 2, small(0.5))
         .with_pair(1, 2, small(1.5))
-        .with_pair(2, 2, small(1.0))
-        .with_thermostat(1.0, 0.5);
+        .with_pair(2, 2, small(1.0));
+    let sys = if o.get("bath", 1.0) > 0.0 { sys.with_thermostat(1.0, 0.5) } else { sys };
     let centres: Vec<[f64; 2]> = (0..cy_n).flat_map(|j| (0..cx_n).map(move |i| [(i as f64 + 0.5) * side, (j as f64 + 0.5) * side])).collect();
     let spacing = std::f64::consts::TAU * radius / beads as f64;
     // Membrane beads first: cell by cell, in order round each ring (ids c·beads + k).
@@ -1311,8 +1311,11 @@ pub fn osmosis_free(o: &Options) -> Scenario {
 /// (species 1, in the right arm). Solute and solvent are identical apart from the membrane (an
 /// ideal solution: a solute that repelled itself made the osmotic pressure ~1.5× van 't Hoff's). Vapour above the liquid. A heat bath holds the temperature.
 /// Options: width (of the box; each arm is half), height, depth (initial liquid depth), solute
-/// (share of the right arm's molecules), gravity, temperature, cutoff, wetting (the wall beads'
-/// attraction), seed.
+/// (share of the right arm's molecules), gravity, temperature (bath: 0 for none, constant
+/// energy), cutoff, wetting (the wall beads' attraction), channel, seed.
+/// With `channel` > 0 it is the classic U-tube: a wall of fixed beads divides the arms from the
+/// top down to `channel` above the floor, so the arms meet only through the passage at the
+/// bottom, where the membrane is.
 pub fn osmometer(o: &Options) -> Scenario {
     // Narrow arms and fairly strong gravity: the level settles within ~1500 τ.
     let (w, h) = (o.get("width", 32.0), o.get("height", 112.0));
@@ -1332,8 +1335,8 @@ pub fn osmometer(o: &Options) -> Scenario {
         .with_pair(1, 2, Pair { eps: o.get("wetting", 0.7), sigma: 1.0, rc })
         .with_pinned(2)
         .with_gravity([0.0, -o.get("gravity", 0.006)])
-        .with_thermostat(t, 0.5)
         .with_membrane(0, w / 2.0, &[1]);
+    let sys = if o.get("bath", 1.0) > 0.0 { sys.with_thermostat(t, 0.5) } else { sys };
     let depth = o.get("depth", 40.0);
     let a = (1.0f64 / 0.72).sqrt();
     let (nx, ny) = (((w - 2.8) / a) as usize, (depth / a) as usize);
@@ -1348,6 +1351,15 @@ pub fn osmometer(o: &Options) -> Scenario {
             species.push(2);
         }
         y += 1.0;
+    }
+    let channel = o.get("channel", 0.0);
+    if channel > 0.0 {
+        let mut y = channel;
+        while y < h {
+            pos.push([w / 2.0, y]);
+            species.push(2);
+            y += 0.8;
+        }
     }
     for j in 0..ny {
         for i in 0..nx {
