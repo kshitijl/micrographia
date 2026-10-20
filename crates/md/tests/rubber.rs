@@ -61,7 +61,7 @@ fn tension_against_temperature() {
 fn spring_gauge() {
     let p = gpu_prims::Prims::new(&pollster::block_on(gpu_prims::Gpu::new()).unwrap());
     for t in [1.0, 2.0] {
-        let o = scenarios::Options::default().with("chains", 64.0).with("length", 40.0).with("stretch", 0.5).with("temperature", t).with("gauge", 0.3).with("seed", 10.0);
+        let o = scenarios::Options::default().with("chains", 64.0).with("length", 40.0).with("stretch", 0.5).with("temperature", t).with("gauge", 0.12).with("handle_mass", 5.0).with("seed", 10.0);
         let sc = scenarios::build("rubber", &o).unwrap();
         let mut e = md::GpuEngine::new(&p, sc.sys.clone(), &sc.state);
         let mut line = String::new();

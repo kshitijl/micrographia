@@ -34,7 +34,7 @@
           </div>
           <div class="legend"><span><i style="background: var(--species-3)"></i>fixed post</span><span><i style="background: var(--cream)"></i>chain and handle</span><span><i style="background: linear-gradient(to right, var(--species-2), var(--species-3))"></i>spring, slack → taut</span></div>
           <label class="row">Ends held at this fraction of the chain's length <span id="xv">50%</span>
-            <input type="range" id="x" min="0.2" max="0.85" step="0.05" value="0.5" />
+            <input type="range" id="x" min="0.3" max="0.8" step="0.01" value="0.5" />
           </label>
           <label class="row">Temperature <span id="tv">1.00</span>
             <input type="range" id="t" min="0.6" max="3" step="0.1" value="1" />
@@ -70,8 +70,9 @@
           <canvas class="plot" id="plotB" aria-label="Temperature over time"></canvas>
           <div class="status" id="statusB">
             These chains are insulated: no heat bath, so their energy only changes by the work done on
-            them. Stretch them quickly and the beads jiggle faster (they turn red): the temperature
-            rises. Release them quickly and it falls.
+            them. Grab the simulation and drag left and right to pull the chains' right ends (or use
+            the buttons). The springs on the left show how hard the chains pull. Stretch them and the
+            beads jiggle faster (they turn red): the temperature rises. Let them back and it falls.
           </div>
         </aside>
       </section>
