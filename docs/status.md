@@ -1,5 +1,7 @@
 # Status
 
+Micrographia: pages on the Brownie engine.
+
 What exists, what it has been checked against, and what comes next. Numbers are from an Apple
 M1 Pro (Metal) unless stated. Run everything with `cargo xtask all`.
 
@@ -170,11 +172,24 @@ all-or-none melting (which needs base stacking). Stiffer strands melt higher but
 
 ## Next
 
-- Pressure cooker and boiling plateau: temperature held while boiling at fixed pressure (bulk
-  heating at constant power; a fluid with a wider liquid range).
-- Salt and the melting point (freezing point depression), dissolving and solubility.
-- Water's self-ionisation and pH 7; catalysis.
-- Evaporative cooling and the wet-bulb limit.
-- Maxwell's demon / Feynman ratchet (needs a rigid body).
-- Lattice protein folding: why a cooked egg cannot be uncooked.
-- 3D, then comparisons with HOOMD/LAMMPS/OpenMM on the same hardware.
+Priority: the original list of questions in `questions.md` (the first section), most of which
+need phase transitions that the 2D Lennard-Jones fluid shows poorly (its liquid exists only for
+kT ≈ 0.41–0.46, and 2D melting goes through a hexatic phase).
+
+1. **3D Brownie.** The same integer scheme in 3D (positions, cell and Verlet lists, walls, piston,
+   baths, compartments, bonds), with its CPU twin and the same reversal and cross-browser checks,
+   and a 3D renderer (perspective, or slices).
+2. **Phase transitions must be visible**, in 3D (LJ triple point ~0.69, critical ~1.31 kT/ε) and
+   with a water-like model later:
+   - temperature holding steady while boiling and while melting (heating at constant power);
+   - boiling point vs pressure (the pressure cooker; Leh) and vapour pressure;
+   - melting and freezing, supercooling and nucleation;
+   - salt lowering the melting point (and barely the boiling point); dissolving and solubility;
+   - the triple point.
+3. Then the rest of the original list: colder at altitude and flat cloud bases, Gibbs free
+   energy vs enthalpy, dQ = T dS, entropy rising with energy, Einstein 1905 (Brownian motion),
+   kidneys concentrating urine.
+4. Performance on phones (not measured yet).
+
+Later: the trapdoor (Maxwell's demon, `demon` scenario, in progress), lattice and kinetics
+engines (protein folding, haemoglobin, catalysis), comparisons with HOOMD/LAMMPS/OpenMM.

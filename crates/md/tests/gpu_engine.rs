@@ -270,3 +270,25 @@ fn cell_list_and_verlet_lists_give_identical_trajectories() {
         assert_eq!(block_on(a.read_state()).hash(), block_on(b.read_state()).hash());
     }
 }
+
+/// Flipping the lowest bit for a whole species moves exactly those particles, by one unit.
+#[test]
+fn flip_species_bit_moves_exactly_that_species() {
+    let p = prims();
+    let sys = System::new(init::box_for(3000, 0.5, 1.0), init::DT, Pair::wca(), vec![1.0, 1.0, 1.0]);
+    let mut s0 = init::fluid(&sys, 3000, 1.0, 9);
+    for i in 0..3000 {
+        s0.species[i] = (i % 3) as u32;
+    }
+    let mut e = GpuEngine::new(&p, sys.clone(), &s0);
+    e.flip_species_bit(0b101, 0, 0);
+    let s = block_on(e.read_state());
+    for i in 0..3000 {
+        let moved = s.pos[i] != s0.pos[i];
+        assert_eq!(moved, s0.species[i] != 1, "particle {i}");
+        if moved {
+            assert_eq!(s.pos[i][0] ^ s0.pos[i][0], 1);
+            assert_eq!(s.pos[i][1], s0.pos[i][1]);
+        }
+    }
+}

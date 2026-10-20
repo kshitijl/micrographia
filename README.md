@@ -1,7 +1,11 @@
-# Statistical mechanics, simulated
+# Micrographia
 
 Browser pages that answer questions about heat, entropy and everyday physics with live
-molecular simulations on the GPU (WebGPU). See `questions.md` for the questions,
+molecular simulations on the GPU (WebGPU), so anyone with a phone or a laptop can see how the
+nano world works. Named after Robert Hooke's *Micrographia* (1665), the first popular book of
+what the microscope showed. The molecular dynamics engine is **Brownie**, after Robert Brown,
+who first saw molecules' jiggling (in pollen grains), and the Kodak Brownie, the cheap camera
+that put photography in everyone's hands. See `questions.md` for the questions,
 `docs/status.md` for what exists and how it was checked, `docs/architecture.md` for the design
 and `docs/research.md` for background.
 

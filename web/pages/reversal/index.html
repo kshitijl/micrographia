@@ -8,7 +8,7 @@
     <link rel="stylesheet" href="../../src/lib/style.css" />
   </head>
   <body>
-    <nav class="topbar"><div class="wrap"><a href="../../index.html">Statistical mechanics, simulated</a></div></nav>
+    <nav class="topbar"><div class="wrap"><a href="../../index.html">Micrographia</a></div></nav>
     <main class="wrap">
       <header class="question">
         <div class="eyebrow">Arrow of time</div>
@@ -31,11 +31,13 @@
             <button id="reverse">Reverse time</button>
             <button id="reset">Reset</button>
           </div>
-          <label class="check">
-            <input type="checkbox" id="nudge" />
-            <span>When reversing, nudge one cream molecule by 2<sup>−32</sup> of its diameter
-              (0.0000000002&nbsp;σ)</span>
-          </label>
+          <div class="legend"><span><i style="background: var(--trace-1)"></i><i style="background: var(--trace-2)"></i><i style="background: var(--trace-3)"></i><i style="background: var(--trace-4)"></i><i style="background: var(--trace-5)"></i>five traced cream molecules, going</span><span><i style="background: var(--trace-back); box-shadow: 0 0 0 1px var(--muted)"></i>coming back</span></div>
+          <div class="sub">Nudge by 2<sup>−32</sup> of a diameter (0.0000000002&nbsp;σ):</div>
+          <div class="buttons">
+            <button id="nudge-traced">The 5 traced</button>
+            <button id="nudge-cream">All cream</button>
+            <button id="nudge-all">Every molecule</button>
+          </div>
           <div class="readouts">
             <div class="readout"><div class="k">time (τ)</div><div class="v" id="time">0.0</div></div>
             <div class="readout"><div class="k">direction</div><div class="v" id="dir">forward</div></div>
@@ -68,21 +70,24 @@
         </p>
         <p>
           Press <b>Reverse time</b> and every molecule's velocity flips. The system then retraces its
-          own history: the cream gathers itself back into the blob, and when the clock reaches zero
+          own history: the cream gathers itself back into the blob, each traced molecule's white return
+          path lies exactly on its coloured outward one, and when the clock reaches zero
           the page checks every bit of every molecule's position and velocity against the start.
           They match exactly. Nothing in the laws of motion forbids un-stirring.
         </p>
 
         <h2>Then why doesn't it happen?</h2>
         <p>
-          Tick the nudge box and reverse again. Before the velocities flip, one cream molecule moves by
-          2<sup>−32</sup> of its diameter, about a ten-billionth. For a while the reversed run still
-          heads back toward the blob. But collisions amplify small differences: each time a molecule
+          Reset, run forward again, and this time press a nudge button before reversing. It moves the
+          five traced molecules, all the cream, or every molecule by 2<sup>−32</sup> of a diameter,
+          about a ten-billionth. For a while the reversed run still heads back toward the blob, and the
+          white return paths still lie on top of the coloured outward ones. But collisions amplify small differences: each time a molecule
           hits another slightly off-centre, the error grows. In this fluid the error grows by a factor
           of about 25 per unit of time (we measure a Lyapunov exponent of 3.2 per τ). The nudged
           molecule's neighbourhood is completely different after about 8 τ, and the disturbance then
           spreads outward like a wave, reaching all 8,000 molecules by about 20 τ. Run forward for
-          10 τ or more before reversing, and the cream never makes it back.
+          10 τ or more before reversing, and the cream never makes it back: the white paths peel away
+          from the coloured ones and wander off.
         </p>
         <p>
           So un-stirring needs velocities aimed with impossible precision. Of all the arrangements the

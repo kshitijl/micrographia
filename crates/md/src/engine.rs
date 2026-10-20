@@ -358,6 +358,17 @@ impl Buffers {
         }
     }
 
+    /// Positions of all particles in id order (reads only ids and positions).
+    pub fn read_positions(&self) -> impl Future<Output = Vec<[i64; 2]>> + 'static {
+        let b = self.clone();
+        async move {
+            let n = b.n as usize;
+            let ids: Vec<u32> = util::read(&b.gpu, &b.ids, n).await;
+            let pos: Vec<[u32; 4]> = util::read(&b.gpu, &b.pos, n).await;
+            by_id(&ids, unpack_positions(&pos))
+        }
+    }
+
     /// Kicks and per-particle potential energies from the most recent force evaluation, in
     /// particle-id order.
     pub fn read_kicks(&self) -> impl Future<Output = (Vec<[i32; 2]>, Vec<f32>)> + 'static {
@@ -520,6 +531,7 @@ pub struct GpuEngine {
     reorder: Reorder,
     d_reverse: Dispatch,
     d_flip: Dispatch,
+    d_flip_species: Dispatch,
     /// Advances the clock for stochastic boundaries (only when there are any).
     d_tick: Option<Dispatch>,
     d_set_velocity: Dispatch,
@@ -687,6 +699,7 @@ impl GpuEngine {
                 [Dispatch::new_at(gpu, &pl("piston_clear"), &[(11, &b.ctl)], 1), one("piston_move"), one("piston_flip")]
             }),
             d_flip: Dispatch::new_at(gpu, &pl("flip"), &[(0, &b.params), (1, &b.pos), (10, &b.ids)], g),
+            d_flip_species: Dispatch::new_at(gpu, &pl("flip_species"), &[(0, &b.params), (1, &b.pos), (3, &b.species)], g),
             d_set_velocity: Dispatch::new_at(gpu, &pl("set_species_velocity"), &[(0, &b.params), (2, &b.vel), (3, &b.species)], g),
             reorder,
             path,
@@ -886,6 +899,18 @@ impl GpuEngine {
         self.submit(|pass| self.d_flip.encode(pass));
     }
 
+    /// XOR bit `bit` of coordinate `axis` of every particle whose species is in `species` (a
+    /// bitmask), in one dispatch.
+    pub fn flip_species_bit(&mut self, species: u32, axis: usize, bit: u32) {
+        let mut p = self.params;
+        p.flip_index = species;
+        p.flip_word = (2 * axis as u32) + bit / 32;
+        p.flip_mask = 1 << (bit % 32);
+        self.gpu().queue.write_buffer(&self.buf.params, 0, bytemuck::bytes_of(&p));
+        self.submit(|pass| self.d_flip_species.encode(pass));
+        self.gpu().queue.write_buffer(&self.buf.params, 0, bytemuck::bytes_of(&self.params));
+    }
+
     /// Give every particle of `species` the velocity `v` (σ/τ). For pinned species this sets a
     /// steady motion (anchors pulled at constant speed).
     pub fn set_species_velocity(&mut self, species: u32, v: [f64; 2]) {
@@ -914,6 +939,11 @@ impl GpuEngine {
 
     pub fn read_state(&self) -> impl Future<Output = State> + 'static {
         self.buf.read_state()
+    }
+
+    /// Positions in id order, without velocities or species.
+    pub fn read_positions(&self) -> impl Future<Output = Vec<[i64; 2]>> + 'static {
+        self.buf.read_positions()
     }
 
     /// Integer kicks at the current positions and the total potential energy.

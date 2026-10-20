@@ -188,6 +188,18 @@ fn flip(@builtin(global_invocation_id) gid: vec3<u32>) {
     }
 }
 
+// XOR one bit into one word of the position of every particle whose species has its bit set
+// in the mask P.flip_index.
+@compute @workgroup_size(256)
+fn flip_species(@builtin(global_invocation_id) gid: vec3<u32>) {
+    let i = gid.x;
+    if (i < P.n && ((P.flip_index >> species[i]) & 1u) != 0u) {
+        var p = pos[i];
+        p[P.flip_word] ^= P.flip_mask;
+        pos[i] = p;
+    }
+}
+
 // All-integer variant of `force`: bit-identical on every device (pairs only).
 @compute @workgroup_size(256)
 fn force_int(@builtin(global_invocation_id) gid: vec3<u32>) {

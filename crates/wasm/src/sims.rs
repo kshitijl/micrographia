@@ -82,6 +82,49 @@ impl DiscSim {
         self.engine.flip_bit(i, 0, 0);
     }
 
+    /// Flip the least significant bit (2⁻³² σ) of the x coordinate of every particle whose
+    /// species is in the bitmask `species`.
+    pub fn flip_species_bit(&mut self, species: u32) {
+        self.engine.flip_species_bit(species, 0, 0);
+    }
+
+    /// Resolves to the positions (σ, x and y interleaved) of the particles with the given ids.
+    pub fn positions_of(&self, ids: Vec<u32>) -> js_sys::Promise {
+        let fut = self.engine.read_positions();
+        future_to_promise(async move {
+            let p = fut.await;
+            let out: Vec<f32> = ids.iter().flat_map(|&i| {
+                let q = p[i as usize];
+                [fixed::to_f64(q[0]) as f32, fixed::to_f64(q[1]) as f32]
+            }).collect();
+            Ok(Float32Array::from(&out[..]).into())
+        })
+    }
+
+    /// Ids of `count` particles of species `species`, spread over where that species started:
+    /// the one nearest its centre and the ones nearest points at `spread` of its extent around it.
+    pub fn representatives(&self, species: u32, count: u32, spread: f64) -> Vec<u32> {
+        let s = &self.initial;
+        let pts: Vec<(u32, [f64; 2])> = (0..s.n()).filter(|&i| s.species[i] == species).map(|i| (i as u32, [fixed::to_f64(s.pos[i][0]), fixed::to_f64(s.pos[i][1])])).collect();
+        if pts.is_empty() {
+            return vec![];
+        }
+        let c = pts.iter().fold([0.0, 0.0], |a, (_, p)| [a[0] + p[0], a[1] + p[1]]).map(|x| x / pts.len() as f64);
+        let r = pts.iter().map(|(_, p)| ((p[0] - c[0]).powi(2) + (p[1] - c[1]).powi(2)).sqrt()).fold(0.0, f64::max);
+        let mut targets = vec![c];
+        for k in 1..count {
+            let a = std::f64::consts::TAU * (k - 1) as f64 / (count - 1).max(1) as f64 + 0.4;
+            targets.push([c[0] + spread * r * a.cos(), c[1] + spread * r * a.sin()]);
+        }
+        targets
+            .iter()
+            .map(|t| pts.iter().min_by(|a, b| {
+                let d = |p: &[f64; 2]| (p[0] - t[0]).powi(2) + (p[1] - t[1]).powi(2);
+                d(&a.1).total_cmp(&d(&b.1))
+            }).unwrap().0)
+            .collect()
+    }
+
     /// Id of the particle of species `species` nearest the box centre in the initial state.
     pub fn central(&self, species: u32) -> u32 {
         let b = self.engine.sys.box_len;
