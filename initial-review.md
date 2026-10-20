@@ -63,3 +63,31 @@ Open questions:
 - The tiny molecules are drawn at 0.5 σ so they can be seen (noted in the caveats). Smaller
   still (0.1 σ) would be even more ideal but needs more cells than the GPU buffers allow at
   this box size, and the gas would mix even more slowly.
+
+### `boltzmann`: where does the Boltzmann distribution come from?
+
+Feedback:
+1. The page makes the point hard to see (did everything start at the same energy? it
+   equilibrates very fast). "One molecule's energy is distributed exponentially" isn't quite the
+   right framing: the point is where the Boltzmann distribution comes from.
+2. Want the textbook ensemble: many boxes of gas; molecules interact inside a box and cannot
+   leave it, but boxes weakly exchange energy with each other, without building the Boltzmann
+   distribution in through a thermostat wall. Brainstorm how.
+3. A dropdown of initial distributions: all the same speed; half cold and half hot; mostly
+   average with 5% hot; one box full of hot molecules.
+4. Watch it equilibrate. Show that the total energy of the whole box never changes (track and
+   graph it), while each sub-box approaches the Boltzmann distribution.
+5. Show entropy increasing over time.
+
+Coupling options considered:
+- (chosen) Diathermal walls: the walls between boxes stop molecules crossing but pass on their
+  pushes. Molecules on either side of a wall repel each other through it as if it weren't
+  there, so energy flows through the wall by ordinary collisions. Nothing but Newton's laws;
+  total energy is conserved exactly. Only the layers next to the walls touch, so each box
+  equilibrates internally first, and with its neighbours more slowly (a knob: box size).
+- A wall made of beads on springs, belonging to neither box, that conducts heat like a solid.
+  More realistic, more machinery, slower.
+- Movable partitions (pistons) between boxes: they exchange energy but also volume.
+- A thermostat or thermal walls: rejected, since they put the Boltzmann distribution in by hand.
+
+Done (to confirm):
