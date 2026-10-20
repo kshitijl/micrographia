@@ -767,7 +767,8 @@ pub fn cell(o: &Options) -> Scenario {
     let sys = sys.with_bonds(vec![md_core::BondType::Harmonic { k, r0: spacing }, md_core::BondType::Harmonic { k: bend, r0: next }], bonds);
     let vel = init::maxwell(&sys, &species, 1.0, seed);
     let state = State { pos: pos.iter().map(|p| [fixed::to_fixed(p[0]), fixed::to_fixed(p[1])]).collect(), vel, species };
-    Scenario { warmup: 0, finish: Finish::None, marked: 1, grid: [8, 8], radii: vec![0.25, 0.5, 0.5], sys, state }
+    // Membrane beads are drawn larger than their size so the cell boundary reads as a line.
+    Scenario { warmup: 0, finish: Finish::None, marked: 1, grid: [8, 8], radii: vec![0.25, 0.5, 0.85], sys, state }
 }
 
 #[cfg(test)]
