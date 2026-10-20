@@ -1,19 +1,31 @@
-//! Simulations exposed to pages.
+//! Simulations exposed to pages: one GPU engine running a named scenario, with a renderer, an
+//! observer and the saved initial state.
 
-use crate::render::{Renderer, NO_HIGHLIGHT};
+use crate::render::{Renderer, NO_HIGHLIGHT, RECT_FLOATS};
 use crate::{browser_gpu, err, obj};
 use gpu_prims::Prims;
+use js_sys::{Float32Array, Float64Array, Object, Uint32Array};
 use md::observe::{mixing, Observer};
 use md::GpuEngine;
-use md_core::{init, Pair, State, System};
+use md_core::{fixed, Pair, State, System, Wall};
+use scenarios::{Finish, Options};
 use wasm_bindgen::prelude::*;
 use wasm_bindgen_futures::future_to_promise;
 
-fn opt(options: &JsValue, key: &str, default: f64) -> f64 {
-    js_sys::Reflect::get(options, &JsValue::from_str(key)).ok().and_then(|v| v.as_f64()).unwrap_or(default)
+fn options(o: &JsValue) -> Options {
+    let mut out = Options::default();
+    if let Some(obj) = o.dyn_ref::<Object>() {
+        for entry in Object::entries(obj).iter() {
+            let pair = js_sys::Array::from(&entry);
+            if let (Some(k), Some(v)) = (pair.get(0).as_string(), pair.get(1).as_f64()) {
+                out = out.with(&k, v);
+            }
+        }
+    }
+    out
 }
 
-/// A 2D disc fluid on the GPU with a renderer, an observer and a saved initial state.
+/// A 2D particle simulation on the GPU, drawn into a canvas.
 #[wasm_bindgen]
 pub struct DiscSim {
     engine: GpuEngine,
@@ -24,71 +36,68 @@ pub struct DiscSim {
 
 #[wasm_bindgen]
 impl DiscSim {
-    /// Scenarios:
-    /// - `"cream"`: a WCA fluid with a disc of marked ("cream") particles in the middle.
-    ///   Options: `n`, `density`, `temperature`, `seed`, `warmup` (steps before marking),
-    ///   `blob` (disc radius as a fraction of the shorter box side).
-    pub async fn create(canvas: web_sys::HtmlCanvasElement, scenario: String, options: JsValue) -> Result<DiscSim, JsError> {
+    /// Build scenario `name` (see the `scenarios` crate) with numeric `options`, run its
+    /// warm-up on the GPU, and attach a renderer to `canvas`.
+    pub async fn create(canvas: web_sys::HtmlCanvasElement, name: String, opts: JsValue) -> Result<DiscSim, JsError> {
         let (w, h) = (canvas.width(), canvas.height());
         let (gpu, surface) = browser_gpu(Some(canvas)).await?;
         let prims = Prims::new(&gpu);
-        let n = opt(&options, "n", 8000.0) as usize;
-        let density = opt(&options, "density", 0.5);
-        let temperature = opt(&options, "temperature", 1.0);
-        let seed = opt(&options, "seed", 1.0) as u64;
-        let warmup = opt(&options, "warmup", 1000.0) as usize;
-        let (engine, initial) = match scenario.as_str() {
-            "cream" => {
-                let aspect = w as f64 / h as f64;
-                let sys = System::new(init::box_for(n, density, aspect), init::DT, Pair::wca(), vec![1.0, 1.0]);
-                let state = init::fluid(&sys, n, temperature, seed);
-                let mut engine = GpuEngine::new(&prims, sys.clone(), &state);
-                engine.step(warmup);
-                let mut state = engine.read_state().await;
-                init::set_temperature(&mut state, &sys, temperature);
-                let b = sys.box_f64();
-                let radius = opt(&options, "blob", 0.18) * b[0].min(b[1]);
-                init::mark_disc(&mut state, &sys, [b[0] / 2.0, b[1] / 2.0], radius, 1);
-                engine.upload(&state);
-                (engine, state)
-            }
-            other => return Err(err(format!("unknown scenario {other}"))),
-        };
-        // About 64 particles per bin, so counting noise barely biases the mixing measure.
-        let b = engine.sys.box_f64();
-        let bins = engine.n() as f64 / 64.0;
-        let gy = ((bins * b[1] / b[0]).sqrt().round() as u32).max(2);
-        let gx = ((gy as f64 * b[0] / b[1]).round() as u32).max(2);
-        let observer = Observer::new(&engine, [gx, gy], 1);
-        let mut renderer = Renderer::new(&gpu, surface.expect("surface"), &engine, w, h);
-        renderer.set_radius(0.5);
-        Ok(DiscSim { engine, observer, renderer, initial })
+        let o = options(&opts);
+        let sc = scenarios::build(&name, &o).map_err(err)?;
+        let mut engine = GpuEngine::new(&prims, sc.sys.clone(), &sc.state);
+        let mut state = sc.state.clone();
+        if sc.warmup > 0 || sc.finish != Finish::None {
+            engine.step(sc.warmup);
+            state = engine.read_state().await;
+            sc.finish.apply(&mut state, &sc.sys);
+            engine.upload(&state);
+        }
+        let observer = Observer::new(&engine, sc.grid, sc.marked);
+        let renderer = Renderer::new(&gpu, surface.expect("surface"), &engine, &sc.radii, w, h);
+        Ok(DiscSim { engine, observer, renderer, initial: state })
     }
 
     pub fn step(&mut self, k: u32) {
         self.engine.step(k as usize);
     }
 
+    /// Resolves when the GPU has finished all work submitted so far.
+    pub fn sync(&self) -> js_sys::Promise {
+        let (tx, rx) = futures_channel::oneshot::channel::<()>();
+        self.engine.gpu().queue.on_submitted_work_done(move || {
+            let _ = tx.send(());
+        });
+        future_to_promise(async move {
+            let _ = rx.await;
+            Ok(JsValue::UNDEFINED)
+        })
+    }
+
     pub fn reverse(&mut self) {
         self.engine.reverse();
     }
 
-    /// Flip the least significant bit (2⁻³² σ) of particle `i`'s x coordinate.
+    /// Flip the least significant bit (2⁻³² σ) of the x coordinate of the particle with id `i`.
     pub fn flip_bit(&mut self, i: u32) {
         self.engine.flip_bit(i, 0, 0);
     }
 
-    /// Index of the marked particle nearest the box centre in the initial state.
-    pub fn central_marked(&self) -> u32 {
+    /// Id of the particle of species `species` nearest the box centre in the initial state.
+    pub fn central(&self, species: u32) -> u32 {
         let b = self.engine.sys.box_len;
         let c = [b[0] / 2, b[1] / 2];
         (0..self.initial.n())
-            .filter(|&i| self.initial.species[i] == 1)
+            .filter(|&i| self.initial.species[i] == species)
             .min_by_key(|&i| {
                 let d = [self.initial.pos[i][0] - c[0], self.initial.pos[i][1] - c[1]];
                 (d[0] as i128).pow(2) + (d[1] as i128).pow(2)
             })
             .unwrap_or(0) as u32
+    }
+
+    /// Kept for the reversal page.
+    pub fn central_marked(&self) -> u32 {
+        self.central(1)
     }
 
     /// Signed step count: positive while running forward, negative while running back.
@@ -108,7 +117,21 @@ impl DiscSim {
         self.engine.sys.box_f64().to_vec()
     }
 
-    /// Resolves to `{mixing, temperature}`.
+    /// Compartments per axis (1 if none).
+    pub fn compartments(&self) -> Vec<u32> {
+        self.engine.sys.compartment_counts().iter().map(|&c| c as u32).collect()
+    }
+
+    pub fn grid(&self) -> Vec<u32> {
+        self.observer.grid.to_vec()
+    }
+
+    /// Mass of each species.
+    pub fn masses(&self) -> Vec<f64> {
+        self.engine.sys.masses.clone()
+    }
+
+    /// Resolves to `{mixing, temperature}` (temperature from the half-step kinetic energy).
     pub fn observe(&self) -> js_sys::Promise {
         let fut = self.observer.read();
         let dof = (self.engine.n() as f64 - 1.0).max(1.0);
@@ -118,8 +141,55 @@ impl DiscSim {
         })
     }
 
-    /// Resolves to `{identical, differ, maxDeviation}`: whether the current state equals the
-    /// initial state bit for bit, how many particles' positions differ, and by how much (σ).
+    /// Resolves to `{all, marked}`: particle counts per histogram bin (row-major, `grid()`
+    /// wide), for all particles and for the scenario's marked species.
+    pub fn histogram(&self) -> js_sys::Promise {
+        let fut = self.observer.read();
+        future_to_promise(async move {
+            let r = fut.await;
+            Ok(obj(&[("all", Uint32Array::from(&r.all[..]).into()), ("marked", Uint32Array::from(&r.marked[..]).into())]))
+        })
+    }
+
+    /// Resolves to `{ke, species}`: each particle's kinetic energy (ε, half-step velocity) and
+    /// species, in id order.
+    pub fn kinetic_energies(&self) -> js_sys::Promise {
+        let fut = self.observer.read_kinetic_energies(&self.engine);
+        future_to_promise(async move {
+            let (ke, sp) = fut.await;
+            Ok(obj(&[("ke", Float32Array::from(&ke[..]).into()), ("species", Uint32Array::from(&sp[..]).into())]))
+        })
+    }
+
+    /// Resolves to `{energy, impulse, hits}`, each `4 × per_wall` long (wall-major; walls are
+    /// x-low, x-high, y-low, y-high), split by compartment along each wall.
+    pub fn ledger(&self, per_wall: u32) -> js_sys::Promise {
+        let fut = self.engine.buf.read_compartment_ledger(per_wall as usize);
+        future_to_promise(async move {
+            let l = fut.await;
+            let flat = |v: &Vec<Vec<f64>>| Float64Array::from(&v.iter().flatten().copied().collect::<Vec<f64>>()[..]);
+            let hits: Vec<f64> = l.hits.iter().flatten().map(|&h| h as f64).collect();
+            Ok(obj(&[("energy", flat(&l.energy).into()), ("impulse", flat(&l.impulse).into()), ("hits", Float64Array::from(&hits[..]).into())]))
+        })
+    }
+
+    /// Resolves to a Float32Array of (x, y) in σ for every particle of `species`, in id order.
+    pub fn positions(&self, species: u32) -> js_sys::Promise {
+        let fut = self.engine.read_state();
+        future_to_promise(async move {
+            let s = fut.await;
+            let mut out = Vec::new();
+            for i in 0..s.n() {
+                if s.species[i] == species {
+                    out.push(fixed::to_f64(s.pos[i][0]) as f32);
+                    out.push(fixed::to_f64(s.pos[i][1]) as f32);
+                }
+            }
+            Ok(Float32Array::from(&out[..]).into())
+        })
+    }
+
+    /// Resolves to `{identical, differ, maxDeviation, hash, initialHash}`.
     pub fn compare_to_initial(&self) -> js_sys::Promise {
         let fut = self.engine.read_state();
         let initial = self.initial.clone();
@@ -137,13 +207,39 @@ impl DiscSim {
         })
     }
 
+    /// Change the LJ well depth between species `a` and `b` (cutoff and size unchanged).
+    pub fn set_attraction(&mut self, a: u32, b: u32, eps: f64) {
+        let p = *self.engine.sys.pair(a, b);
+        let sys = self.engine.sys.clone().with_pair(a, b, Pair { eps, ..p });
+        self.engine.update_system(sys);
+    }
+
+    /// Set the temperature of every thermal wall (`which`: -1 for all, else wall 0..3).
+    pub fn set_wall_temperature(&mut self, which: i32, t: f64) {
+        let mut sys = self.engine.sys.clone();
+        for axis in 0..2 {
+            if let Some(ws) = sys.walls[axis].as_mut() {
+                for side in 0..2 {
+                    if (which < 0 || which as usize == 2 * axis + side) && matches!(ws[side], Wall::Thermal(_)) {
+                        ws[side] = Wall::Thermal(t);
+                    }
+                }
+            }
+        }
+        self.engine.update_system(sys);
+    }
+
+    pub fn set_gravity(&mut self, gx: f64, gy: f64) {
+        let sys = self.engine.sys.clone().with_gravity([gx, gy]);
+        self.engine.update_system(sys);
+    }
+
     pub fn render(&mut self) {
         self.renderer.render();
     }
 
     pub fn resize(&mut self, width: u32, height: u32) {
         self.renderer.resize(width, height);
-        self.renderer.set_radius(0.5);
     }
 
     /// 24 floats: four species colours, the highlight colour, the background (RGBA, sRGB).
@@ -156,8 +252,14 @@ impl DiscSim {
         self.renderer.background = wgpu::Color { r: c[20] as f64, g: c[21] as f64, b: c[22] as f64, a: c[23] as f64 };
     }
 
-    /// Draw particle `i` enlarged in the highlight colour (negative for none).
+    /// Draw the particle with id `i` enlarged in the highlight colour (negative for none).
     pub fn set_highlight(&mut self, i: i32) {
         self.renderer.params.highlight = if i < 0 { NO_HIGHLIGHT } else { i as u32 };
+    }
+
+    /// Overlay rectangles, 8 floats each: x0, y0, x1, y1 (σ), r, g, b, a.
+    pub fn set_overlay(&mut self, rects: Vec<f32>) {
+        assert_eq!(rects.len() % RECT_FLOATS, 0);
+        self.renderer.set_rects(&rects);
     }
 }

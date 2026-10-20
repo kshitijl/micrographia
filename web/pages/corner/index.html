@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>All the Air in One Corner</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 16 16%22%3E%3Ccircle cx=%228%22 cy=%228%22 r=%227%22 fill=%22%239a4a1e%22/%3E%3C/svg%3E" />
+    <link rel="stylesheet" href="../../src/lib/style.css" />
+  </head>
+  <body>
+    <nav class="topbar"><div class="wrap"><a href="../../index.html">Statistical mechanics, simulated</a></div></nav>
+    <main class="wrap">
+      <header class="question">
+        <div class="eyebrow">Probability and entropy</div>
+        <h1>Could all the air in your room rush into one corner? How long would you wait?</h1>
+        <p class="lede">
+          Nothing in the laws of motion stops every air molecule from wandering into the same half of
+          the room at once. So instead of one room, here are <span id="nboxes">768</span> tiny boxes of
+          gas, each with a few molecules, all moving at once on your GPU. A box lights up whenever
+          all of its molecules happen to be in its left half.
+        </p>
+      </header>
+
+      <section class="lab">
+        <div class="stage" id="stage">
+          <canvas id="canvas" aria-label="Hundreds of small boxes of gas; boxes light up when all molecules are on one side"></canvas>
+          <div class="overlay" id="overlay">Starting the GPU…</div>
+        </div>
+        <aside class="panel">
+          <div class="buttons">
+            <button class="primary" id="run">Run</button>
+            <button id="reset">Reset</button>
+          </div>
+          <label class="row">Molecules per box <span id="nv">6</span>
+            <input type="range" id="n" min="2" max="16" value="6" />
+          </label>
+          <label class="row">Count a box when all its molecules are in <span></span>
+            <select id="mode">
+              <option value="half" selected>the left half (odds 2^−N)</option>
+              <option value="corner">the lower-left quarter (odds 4^−N)</option>
+            </select>
+          </label>
+          <div class="readouts">
+            <div class="readout"><div class="k">expected share of boxes</div><div class="v" id="pred">–</div></div>
+            <div class="readout"><div class="k">measured share</div><div class="v" id="meas">–</div></div>
+            <div class="readout"><div class="k">box-snapshots counted</div><div class="v" id="samples">0</div></div>
+            <div class="readout"><div class="k">times it happened</div><div class="v" id="events">0</div></div>
+          </div>
+          <canvas class="plot tall" id="hist" aria-label="How many molecules are in the left half: measured against the binomial prediction"></canvas>
+          <div class="legend"><span><i style="background: var(--accent)"></i>measured</span><span><i style="background: var(--plot-back)"></i>binomial prediction</span></div>
+          <div class="status" id="status">Press Run.</div>
+        </aside>
+      </section>
+
+      <article class="notes">
+        <h2>What you're seeing</h2>
+        <p>
+          Each little box is a separate container of gas with hard walls. The molecules bounce off each
+          other and the walls, and they never leave their box. The bar chart counts, across all boxes,
+          how many molecules are in the left half right now. Each molecule is equally likely to be on
+          either side, independently of the others, so the counts follow the binomial distribution: the
+          even splits are common and the lopsided ones rare.
+        </p>
+        <h2>The odds</h2>
+        <p>
+          For one molecule the chance of being on the left is ½. For all N of them at once it is
+          ½ × ½ × … = 2<sup>−N</sup>. With 6 molecules that is 1 in 64, so a dozen boxes light up at any
+          moment. With 16 molecules it is 1 in 65,536, and you will rarely see one in the whole grid. Each
+          molecule you add halves the odds again.
+        </p>
+        <h2>How long would you wait in your room?</h2>
+        <p>
+          The arrangement of molecules reshuffles every time they cross the box, so you get a fresh
+          chance roughly every crossing time. For a room that is about the time sound takes to cross it,
+          a few hundredths of a second. A room holds roughly 10<sup>27</sup> molecules, so the odds per
+          chance are 2<sup>−10<sup>27</sup></sup>: a number with about 3 × 10<sup>26</sup> zeros after the
+          decimal point. The age of the universe is about 4 × 10<sup>17</sup> seconds. No amount of
+          waiting comes remotely close. The air spreads out not because a law forbids it from gathering,
+          but because spread-out arrangements outnumber gathered ones by a factor beyond imagination.
+          That counting is what entropy measures.
+        </p>
+        <div class="caveat">
+          <h3>Caveats</h3>
+          <ul>
+            <li>The molecules are small discs in 2D. With large molecules in a small box the count would be
+              less than binomial: crowding makes lopsided arrangements even rarer (we see this when the
+              molecules are as wide as an eighth of the box).</li>
+            <li>Snapshots taken close together are not independent, so the measured share fluctuates more
+              than the number of snapshots suggests.</li>
+          </ul>
+        </div>
+      </article>
+    </main>
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>

@@ -741,6 +741,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cf54715a573b99ac80df0bc206da022bcd442c974952c7b9720069370852e21f"
 
 [[package]]
+name = "scenarios"
+version = "0.1.0"
+dependencies = [
+ "gpu-prims",
+ "md-core",
+ "md-ref",
+]
+
+[[package]]
 name = "scopeguard"
 version = "1.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -797,11 +806,13 @@ version = "0.1.0"
 dependencies = [
  "bytemuck",
  "console_error_panic_hook",
+ "futures-channel",
  "gpu-prims",
  "js-sys",
  "md",
  "md-core",
  "md-ref",
+ "scenarios",
  "wasm-bindgen",
  "wasm-bindgen-futures",
  "web-sys",

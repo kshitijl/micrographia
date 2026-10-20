@@ -486,7 +486,8 @@ impl GpuEngine {
         };
         Self {
             d_reverse: Dispatch::new_at(gpu, &pl("reverse"), &[(0, &b.params), (2, &b.vel), (8, &b.kicks)], g),
-            d_tick: (!sys.deterministic()).then(|| Dispatch::new_at(gpu, &pl("tick"), &[(11, &b.ctl)], 1)),
+            // Any walls could be made thermal later (update_system), so keep a clock for them.
+            d_tick: (!sys.periodic(0) || !sys.periodic(1)).then(|| Dispatch::new_at(gpu, &pl("tick"), &[(11, &b.ctl)], 1)),
             d_flip: Dispatch::new_at(gpu, &pl("flip"), &[(0, &b.params), (1, &b.pos), (10, &b.ids)], g),
             reorder,
             path,
@@ -604,6 +605,29 @@ impl GpuEngine {
         self.steps = -self.steps;
     }
 
+    /// Change interactions, masses, wall kinds or temperatures, gravity or the seed while
+    /// running. The box, species count and compartments must stay the same, and no cutoff may
+    /// grow beyond the largest one the engine was built with (cells and lists are sized by it).
+    pub fn update_system(&mut self, sys: System) {
+        assert_eq!(sys.box_len, self.sys.box_len);
+        assert_eq!(sys.species(), self.sys.species());
+        assert_eq!(sys.compartments, self.sys.compartments);
+        assert_eq!(sys.walls.map(|w| w.is_some()), self.sys.walls.map(|w| w.is_some()));
+        assert!(sys.rc_max() <= self.sys.rc_max() + 1e-12, "cutoffs cannot grow at run time");
+        let mut p = Params::new(&sys, self.n(), self.mode);
+        // Keep the geometry the buffers were sized for.
+        p.ncx = self.params.ncx;
+        p.ncy = self.params.ncy;
+        p.ncell = self.params.ncell;
+        p.cell_scale = self.params.cell_scale;
+        p.mbits = self.params.mbits;
+        p.list_r2 = self.params.list_r2;
+        p.half_skin2 = self.params.half_skin2;
+        self.gpu().queue.write_buffer(&self.buf.params, 0, bytemuck::bytes_of(&p));
+        self.params = p;
+        self.sys = sys;
+    }
+
     /// Reorder particle storage into Morton order now (and rebuild lists, if any).
     pub fn sort_now(&mut self) {
         self.submit(|pass| self.reorder.encode(pass));
@@ -623,6 +647,7 @@ impl GpuEngine {
     /// id `particle`.
     pub fn flip_bit(&mut self, particle: u32, axis: usize, bit: u32) {
         let mut p = self.params;
+        // The flip fields are only read by the flip kernel; later writes of `params` reset them.
         p.flip_index = particle;
         p.flip_word = (2 * axis as u32) + bit / 32;
         p.flip_mask = 1 << (bit % 32);

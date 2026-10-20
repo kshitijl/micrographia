@@ -60,7 +60,7 @@ async function create() {
   overlay.textContent = "Starting the GPU…";
   sizeCanvas();
   const n = Number(size.value);
-  sim = await DiscSim.create(canvas, "cream", { n, density: 0.5, temperature: 1.0, seed: 7, warmup: 1000, blob: 0.2 });
+  sim = await DiscSim.create(canvas, "cream", { n, density: 0.5, temperature: 1.0, seed: 7, warmup: 1000, blob: 0.2, aspect: canvas.width / canvas.height });
   applyColors();
   overlay.style.display = "none";
   setStatus("Press Run, let the cream spread, then reverse time.");

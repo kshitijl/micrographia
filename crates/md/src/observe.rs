@@ -27,6 +27,8 @@ pub struct Observer {
     gpu: Gpu,
     pub grid: [u32; 2],
     hist: wgpu::Buffer,
+    /// Kinetic energy of each storage slot (from the half-step velocity), after `measure`.
+    pub ke: wgpu::Buffer,
     clear: Dispatch,
     histogram: Dispatch,
     kinetic: Dispatch,
@@ -74,6 +76,7 @@ impl Observer {
             kinetic: Dispatch::new_at(&gpu, &p_ke, &[(0, &pbuf), (2, &e.species), (4, &e.vel), (5, &ke)], g),
             ke_sum: ReducePlan::new(&engine.prims, Scalar::F32, &ke, engine.n()),
             hist,
+            ke,
             grid,
             gpu,
         }
@@ -81,15 +84,7 @@ impl Observer {
 
     /// Measure now (submits work) and return a future for the reading.
     pub fn read(&self) -> impl Future<Output = Reading> + 'static {
-        let mut enc = self.gpu.device.create_command_encoder(&Default::default());
-        {
-            let mut pass = enc.begin_compute_pass(&Default::default());
-            self.clear.encode(&mut pass);
-            self.histogram.encode(&mut pass);
-            self.kinetic.encode(&mut pass);
-            self.ke_sum.encode(&mut pass);
-        }
-        self.gpu.queue.submit([enc.finish()]);
+        self.measure();
         let gpu = self.gpu.clone();
         let hist = self.hist.clone();
         let ke = self.ke_sum.result().clone();
@@ -99,6 +94,38 @@ impl Observer {
             let k: Vec<f32> = util::read(&gpu, &ke, 1).await;
             Reading { all: h[..bins].to_vec(), marked: h[bins..].to_vec(), kinetic: k[0] as f64 }
         }
+    }
+
+    /// Per-particle kinetic energies in particle-id order, with species (measures now).
+    pub fn read_kinetic_energies(&self, engine: &GpuEngine) -> impl Future<Output = (Vec<f32>, Vec<u32>)> + 'static {
+        self.measure();
+        let gpu = self.gpu.clone();
+        let (ke, ids, species) = (self.ke.clone(), engine.buf.ids.clone(), engine.buf.species.clone());
+        let n = engine.n() as usize;
+        async move {
+            let ke: Vec<f32> = util::read(&gpu, &ke, n).await;
+            let ids: Vec<u32> = util::read(&gpu, &ids, n).await;
+            let sp: Vec<u32> = util::read(&gpu, &species, n).await;
+            let mut out = (vec![0f32; n], vec![0u32; n]);
+            for slot in 0..n {
+                out.0[ids[slot] as usize] = ke[slot];
+                out.1[ids[slot] as usize] = sp[slot];
+            }
+            out
+        }
+    }
+
+    /// Submit the histogram and kinetic-energy kernels.
+    pub fn measure(&self) {
+        let mut enc = self.gpu.device.create_command_encoder(&Default::default());
+        {
+            let mut pass = enc.begin_compute_pass(&Default::default());
+            self.clear.encode(&mut pass);
+            self.histogram.encode(&mut pass);
+            self.kinetic.encode(&mut pass);
+            self.ke_sum.encode(&mut pass);
+        }
+        self.gpu.queue.submit([enc.finish()]);
     }
 }
 
