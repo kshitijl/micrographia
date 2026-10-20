@@ -127,9 +127,43 @@ math, so:
   force evaluation: integer displacement → integer r² → table index plus fixed-point
   interpolation → fixed-point force (the Anton approach).
 
-Plan: build Tier 1 first, with the force kernel written behind an interface. Then benchmark an
-integer force path. If it costs under ~2× on the target GPUs, make it the default so the CPU
-twin can be bit-exact.
+Plan: **start with integer positions and f32 forces** (exact drift, Tier 1), with the force
+kernel behind an interface. A later plan item implements the **all-integer force path** and
+benchmarks it against the f32 path.
+
+### Engine configurations
+By the end of the project, all of these should exist behind one interface, built in stages:
+
+| Config | Positions/velocities | Forces | Runs on | Purpose |
+|---|---|---|---|---|
+| `gpu-int-f32` | integer | f32 | GPU | Default engine. Tier 1: bit-exact on one device, exactly reversible |
+| `gpu-int-int` | integer | integer | GPU | Tier 2: bit-exact across devices and browsers. Benchmark against `gpu-int-f32` |
+| `cpu-int-int` | integer | integer | CPU | Bit-exact oracle for `gpu-int-int` |
+| `cpu-int-float` | integer | f32 or f64 | CPU | Same algorithm as `gpu-int-f32`, with a switchable float type |
+| `cpu-float` | f32 or f64 | f32 or f64 | CPU | Conventional float MD. The f64 build is the reference for observables and integrator error; the f32 build shows what fixed point buys |
+
+The CPU float type is a generic parameter, so each CPU engine switches between f32 and f64.
+WebGPU has no f64. Native `wgpu` exposes `SHADER_F64` on some backends (not Metal), which could
+add an f64 GPU build for native validation runs later.
+
+### Cross-checks between configurations
+- **Bitwise reproducibility tests**, wherever a configuration has integer positions:
+  - Run-to-run: same config, same device, same seed → identical state hash after N steps.
+  - Reversal: N steps forward, flip velocities, N steps back → bit-identical initial state.
+    Applies to `gpu-int-f32`, `gpu-int-int`, `cpu-int-int` and `cpu-int-float`, in NVE without
+    stochastic walls.
+  - `gpu-int-int` == `cpu-int-int` hashes, and identical across devices and browsers (golden
+    hashes checked into the repo).
+  - A permutation test: shuffling the particle storage order doesn't change the hash (catches
+    order-dependent accumulation).
+- **Force comparison** on identical configurations (NIST SRSW samples and our snapshots): every
+  configuration against `cpu-float` f64, reporting max and rms relative force error and energy
+  error.
+- **Short-trajectory agreement** before chaotic divergence; the measured divergence rate (a
+  Lyapunov exponent) is itself a result.
+- **Statistical agreement** of observables (T, P, g(r), coexistence densities, D) within error
+  bars.
+- **Energy drift vs Δt** for each configuration.
 
 ### Pair potentials
 - Per-species-pair tables in r² (catalog #5): WCA, LJ (truncated and shifted, cutoff a
@@ -171,10 +205,10 @@ temperature. A single grid shared across replicas with group IDs is an alternati
 `HashGrid` groups).
 
 ## Correctness strategy
-1. **Bit-exact twin** (`md-ref`): equal state hashes after N steps. Tier 1 compares GPU runs on
-   the same device (and reversal); Tier 2 compares CPU and GPU.
-2. **f64 ideal integrator:** measures integrator and precision error (energy drift vs Δt;
-   observables vs the fixed-point engine).
+1. **Bitwise reproducibility and cross-configuration tests**, as listed under "Cross-checks
+   between configurations" above.
+2. **`cpu-float` in f64** as the reference for integrator and precision error and for
+   observables.
 3. **Force-kernel unit tests** against NIST SRSW sample configurations (reference energies and
    virials).
 4. **Statistical validation suite** (`validate`), run natively with headless `wgpu`:
@@ -196,9 +230,12 @@ temperature. A single grid shared across replicas with group IDs is an alternati
 ## Milestones (thin vertical slices first)
 - **M0, gpu-prims:** reduce-then-scan, counting sort, segmented reduce, two-word atomics,
   Threefry. Tests run natively and in the browser.
-- **M1, minimal 2D MD:** WCA/LJ in NVE with a cell list, skin list and fixed-point state, plus
-  the CPU twin and f64 reference. **First page: exact reversal (Loschmidt) with the one-bit
+- **M1, minimal 2D MD:** `gpu-int-f32` with WCA/LJ in NVE, a cell list, a skin list and
+  integer positions, plus `cpu-int-float` and `cpu-float` (f32/f64). Run-to-run, reversal and
+  permutation hash tests. **First page: exact reversal (Loschmidt) with the one-bit
   perturbation.** First benchmark on the three device classes; choose the bit budgets.
+- **M1b, all-integer forces:** `gpu-int-int` and `cpu-int-int`; cross-device golden hashes;
+  benchmark against `gpu-int-f32`. Decide whether to make integer forces the default.
 - **M2, instruments and boundaries:** T, P, heat ledger, thermal walls, piston. **Page: Carnot
   at finite speed**, validated against Izumida–Okuda; plus the dS = dQ/T ledger page.
 - **M3, phase coexistence:** LJ liquid–vapor slab and vapor-pressure curve, validated against
