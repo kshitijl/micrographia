@@ -449,3 +449,12 @@ table.results th {
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+/* Which ensemble a simulation is in, above its energy plot. */
+.ensemble {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+  border-left: 3px solid var(--accent);
+  padding-left: 8px;
+}

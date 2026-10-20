@@ -34,7 +34,8 @@
             </div>
             <div>
               <canvas class="plot" id="energy" aria-label="Total energy per molecule and the outlined box's temperature over time"></canvas>
-              <div class="legend"><span><i style="background: var(--accent)"></i>total energy per molecule</span><span><i style="background: var(--plot-back)"></i>outlined box's kT</span></div>
+              <div class="legend"><span><i style="background: var(--accent)"></i>total energy of the whole simulation</span></div>
+              <div class="ensemble">Constant energy (the microcanonical ensemble): no heat bath anywhere; nothing adds or removes energy.</div>
             </div>
             <div>
               <canvas class="plot" id="entropy" aria-label="Entropy per molecule over time, and its maximum"></canvas>
@@ -49,10 +50,10 @@
           </div>
           <label class="row">Start with <span></span>
             <select id="start">
-              <option value="0" selected>every molecule the same energy</option>
+              <option value="0">every molecule the same energy</option>
               <option value="1">half the molecules hot, half cold</option>
               <option value="2">5% very hot, the rest a bit below average</option>
-              <option value="3">one box very hot, the rest cold</option>
+              <option value="3" selected>one box very hot, the rest cold</option>
               <option value="4">the left boxes hot, the right ones cold</option>
             </select>
           </label>
@@ -95,14 +96,16 @@
         </p>
         <h2>How energy gets through a wall that molecules can't</h2>
         <p>
-          Each wall between boxes is a hard line that no molecule can cross: a molecule reaching it
-          bounces straight back. But the molecules' repulsion reaches through it. A molecule just left
-          of a wall and one just right of it push each other apart exactly as if the wall were not there.
-          So when a fast molecule comes up to the wall, it shoves a slow molecule on the other side away,
-          slowing down itself: energy passes across, molecules stay put. It is how heat goes through the
-          wall of a mug, which is also made of atoms jostling their neighbours. Only molecules within a
-          molecule's width of a wall take part, which is why the boxes even out much more slowly than
-          each box settles inside.
+          The forces are computed the same way everywhere: every pair of molecules closer than the
+          repulsion's range (1.12 σ; the molecules repel and do not attract) pushes on each other,
+          whichever boxes they are in. The walls between boxes affect only motion: a molecule reaching
+          one has the component of its velocity across the wall reversed, an exact bounce that keeps
+          its energy. So a molecule just left of a wall and one just right of it push each other apart
+          exactly as if the wall were not there. When a fast molecule comes up to the wall it shoves a
+          slow one on the other side away, slowing down itself: energy passes across, molecules stay
+          put. It is how heat goes through the wall of a mug, which is also made of atoms jostling their
+          neighbours. Exactly the molecules within 1.12 σ of a wall (and of a molecule across it) take
+          part, which is why the boxes even out much more slowly than each box settles inside.
         </p>
         <h2>Reach in</h2>
         <p>

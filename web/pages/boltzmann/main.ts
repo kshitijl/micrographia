@@ -32,7 +32,7 @@ const hist = new BarPlot($<HTMLCanvasElement>("hist"), {
   ink: () => cssVar("--muted"),
   rule: () => cssVar("--rule"),
 });
-const energyPlot = new LinesPlot($<HTMLCanvasElement>("energy"), { xLabel: "time (τ)", yLabel: "energy per molecule (kT)", yMin: 0, ink: () => cssVar("--muted"), rule: () => cssVar("--rule") });
+const energyPlot = new LinesPlot($<HTMLCanvasElement>("energy"), { xLabel: "time (τ)", yLabel: "total energy (ε)", ink: () => cssVar("--muted"), rule: () => cssVar("--rule") });
 const entropyPlot = new LinesPlot($<HTMLCanvasElement>("entropy"), { xLabel: "time (τ)", yLabel: "entropy per molecule (k)", ink: () => cssVar("--muted"), rule: () => cssVar("--rule") });
 
 /** Boltzmann's H-function entropy −Σ p ln(p/ΔE) of energies (flat density of states in 2D), with
@@ -96,7 +96,6 @@ function redraw(kT: number) {
   const pts = (ys: number[]) => ys.map((y, k) => ({ x: series.t[k], y }));
   energyPlot.set([
     { points: pts(series.total), color: cssVar("--accent") },
-    { points: pts(series.tbox), color: cssVar("--plot-back") },
   ]);
   entropyPlot.set([
     { points: pts(series.smax), color: cssVar("--muted"), dashed: true },
@@ -127,7 +126,7 @@ async function readout(sim: DiscSim) {
     if (boxOf(pos[2 * i], pos[2 * i + 1]) === outlined) box.push(ke[i]);
   }
   const kT = kin / n;
-  const total = (kin + pe) / n;
+  const total = kin + pe;
   if (!Number.isFinite(total0)) total0 = total;
   boxKe.push(Float32Array.from(box));
   if (boxKe.length > KEEP) boxKe.shift();
@@ -141,7 +140,7 @@ async function readout(sim: DiscSim) {
   series.s.push(s);
   series.smax.push(1 + Math.log(kT));
   $("time").textContent = t.toFixed(1);
-  $("etot").textContent = `${(total * n).toFixed(0)} (${total >= total0 ? "+" : "−"}${Math.abs((100 * (total - total0)) / total0).toFixed(2)}%)`;
+  $("etot").textContent = `${total.toFixed(0)} (${total >= total0 ? "+" : "−"}${Math.abs((100 * (total - total0)) / total0).toFixed(2)}%)`;
   $("tbox").textContent = tbox.toFixed(2);
   $("ent").textContent = s.toFixed(3);
   redraw(kT);

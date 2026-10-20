@@ -36,20 +36,25 @@ fn wall_phrase(w: &Wall) -> String {
 }
 
 impl System {
-    /// How energy can enter or leave, for a total-energy plot's legend ("" if it is conserved).
+    /// The ensemble in plain words, for the total-energy plot: what, if anything, adds or removes
+    /// energy.
     pub fn energy_note(&self) -> String {
         let bath_walls = self.walls.iter().flatten().flatten().any(|w| matches!(w, Wall::Thermal(_)));
         let mut notes = vec![];
         if self.thermostat.is_some() {
-            notes.push("a heat bath adds and removes energy");
+            notes.push("a heat bath (constant temperature, the canonical ensemble) adds and removes energy");
         }
         if bath_walls {
-            notes.push("heat-bath walls exchange energy");
+            notes.push("heat-bath walls let energy in and out");
         }
         if self.piston.is_some() {
-            notes.push("the piston does work");
+            notes.push("the piston does work on the gas");
         }
-        notes.join("; ")
+        if notes.is_empty() {
+            return "Constant energy (the microcanonical ensemble): nothing adds or removes energy, so the total stays flat.".into();
+        }
+        let s = notes.join("; ");
+        format!("{}{}.", s[..1].to_uppercase(), &s[1..])
     }
 
     /// Bullet points describing the method, forces, boundaries and ensemble, for `n` particles.

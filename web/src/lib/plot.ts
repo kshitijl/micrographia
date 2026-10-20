@@ -292,8 +292,12 @@ export class LinesPlot {
     const xMax = Math.max(...pts.map((p) => p.x));
     const log = !!this.opts.log;
     const tf = (v: number) => (log ? Math.log(v) : v);
-    const yMax = this.opts.yMax ?? Math.max(...pts.map((p) => p.y)) * (log ? 1.5 : 1.1);
-    const yMin = this.opts.yMin ?? (log ? Math.min(...pts.map((p) => p.y)) / 1.5 : Math.min(0, ...pts.map((p) => p.y)));
+    // Default range: on a linear axis, from zero (or the data, if negative) to the data, plus 10%.
+    const [dMin, dMax] = [Math.min(...pts.map((p) => p.y)), Math.max(...pts.map((p) => p.y))];
+    const [lo, hi] = [Math.min(0, dMin), Math.max(0, dMax)];
+    const margin = 0.1 * (hi - lo || 1);
+    const yMax = this.opts.yMax ?? (log ? dMax * 1.5 : hi + (dMax > 0 ? margin : 0.25 * margin));
+    const yMin = this.opts.yMin ?? (log ? dMin / 1.5 : lo - (dMin < 0 ? margin : 0));
     const x = (v: number) => pad.l + ((v - xMin) / (xMax - xMin || 1)) * (W - pad.l - pad.r);
     const y = (v: number) => H - pad.b - ((tf(Math.max(v, log ? yMin : -Infinity)) - tf(yMin)) / (tf(yMax) - tf(yMin))) * (H - pad.t - pad.b);
     g.strokeStyle = this.opts.rule();

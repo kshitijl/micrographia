@@ -196,13 +196,13 @@ export class EnergyPanel {
       container.appendChild(legend);
       return { c, legend };
     };
-    const items: [string, string][] = [["--accent", "total energy per molecule"]];
+    this.note = document.createElement("div");
+    this.note.className = "ensemble";
+    container.appendChild(this.note);
+    const items: [string, string][] = [["--accent", "total energy of the whole simulation"]];
     if (opts.work) items.push(["--plot-back", "total minus the work done on it"]);
-    const e = mk("Total energy per molecule over time", items);
-    this.note = document.createElement("span");
-    this.note.className = "sub";
-    e.legend.appendChild(this.note);
-    this.energyPlot = new LinesPlot(e.c, { xLabel: "time (τ)", yLabel: "energy per molecule", yMin: 0, ink: () => cssVar("--muted"), rule: () => cssVar("--rule") });
+    const e = mk("Total energy of the whole simulation over time", items);
+    this.energyPlot = new LinesPlot(e.c, { xLabel: "time (τ)", yLabel: "total energy (ε)", ink: () => cssVar("--muted"), rule: () => cssVar("--rule") });
     this.entropyPlot = new LinesPlot(
       mk("Entropy per molecule over time, and its maximum for the current energy", [
         ["--accent", "entropy of the energies, per molecule (k; positions not counted)"],
@@ -212,9 +212,9 @@ export class EnergyPanel {
     );
   }
 
-  /** Say how energy can change (e.g. "a heat bath adds and removes energy"). */
+  /** Say which ensemble this is: what, if anything, adds or removes energy. */
   setNote(text: string) {
-    this.note.textContent = text ? `(${text})` : "(conserved: nothing adds or removes energy)";
+    this.note.textContent = text;
   }
 
   clear() {
@@ -232,8 +232,8 @@ export class EnergyPanel {
     for (let i = 0; i < ke.length; i++) kin += ke[i];
     const n = ke.length;
     this.t.push(sim.steps() * sim.dt());
-    this.total.push((kin + pe) / n);
-    this.balance.push((kin + pe - work) / n);
+    this.total.push(kin + pe);
+    this.balance.push(kin + pe - work);
     this.s.push(entropy(ke));
     this.smax.push(1 + Math.log(kin / n));
     // Keep the plots light.
