@@ -59,7 +59,7 @@ pub struct Scenario {
     pub radii: Vec<f64>,
 }
 
-pub const NAMES: &[&str] = &["cream", "corner", "boltzmann", "heavy", "oilwater", "heatflow", "osmosis", "compress", "rubber", "atmosphere", "carnot"];
+pub const NAMES: &[&str] = &["cream", "corner", "boltzmann", "heavy", "oilwater", "heatflow", "osmosis", "compress", "rubber", "atmosphere", "carnot", "boiling"];
 
 pub fn build(name: &str, o: &Options) -> Result<Scenario, String> {
     match name {
@@ -74,6 +74,7 @@ pub fn build(name: &str, o: &Options) -> Result<Scenario, String> {
         "rubber" => Ok(rubber(o)),
         "atmosphere" => Ok(atmosphere(o)),
         "carnot" => Ok(carnot(o)),
+        "boiling" => Ok(boiling(o)),
         _ => Err(format!("unknown scenario {name}")),
     }
 }
@@ -418,6 +419,24 @@ pub fn carnot(o: &Options) -> Scenario {
     let mut state = init::fluid(&lower, n, th, o.get("seed", 1.0) as u64);
     state.vel = init::maxwell(&sys, &state.species, th, o.get("seed", 1.0) as u64);
     Scenario { warmup: o.get("warmup", 4000.0) as usize, finish: Finish::None, marked: 0, grid: [4, 4], radii: vec![0.6], sys, state }
+}
+
+/// A pool of Lennard-Jones liquid (rc 2.5) with its vapour above, held at a temperature by a
+/// bulk bath; weak gravity keeps the liquid at the bottom (the vapour's scale height is far
+/// taller than the box). Options: n, width, height (σ), temperature, seed.
+pub fn boiling(o: &Options) -> Scenario {
+    let n = o.get("n", 6000.0) as usize;
+    let (w, h) = (o.get("width", 200.0), o.get("height", 160.0));
+    let t = o.get("temperature", 0.42);
+    let sys = System::new([fixed::to_fixed(w), fixed::to_fixed(h)], init::DT, Pair::lj(2.5), vec![1.0])
+        .with_walls(1, Wall::Soft, Wall::Soft)
+        .with_gravity([0.0, -0.002])
+        .with_thermostat(t, 0.5);
+    // The liquid starts as a slab at density 0.75 on the floor.
+    let depth = n as f64 / (0.75 * w);
+    let pool = System::new([fixed::to_fixed(w), fixed::to_fixed(depth + 2.0)], init::DT, Pair::lj(2.5), vec![1.0]).with_walls(1, Wall::Soft, Wall::Soft);
+    let state = init::fluid(&pool, n, t, o.get("seed", 1.0) as u64);
+    Scenario { warmup: o.get("warmup", 10000.0) as usize, finish: Finish::None, marked: 0, grid: [1, 80], radii: vec![0.5], sys, state }
 }
 
 #[cfg(test)]

@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Boiling Point and Pressure</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 16 16%22%3E%3Ccircle cx=%228%22 cy=%228%22 r=%227%22 fill=%22%239a4a1e%22/%3E%3C/svg%3E" />
+    <link rel="stylesheet" href="../../src/lib/style.css" />
+  </head>
+  <body>
+    <nav class="topbar"><div class="wrap"><a href="../../index.html">Statistical mechanics, simulated</a></div></nav>
+    <main class="wrap">
+      <header class="question">
+        <div class="eyebrow">Evaporation and boiling</div>
+        <h1>Why does the boiling point rise with pressure? (And why does a pressure cooker cook faster?)</h1>
+        <p class="lede">
+          A pool of liquid with empty space above it. The molecules attract each other, which holds the
+          liquid together, but now and then one at the surface is moving fast enough to break free. Watch
+          a vapour form, measure its pressure at different temperatures, and the boiling point follows.
+        </p>
+      </header>
+
+      <section class="lab">
+        <div class="stage" id="stage">
+          <canvas id="canvas" aria-label="A liquid pool with vapour molecules above it"></canvas>
+          <div class="overlay" id="overlay">Starting the GPU…</div>
+        </div>
+        <aside class="panel">
+          <div class="buttons">
+            <button class="primary" id="run">Run</button>
+            <button id="record">Record point</button>
+          </div>
+          <label class="row">Temperature <span id="tv">0.420</span>
+            <input type="range" id="t" min="0.38" max="0.47" step="0.005" value="0.42" />
+          </label>
+          <div class="readouts">
+            <div class="readout"><div class="k">molecules in the vapour</div><div class="v" id="nv">–</div></div>
+            <div class="readout"><div class="k">vapour pressure</div><div class="v" id="pv">–</div></div>
+            <div class="readout"><div class="k">liquid density</div><div class="v" id="rl">–</div></div>
+            <div class="readout"><div class="k">latent heat (from the slope)</div><div class="v" id="lat">–</div></div>
+          </div>
+          <canvas class="plot tall" id="plot" aria-label="Log of vapour pressure against inverse temperature"></canvas>
+          <div class="status" id="status">Press Run. After changing the temperature, give the vapour about 100 τ to settle before recording.</div>
+        </aside>
+      </section>
+
+      <article class="notes">
+        <h2>Escaping and returning</h2>
+        <p>
+          A molecule at the surface of a liquid is held by the attraction of its neighbours. To escape it
+          needs an extra energy, roughly the latent heat per molecule L, and the fraction of molecules with
+          that much to spare is the Boltzmann factor e<sup>−L/kT</sup>. Meanwhile vapour molecules that hit the
+          surface stick. Escape and return balance when the vapour reaches a certain density, and so a
+          certain pressure, the vapour pressure:
+        </p>
+        <p class="formula">p<sub>vap</sub> ∝ e<sup>−L/kT</sup></p>
+        <p>
+          Plot ln p<sub>vap</sub> against 1/T and you get a straight line whose slope is −L/k (this is the
+          Clausius–Clapeyron relation). Record a few temperatures and the page fits the line and reports
+          L. Because of the exponential, a small rise in temperature raises the vapour pressure a lot.
+        </p>
+        <h2>Boiling is when the vapour pressure reaches the outside pressure</h2>
+        <p>
+          Below the boiling point, evaporation happens only at the surface. Boiling starts when the vapour
+          pressure equals the pressure of the surroundings: then bubbles of vapour can form inside the
+          liquid without being crushed. Raise the surrounding pressure and the liquid must get hotter
+          before its vapour pressure catches up. A pressure cooker roughly doubles the pressure, which
+          for water moves the boiling point from 100 °C to about 120 °C, and chemical reactions in food
+          run several times faster at 120 °C. In Leh, at 3,500 m, the air pressure is about two thirds
+          of sea level and water boils near 88 °C, which is why dal takes so long to cook there.
+        </p>
+        <h2>Why the temperature stops rising while it boils</h2>
+        <p>
+          Once a liquid boils at a given pressure, extra heat goes into pulling molecules out of the liquid
+          (the latent heat) rather than into making them faster, so the temperature stays put until the
+          liquid is gone.
+        </p>
+        <div class="caveat">
+          <h3>Caveats</h3>
+          <ul>
+            <li>A 2D Lennard-Jones liquid: its liquid range is narrow (it freezes a little below 0.4 and its
+              critical point is a little above 0.46 in these units), so the temperature range here is
+              small, and the vapour is very dilute.</li>
+            <li>The vapour pressure is taken as vapour density × kT (the vapour is nearly ideal): counting
+              the vapour molecules is far less noisy than timing their rare hits on the ceiling.</li>
+            <li>A weak gravity holds the liquid at the bottom; a heat bath keeps the temperature.</li>
+          </ul>
+        </div>
+      </article>
+    </main>
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>
