@@ -202,15 +202,20 @@ pub fn heavy(o: &Options) -> Scenario {
 }
 
 /// Two kinds of LJ molecules ("water" 0 and "oil" 1) that attract each other more weakly than
-/// themselves, held at a temperature by a heat bath acting throughout (Andersen). Options: n,
-/// density, temperature, cross (oil–water attraction ε_AB), seed.
+/// themselves, held at a temperature by a heat bath acting throughout (Andersen), between a soft
+/// floor and ceiling. Options: n, density, temperature, cross (oil–water attraction ε_AB),
+/// oil_mass, gravity, bath_rate (a gentle bath keeps the flow that lets oil rise), seed.
 pub fn oilwater(o: &Options) -> Scenario {
     let n = o.get("n", 12000.0) as usize;
     let t = o.get("temperature", 1.0);
     let lj = |eps: f64| Pair { eps, sigma: 1.0, rc: 2.5 };
-    let sys = System::new(init::box_for(n, o.get("density", 0.7), o.get("aspect", 4.0 / 3.0)), init::DT, lj(1.0), vec![1.0, 1.0])
+    // A floor and a ceiling (soft walls), so that gravity can be turned on; oil (species 1) is a
+    // little lighter than water.
+    let sys = System::new(init::box_for(n, o.get("density", 0.7), o.get("aspect", 4.0 / 3.0)), init::DT, lj(1.0), vec![1.0, o.get("oil_mass", 0.8)])
+        .with_walls(1, Wall::Soft, Wall::Soft)
         .with_pair(0, 1, lj(o.get("cross", 0.5)))
-        .with_thermostat(t, 0.5);
+        .with_gravity([0.0, -o.get("gravity", 0.0)])
+        .with_thermostat(t, o.get("bath_rate", 0.5));
     let seed = o.get("seed", 1.0) as u64;
     let mut state = init::fluid(&sys, n, t, seed);
     for i in 0..n {

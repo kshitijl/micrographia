@@ -253,3 +253,59 @@ export class EnergyPanel {
     ]);
   }
 }
+
+/**
+ * Stir with a spoon: while on, the pointer is a spoon, and dragging it gives the molecules under
+ * it the spoon's velocity (a square of side `size` σ around the pointer).
+ */
+export class Spoon {
+  on = false;
+  private last: { x: number; y: number; t: number } | null = null;
+
+  /** `taupersecond`: simulated τ per real second while running (to turn drags into velocities). */
+  constructor(private host: SimHost, button: HTMLButtonElement, private opts: { size?: number; taupersecond: () => number; maxSpeed?: number }) {
+    const canvas = host.canvas;
+    const cursor = `url("data:image/svg+xml,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 40 40"><ellipse cx="11" cy="11" rx="7" ry="9" transform="rotate(-45 11 11)" fill="#d9d9d9" stroke="#555" stroke-width="1.5"/><line x1="16" y1="16" x2="37" y2="37" stroke="#555" stroke-width="3.5" stroke-linecap="round"/></svg>')}") 11 11, crosshair`;
+    button.onclick = () => {
+      this.on = !this.on;
+      button.textContent = this.on ? "Put the spoon down" : "Stir with a spoon";
+      canvas.style.cursor = this.on ? cursor : "";
+    };
+    canvas.addEventListener("pointerdown", (e) => {
+      if (!this.on) return;
+      canvas.setPointerCapture(e.pointerId);
+      this.last = { ...this.toSim(e), t: performance.now() };
+    });
+    canvas.addEventListener("pointermove", (e) => {
+      if (!this.on || !this.last || !host.sim) return;
+      const p = this.toSim(e);
+      const now = performance.now();
+      const dt = Math.max(1, now - this.last.t) / 1000;
+      const tau = Math.max(0.05, dt * opts.taupersecond());
+      const max = opts.maxSpeed ?? 2.5;
+      const clamp = (v: number) => Math.max(-max, Math.min(max, v));
+      const [vx, vy] = [clamp((p.x - this.last.x) / tau), clamp((p.y - this.last.y) / tau)];
+      const h = (opts.size ?? 10) / 2;
+      // Sweep the spoon along its path since the last event (it can move further than its own
+      // size between events). Each pass moves the velocities of the molecules under it halfway to
+      // the spoon's: repeated, they move with it, like liquid dragged by a spoon, instead of piling
+      // up speed, so stirring stirs without boiling the liquid.
+      const k = 0.5;
+      const dist = Math.hypot(p.x - this.last.x, p.y - this.last.y);
+      const steps = Math.max(1, Math.ceil(dist / h));
+      for (let j = 1; j <= steps; j++) {
+        const [x, y] = [this.last.x + ((p.x - this.last.x) * j) / steps, this.last.y + ((p.y - this.last.y) * j) / steps];
+        host.sim.kick_region(x - h, y - h, x + h, y + h, 1 - k, k * vx, k * vy);
+      }
+      this.last = { ...p, t: now };
+    });
+    canvas.addEventListener("pointerup", () => (this.last = null));
+  }
+
+  private toSim(e: PointerEvent) {
+    const canvas = this.host.canvas;
+    const r = canvas.getBoundingClientRect();
+    const v = this.host.sim?.view() ?? [0, 0, 1, 1];
+    return { x: v[0] + ((e.clientX - r.left) / r.width) * (v[2] - v[0]), y: v[3] - ((e.clientY - r.top) / r.height) * (v[3] - v[1]) };
+  }
+}

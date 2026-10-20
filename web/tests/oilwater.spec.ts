@@ -12,3 +12,13 @@ test("weak cross-attraction separates at low temperature; equal attraction stays
   expect(sep).toBeLessThan(0.7);
   expect(mixed).toBeGreaterThan(0.85);
 });
+
+test("with gravity on, the lighter oil collects on top", async ({ page }) => {
+  test.setTimeout(300_000);
+  await page.goto("pages/oilwater/index.html");
+  await page.evaluate(() => window.oilTest!.ready);
+  // Native: 0.67 of the oil in the top half after 1200 τ at g = 0.03 (crates/md/tests/oilwater.rs).
+  const top = await page.evaluate(() => window.oilTest!.oilOnTop(240000, 0.03));
+  console.log(`oil/water: share of the oil in the top half with gravity: ${top.toFixed(2)}`);
+  expect(top).toBeGreaterThan(0.6);
+});
