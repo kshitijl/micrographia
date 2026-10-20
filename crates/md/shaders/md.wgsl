@@ -13,10 +13,9 @@
 @group(0) @binding(6) var<storage, read> cell_count: array<u32>;
 @group(0) @binding(7) var<storage, read> cell_items: array<u32>;
 @group(0) @binding(8) var<storage, read_write> kicks: array<vec2<i32>>;
-@group(0) @binding(9) var<storage, read_write> pe: array<f32>;
+@group(0) @binding(9) var<storage, read_write> aux: array<vec4<f32>>;
 @group(0) @binding(10) var<storage, read> ids: array<u32>;
 @group(0) @binding(11) var<storage, read_write> ctl: array<atomic<u32>>;
-@group(0) @binding(12) var<storage, read_write> wall_f: array<vec2<f32>>;
 
 @compute @workgroup_size(256)
 fn cells(@builtin(global_invocation_id) gid: vec3<u32>) {
@@ -57,9 +56,10 @@ fn force(@builtin(global_invocation_id) gid: vec3<u32>) {
             }
         }
     }
-    wall_f[i] = add_soft_walls(&acc, pi, c);
+    let wf = add_soft_walls(&acc, pi, c);
+    let pf = add_piston(&acc, pi, c);
     kicks[i] = acc.k;
-    pe[i] = acc.u;
+    aux[i] = vec4<f32>(acc.u, wf, pf);
 }
 
 @compute @workgroup_size(256)
@@ -74,6 +74,22 @@ fn integrate(@builtin(global_invocation_id) gid: vec3<u32>) {
 @compute @workgroup_size(1)
 fn tick() {
     atomicAdd(&ctl[CTL_CLOCK], 1u);
+}
+
+// Zero the piston's force sum before a force evaluation.
+@compute @workgroup_size(1)
+fn piston_clear() {
+    store64(CTL_PISTON_FORCE, vec2<u32>(0u, 0u));
+}
+
+@compute @workgroup_size(1)
+fn piston_move() {
+    piston_step();
+}
+
+@compute @workgroup_size(1)
+fn piston_flip() {
+    piston_reverse();
 }
 
 // Time reversal: v ← −(v + kick(x) + g).

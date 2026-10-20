@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Squeezing a Gas</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 16 16%22%3E%3Ccircle cx=%228%22 cy=%228%22 r=%227%22 fill=%22%239a4a1e%22/%3E%3C/svg%3E" />
+    <link rel="stylesheet" href="../../src/lib/style.css" />
+  </head>
+  <body>
+    <nav class="topbar"><div class="wrap"><a href="../../index.html">Statistical mechanics, simulated</a></div></nav>
+    <main class="wrap">
+      <header class="question">
+        <div class="eyebrow">Work and heat</div>
+        <h1>Why does a bike pump get hot, and a spray can cold?</h1>
+        <p class="lede">
+          Push a piston into a gas and the gas heats up; pull it out and the gas cools. Diesel engines
+          use this to ignite their fuel without a spark. Here is a gas of molecules (coloured by speed)
+          under a piston you can move. Watch what each bounce off the moving piston does.
+        </p>
+      </header>
+
+      <section class="lab">
+        <div class="stage" id="stage">
+          <canvas id="canvas" aria-label="A gas in a cylinder under a moving piston, molecules coloured by speed"></canvas>
+          <div class="overlay" id="overlay">Starting the GPU…</div>
+        </div>
+        <aside class="panel">
+          <div class="buttons">
+            <button class="primary" id="down">Compress</button>
+            <button id="up">Expand</button>
+            <button id="stop">Stop</button>
+            <button id="reset">Reset</button>
+          </div>
+          <label class="row">Piston speed <span id="uv">0.3 σ/τ</span>
+            <input type="range" id="u" min="0.02" max="1.5" step="0.02" value="0.3" />
+          </label>
+          <label class="check"><input type="checkbox" id="thermal" /><span>Walls conduct heat (to a room at T = 1)</span></label>
+          <div class="readouts">
+            <div class="readout"><div class="k">temperature</div><div class="v" id="temp">–</div></div>
+            <div class="readout"><div class="k">area (σ²)</div><div class="v" id="area">–</div></div>
+            <div class="readout"><div class="k">work done on the gas</div><div class="v" id="work">–</div></div>
+            <div class="readout"><div class="k">heat into the gas</div><div class="v" id="heat">–</div></div>
+          </div>
+          <canvas class="plot tall" id="plot" aria-label="Temperature against area, with the adiabatic and isothermal curves"></canvas>
+          <div class="legend"><span><i style="background: var(--accent)"></i>this gas</span><span><i style="background: var(--plot-back)"></i>adiabatic T·A = const</span></div>
+          <div class="status" id="status">Press Compress. Try slow and fast, with and without heat-conducting walls.</div>
+        </aside>
+      </section>
+
+      <article class="notes">
+        <h2>Bouncing off a moving wall</h2>
+        <p>
+          A molecule that hits a piston moving toward it comes back faster, the way a tennis ball comes
+          off a swinging racket faster than it arrived. A molecule hitting a retreating piston comes back
+          slower. Compressing a gas means every bounce adds a little speed, so the temperature rises;
+          expanding it means every bounce takes some away. The energy comes from whoever pushes the
+          piston: the work done on the gas shows up, collision by collision, as faster molecules.
+        </p>
+        <h2>The adiabat</h2>
+        <p>
+          With insulating walls no heat can leave, so all the work stays in the gas. For a slow
+          compression of this two-dimensional gas the temperature then rises exactly as the area falls,
+          T·A = constant (in 3D it is T·V<sup>2/3</sup> for a monatomic gas, and T·V<sup>0.4</sup> for air).
+          Halve the area and the temperature doubles. Compress fast, faster than the molecules move, and
+          the gas heats even more: the piston piles molecules up in front of it, and the extra work is
+          not recovered when it stops. Turn on heat-conducting walls and compress slowly: heat flows out
+          as fast as work comes in, and the temperature barely moves (isothermal).
+        </p>
+        <h2>Bike pumps and spray cans</h2>
+        <p>
+          A bike pump compresses air quickly in a tube that conducts heat poorly, so the air (and then the
+          pump) gets hot; friction in the pump adds a little. A diesel engine compresses air about twenty
+          times, heating it to several hundred degrees, hot enough to ignite the injected fuel. The cold
+          of a spray can is mostly something else: its propellant is a liquid that boils as it leaves, and
+          evaporation takes heat from the can. Expansion of the gas itself also cools it, as this
+          simulation shows when you expand.
+        </p>
+        <div class="caveat">
+          <h3>Caveats</h3>
+          <ul>
+            <li>2D gas of small soft discs, nearly ideal. The piston is a smooth wall that moves at a set
+              speed whatever the pressure.</li>
+            <li>“Temperature” is the average kinetic energy per molecule (in units where k = 1).</li>
+          </ul>
+        </div>
+      </article>
+    </main>
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>

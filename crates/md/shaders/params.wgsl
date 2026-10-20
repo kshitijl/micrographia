@@ -45,6 +45,14 @@ struct Params {
     thermo: vec4<f32>,
     // Membrane: (axis or 0xffffffff for none, bitmask of blocked species, position lo, hi).
     membrane: vec4<u32>,
+    // Piston (replaces the y-high wall): mode 0 none, 1 fixed speed, 2 free; the kick factor
+    // Δt²·2³²/M; the external force pushing down (ε/σ); and its lower and upper stops.
+    piston_mode: u32,
+    piston_kc: f32,
+    piston_fext: f32,
+    _p1: u32,
+    piston_min: vec2<u32>,
+    piston_max: vec2<u32>,
     // Per species pair a·4 + b: (rc², 4ε, σ², energy shift).
     pairs: array<vec4<f32>, 16>,
 }
@@ -62,9 +70,15 @@ const CTL_REBUILD: u32 = 0u;
 const CTL_OVERFLOW: u32 = 1u;
 const CTL_CLOCK: u32 = 2u;
 const CTL_REBUILDS: u32 = 3u;
+// Piston: height (2 words), velocity (i32 per step), the gas force on it at the last force
+// evaluation (2 words, 2^-16 ε/σ), and the work the gas has done on it (2 words, 2^-24 ε).
+const CTL_PISTON_POS: u32 = 8u;
+const CTL_PISTON_VEL: u32 = 10u;
+const CTL_PISTON_FORCE: u32 = 12u;
+const CTL_PISTON_WORK: u32 = 14u;
 // Ledger, per wall w and compartment c along it: energy, impulse, hits (2 words each), from
-// word 8 + 6 (w·MAX_COMP + c).
-const CTL_LEDGER: u32 = 8u;
+// word 16 + 6 (w·MAX_COMP + c).
+const CTL_LEDGER: u32 = 16u;
 const MAX_COMP: u32 = 256u;
 const LEDGER_SCALE: f32 = 16777216.0;
 

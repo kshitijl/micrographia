@@ -129,3 +129,11 @@ pub fn andersen(sys: &System, id: u32, clock: u32, m: f64) -> Option<(f64, f64)>
     let a = std::f64::consts::TAU * u2;
     Some((sd * rad * a.cos(), sd * rad * a.sin()))
 }
+
+/// Fixed-point scale of the per-step piston force sum: 2⁻¹⁶ ε/σ per unit.
+pub const PISTON_FORCE_SCALE: f64 = 65536.0;
+
+/// The integer kick on a free piston for a net upward force (ε/σ): Δv·Δt = F Δt² / M.
+pub fn piston_kick(sys: &System, net_force: f64, mass: f64) -> i32 {
+    (net_force * sys.dt * sys.dt / mass * crate::ONE as f64).round() as i32
+}

@@ -18,9 +18,8 @@
 @group(0) @binding(8) var<storage, read_write> ref_pos: array<vec4<u32>>;
 @group(0) @binding(9) var<storage, read_write> ctl: array<atomic<u32>>;
 @group(0) @binding(10) var<storage, read_write> kicks: array<vec2<i32>>;
-@group(0) @binding(11) var<storage, read_write> pe: array<f32>;
+@group(0) @binding(11) var<storage, read_write> aux: array<vec4<f32>>;
 @group(0) @binding(12) var<storage, read> ids: array<u32>;
-@group(0) @binding(13) var<storage, read_write> wall_f: array<vec2<f32>>;
 
 @compute @workgroup_size(256)
 fn build_list(@builtin(global_invocation_id) gid: vec3<u32>) {
@@ -75,9 +74,10 @@ fn force_list(@builtin(global_invocation_id) gid: vec3<u32>) {
         let j = nbr[k * P.n + i];
         add_pair(&acc, pi, pos[j], si, species[j], c);
     }
-    wall_f[i] = add_soft_walls(&acc, pi, c);
+    let wf = add_soft_walls(&acc, pi, c);
+    let pf = add_piston(&acc, pi, c);
     kicks[i] = acc.k;
-    pe[i] = acc.u;
+    aux[i] = vec4<f32>(acc.u, wf, pf);
 }
 
 // Leapfrog step and boundaries, then flag a rebuild if this particle has moved half the skin

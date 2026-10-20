@@ -246,6 +246,35 @@ impl DiscSim {
         self.engine.update_system(sys);
     }
 
+    /// Set a fixed-speed piston's speed (σ/τ; negative compresses).
+    pub fn set_piston_speed(&mut self, u: f64) {
+        self.engine.set_piston_speed(u);
+    }
+
+    /// Resolves to `[height σ, velocity σ/τ, gas force on it ε/σ, work done on it by the gas ε]`.
+    pub fn piston(&self) -> js_sys::Promise {
+        let fut = self.engine.read_piston();
+        future_to_promise(async move { Ok(Float64Array::from(&fut.await[..]).into()) })
+    }
+
+    /// Make every wall a heat bath at `t` (`t` > 0) or insulating (soft) (`t` = 0). Pistons and
+    /// membranes are unaffected.
+    pub fn set_walls_thermal(&mut self, t: f64) {
+        let mut sys = self.engine.sys.clone();
+        let piston = sys.piston.is_some();
+        for axis in 0..2 {
+            if let Some(ws) = sys.walls[axis].as_mut() {
+                for side in 0..2 {
+                    if axis == 1 && side == 1 && piston {
+                        continue;
+                    }
+                    ws[side] = if t > 0.0 { Wall::Thermal(t) } else { Wall::Soft };
+                }
+            }
+        }
+        self.engine.update_system(sys);
+    }
+
     pub fn set_gravity(&mut self, gx: f64, gy: f64) {
         let sys = self.engine.sys.clone().with_gravity([gx, gy]);
         self.engine.update_system(sys);

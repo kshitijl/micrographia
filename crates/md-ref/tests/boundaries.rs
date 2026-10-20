@@ -266,3 +266,75 @@ fn membrane_confines_solute_and_is_reversible() {
     e.reverse();
     assert_eq!(e.state, s0);
 }
+
+fn gas_under_piston(n: usize, density: f64, drive: md_core::PistonDrive, seed: u64) -> (System, State) {
+    // Room above the gas for the piston to rise into.
+    let mut bl = init::box_for(n, density, 1.0);
+    bl[1] *= 2;
+    let h = fixed::to_f64(bl[1]) / 2.0;
+    let sys = System::new(bl, init::DT, Pair::wca(), vec![1.0])
+        .with_walls(1, Wall::Soft, Wall::Hard)
+        .with_piston(drive, h, 2.0);
+    let mut s = init::fluid(&sys, n, 1.0, seed);
+    // Squeeze the lattice into the lower half, under the piston.
+    for p in s.pos.iter_mut() {
+        p[1] = p[1] / 2;
+    }
+    (sys, s)
+}
+
+#[test]
+fn moving_piston_is_exactly_reversible() {
+    let (sys, s0) = gas_under_piston(500, 0.3, md_core::PistonDrive::Speed(-0.5), 16);
+    let mut e = IntEngine::<f32>::new(sys, s0.clone());
+    let w0 = e.piston_w;
+    e.step(2000);
+    assert!(e.piston_w < w0);
+    e.reverse();
+    e.step(2000);
+    e.reverse();
+    assert_eq!(e.state, s0);
+    assert_eq!(e.piston_w, w0);
+}
+
+/// A free piston settles where the gas pressure balances the external force: the time-averaged
+/// pressure on the bottom wall equals the piston's external pressure.
+#[test]
+fn free_piston_balances_the_pressure() {
+    let n = 600;
+    let force = 15.0; // ε/σ over the whole width
+    let (sys, s0) = gas_under_piston(n, 0.2, md_core::PistonDrive::Free { mass: 50.0, force }, 17);
+    let width = sys.box_f64()[0];
+    let sys = sys.with_thermostat(1.0, 0.5);
+    let mut e = IntEngine::<f32>::new(sys, s0);
+    e.step(10000);
+    let before = e.ledger.impulse[2];
+    // Long: the piston and the gas exchange momentum slowly, and averages converge slowly (over
+    // four seeds at 500 τ the bottom reads 2–8% high; without the thermostat within 1%).
+    let steps = 100000;
+    e.step(steps);
+    let p_bottom = (e.ledger.impulse[2] - before) / (steps as f64 * e.sys.dt * width);
+    let p_ext = force / width;
+    eprintln!("bottom-wall pressure {p_bottom:.4}, piston's external pressure {p_ext:.4}");
+    assert!((p_bottom / p_ext - 1.0).abs() < 0.1);
+}
+
+/// Compression with no heat exchange heats the gas. Slow compression is adiabatic, T ∝ 1/A for
+/// a 2D monatomic gas (γ = 2); at a piston speed comparable to the molecules' speed it heats
+/// more (the GPU test checks the slow limit).
+#[test]
+fn fast_compression_heats_more_than_adiabatic() {
+    let n = 400;
+    let (sys, s0) = gas_under_piston(n, 0.05, md_core::PistonDrive::Speed(-0.4), 18);
+    let width = sys.box_f64()[0];
+    let mut e = IntEngine::<f64>::new(sys, s0);
+    let t = |e: &IntEngine<f64>| e.velocities().iter().map(|v| 0.5 * (v[0] * v[0] + v[1] * v[1])).sum::<f64>() / n as f64;
+    let (t0, h0) = (t(&e), fixed::to_f64(e.piston_w));
+    // Compress to a third of the height.
+    let steps = ((h0 * 2.0 / 3.0) / (0.4 * e.sys.dt)) as usize;
+    e.step(steps);
+    let (t1, h1) = (t(&e), fixed::to_f64(e.piston_w));
+    let (a0, a1) = (width * (h0 - 1.0), width * (h1 - 1.0));
+    eprintln!("compressed {:.1} → {:.1} σ: T {t0:.3} → {t1:.3}; T·A {:.1} → {:.1}; work on gas {:.1} ε", h0, h1, t0 * a0, t1 * a1, -e.piston_work);
+    assert!(t1 * a1 > 1.05 * t0 * a0, "fast compression should heat beyond the adiabatic law");
+}

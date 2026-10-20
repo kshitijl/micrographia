@@ -4,7 +4,7 @@ use gpu_prims::util::{self, Dispatch, WG};
 use gpu_prims::{fixed64, Gpu, Prims};
 use md_core::system::MAX_SPECIES;
 use md_core::walls::{CompartmentLedger, Ledger, LEDGER_SCALE, WALLS};
-use md_core::{State, System, Wall};
+use md_core::{PistonDrive, State, System, Wall};
 use std::future::Future;
 
 /// Mirrors `struct Params` in `params.wgsl`.
@@ -44,6 +44,12 @@ pub struct Params {
     pub ncomp: [u32; 2],
     pub thermo: [f32; 4],
     pub membrane: [u32; 4],
+    pub piston_mode: u32,
+    pub piston_kc: f32,
+    pub piston_fext: f32,
+    pub _p1: u32,
+    pub piston_min: [u32; 2],
+    pub piston_max: [u32; 2],
     pub pairs: [[f32; 4]; 16],
 }
 
@@ -55,9 +61,13 @@ pub mod ctl {
     pub const OVERFLOW: u32 = 1;
     pub const CLOCK: u32 = 2;
     pub const REBUILDS: u32 = 3;
-    pub const LEDGER: usize = 8;
-    /// Words for list flags and stats only.
-    pub const HEADER: usize = 8;
+    pub const PISTON_POS: usize = 8;
+    pub const PISTON_VEL: usize = 10;
+    pub const PISTON_FORCE: usize = 12;
+    pub const PISTON_WORK: usize = 14;
+    pub const LEDGER: usize = 16;
+    /// Words before the ledger (flags, stats, piston).
+    pub const HEADER: usize = 16;
     pub const WORDS: usize = LEDGER + 6 * WALLS * MAX_COMPARTMENTS;
 
     /// Index of the first word of a ledger field (0 energy, 1 impulse, 2 hits).
@@ -193,6 +203,22 @@ impl Params {
                 }
                 None => [u32::MAX, 0, 0, 0],
             },
+            piston_mode: match sys.piston.map(|p| p.drive) {
+                None => 0,
+                Some(PistonDrive::Speed(_)) => 1,
+                Some(PistonDrive::Free { .. }) => 2,
+            },
+            piston_kc: match sys.piston.map(|p| p.drive) {
+                Some(PistonDrive::Free { mass, .. }) => (sys.dt * sys.dt / mass * md_core::ONE as f64) as f32,
+                _ => 0.0,
+            },
+            piston_fext: match sys.piston.map(|p| p.drive) {
+                Some(PistonDrive::Free { force, .. }) => force as f32,
+                _ => 0.0,
+            },
+            _p1: 0,
+            piston_min: fixed64::split(sys.piston.map_or(0, |p| md_core::fixed::to_fixed(p.min))),
+            piston_max: fixed64::split(sys.piston.map_or(0, |p| md_core::fixed::to_fixed(p.max))),
             pairs,
         }
     }
@@ -229,11 +255,10 @@ pub struct Buffers {
     pub ids: wgpu::Buffer,
     pub keys: wgpu::Buffer,
     pub kicks: wgpu::Buffer,
-    pub pe: wgpu::Buffer,
-    /// Control words: list flags, clock, wall ledger (see [`ctl`]).
+    /// Per particle: potential energy, soft-wall force (x, y), force on the piston.
+    pub aux: wgpu::Buffer,
+    /// Control words: list flags, clock, piston, wall ledger (see [`ctl`]).
     pub ctl: wgpu::Buffer,
-    /// Force on each particle from soft walls (for the ledger).
-    pub wall_f: wgpu::Buffer,
 }
 
 /// Put per-slot values into id order.
@@ -268,8 +293,8 @@ impl Buffers {
             let n = b.n as usize;
             let ids: Vec<u32> = util::read(&b.gpu, &b.ids, n).await;
             let kicks: Vec<[i32; 2]> = util::read(&b.gpu, &b.kicks, n).await;
-            let pe: Vec<f32> = util::read(&b.gpu, &b.pe, n).await;
-            (by_id(&ids, kicks), by_id(&ids, pe))
+            let aux: Vec<[f32; 4]> = util::read(&b.gpu, &b.aux, n).await;
+            (by_id(&ids, kicks), by_id(&ids, aux.iter().map(|a| a[0]).collect()))
         }
     }
 
@@ -279,6 +304,21 @@ impl Buffers {
         async move {
             let w: Vec<u32> = util::read(&b.gpu, &b.ctl, ctl::HEADER).await;
             (w[ctl::REBUILDS as usize], w[ctl::OVERFLOW as usize] != 0)
+        }
+    }
+
+    /// The piston: (height σ, velocity σ/τ, gas force on it ε/σ, work done on it by the gas ε).
+    pub fn read_piston(&self, dt: f64) -> impl Future<Output = [f64; 4]> + 'static {
+        let b = self.clone();
+        async move {
+            let w: Vec<u32> = util::read(&b.gpu, &b.ctl, ctl::HEADER).await;
+            let word = |k: usize| fixed64::join([w[k], w[k + 1]]);
+            [
+                md_core::fixed::to_f64(word(ctl::PISTON_POS)),
+                (w[ctl::PISTON_VEL] as i32) as f64 * md_core::fixed::UNIT / dt,
+                word(ctl::PISTON_FORCE) as f64 / md_core::walls::PISTON_FORCE_SCALE,
+                word(ctl::PISTON_WORK) as f64 / LEDGER_SCALE,
+            ]
         }
     }
 
@@ -363,10 +403,18 @@ struct CellPath {
     integrate: Dispatch,
 }
 
-/// Initial control words: a list rebuild is pending.
-fn initial_ctl() -> Vec<u32> {
+/// Initial control words: a list rebuild is pending, and the piston at its start.
+fn initial_ctl(sys: &System) -> Vec<u32> {
     let mut w = vec![0u32; ctl::WORDS];
     w[ctl::REBUILD as usize] = 1;
+    if let Some(p) = sys.piston {
+        let pos = fixed64::split(md_core::fixed::to_fixed(p.start));
+        w[ctl::PISTON_POS] = pos[0];
+        w[ctl::PISTON_POS + 1] = pos[1];
+        if let PistonDrive::Speed(u) = p.drive {
+            w[ctl::PISTON_VEL] = sys.to_step_displacement(u) as u32;
+        }
+    }
     w
 }
 
@@ -396,6 +444,8 @@ pub struct GpuEngine {
     d_flip: Dispatch,
     /// Advances the clock for stochastic boundaries (only when there are any).
     d_tick: Option<Dispatch>,
+    /// Piston kernels: clear its force sum, move it, reverse it.
+    d_piston: Option<[Dispatch; 3]>,
     /// Cell-list mode only: reorder storage into Morton order every this many steps (0 =
     /// never). Verlet mode reorders at every list rebuild.
     pub sort_interval: u32,
@@ -426,9 +476,8 @@ impl GpuEngine {
             ids: util::storage_init(gpu, "ids", &(0..n).collect::<Vec<u32>>()),
             keys: util::storage(gpu, "keys", n as u64 * 4),
             kicks: util::storage(gpu, "kicks", n as u64 * 8),
-            pe: util::storage(gpu, "pe", n as u64 * 4),
-            ctl: util::storage_init(gpu, "ctl", &initial_ctl()),
-            wall_f: util::storage(gpu, "wall force", n as u64 * 8),
+            aux: util::storage(gpu, "aux", n as u64 * 16),
+            ctl: util::storage_init(gpu, "ctl", &initial_ctl(&sys)),
         };
         let g = util::groups(n, WG);
         let b = &buf;
@@ -451,15 +500,15 @@ impl GpuEngine {
                             (6, &bin.counts),
                             (7, &bin.sorted),
                             (8, &b.kicks),
-                            (9, &b.pe),
-                            (12, &b.wall_f),
+                            (9, &b.aux),
+                            (11, &b.ctl),
                         ],
                         g,
                     ),
                     integrate: Dispatch::new_at(
                         gpu,
                         &pl("integrate"),
-                        &[(0, &b.params), (1, &b.pos), (2, &b.vel), (3, &b.species), (8, &b.kicks), (10, &b.ids), (11, &b.ctl), (12, &b.wall_f)],
+                        &[(0, &b.params), (1, &b.pos), (2, &b.vel), (3, &b.species), (8, &b.kicks), (9, &b.aux), (10, &b.ids), (11, &b.ctl)],
                         g,
                     ),
                     bin,
@@ -484,13 +533,13 @@ impl GpuEngine {
                     force: Dispatch::new_at(
                         gpu,
                         &npl("force_list"),
-                        &[(0, &b.params), (1, &b.pos), (3, &b.species), (6, &nbr), (7, &nbr_count), (10, &b.kicks), (11, &b.pe), (13, &b.wall_f)],
+                        &[(0, &b.params), (1, &b.pos), (3, &b.species), (6, &nbr), (7, &nbr_count), (9, &b.ctl), (10, &b.kicks), (11, &b.aux)],
                         g,
                     ),
                     integrate: Dispatch::new_at(
                         gpu,
                         &npl("integrate_list"),
-                        &[(0, &b.params), (1, &b.pos), (2, &b.vel), (3, &b.species), (8, &ref_pos), (9, &b.ctl), (10, &b.kicks), (12, &b.ids), (13, &b.wall_f)],
+                        &[(0, &b.params), (1, &b.pos), (2, &b.vel), (3, &b.species), (8, &ref_pos), (9, &b.ctl), (10, &b.kicks), (11, &b.aux), (12, &b.ids)],
                         g,
                     ),
                     _lists: [nbr, nbr_count, ref_pos],
@@ -501,6 +550,10 @@ impl GpuEngine {
             d_reverse: Dispatch::new_at(gpu, &pl("reverse"), &[(0, &b.params), (2, &b.vel), (8, &b.kicks)], g),
             // Any walls could be made thermal later (update_system), so keep a clock for them.
             d_tick: (!sys.periodic(0) || !sys.periodic(1) || sys.thermostat.is_some()).then(|| Dispatch::new_at(gpu, &pl("tick"), &[(11, &b.ctl)], 1)),
+            d_piston: sys.piston.is_some().then(|| {
+                let one = |e: &str| Dispatch::new_at(gpu, &pl(e), &[(0, &b.params), (11, &b.ctl)], 1);
+                [Dispatch::new_at(gpu, &pl("piston_clear"), &[(11, &b.ctl)], 1), one("piston_move"), one("piston_flip")]
+            }),
             d_flip: Dispatch::new_at(gpu, &pl("flip"), &[(0, &b.params), (1, &b.pos), (10, &b.ids)], g),
             reorder,
             path,
@@ -546,6 +599,9 @@ impl GpuEngine {
 
     /// Record a force evaluation at the current positions.
     pub fn encode_forces(&self, pass: &mut wgpu::ComputePass<'_>) {
+        if let Some(p) = &self.d_piston {
+            p[0].encode(pass);
+        }
         match &self.path {
             Path::Cells(c) => {
                 c.cells.encode(pass);
@@ -564,6 +620,9 @@ impl GpuEngine {
         match &self.path {
             Path::Cells(c) => c.integrate.encode(pass),
             Path::List(l) => l.integrate.encode(pass),
+        }
+        if let Some(p) = &self.d_piston {
+            p[1].encode(pass);
         }
         if let Some(t) = &self.d_tick {
             t.encode(pass);
@@ -614,6 +673,9 @@ impl GpuEngine {
         self.submit(|pass| {
             self.encode_forces(pass);
             self.d_reverse.encode(pass);
+            if let Some(p) = &self.d_piston {
+                p[2].encode(pass);
+            }
         });
         self.steps = -self.steps;
     }
@@ -627,6 +689,7 @@ impl GpuEngine {
         assert_eq!(sys.compartments, self.sys.compartments);
         assert_eq!(sys.walls.map(|w| w.is_some()), self.sys.walls.map(|w| w.is_some()));
         assert_eq!(sys.thermostat.is_some(), self.sys.thermostat.is_some(), "the thermostat can be retuned, not added or removed");
+        assert_eq!(sys.piston.map(|p| std::mem::discriminant(&p.drive)), self.sys.piston.map(|p| std::mem::discriminant(&p.drive)));
         assert!(sys.rc_max() <= self.sys.rc_max() + 1e-12, "cutoffs cannot grow at run time");
         let mut p = Params::new(&sys, self.n(), self.mode);
         // Keep the geometry the buffers were sized for.
@@ -642,6 +705,12 @@ impl GpuEngine {
         self.sys = sys;
     }
 
+    /// Set a fixed-speed piston's speed (σ/τ; positive opens the box).
+    pub fn set_piston_speed(&mut self, u: f64) {
+        let v = self.sys.to_step_displacement(u);
+        self.gpu().queue.write_buffer(&self.buf.ctl, 4 * ctl::PISTON_VEL as u64, bytemuck::bytes_of(&v));
+    }
+
     /// Reorder particle storage into Morton order now (and rebuild lists, if any).
     pub fn sort_now(&mut self) {
         self.submit(|pass| self.reorder.encode(pass));
@@ -655,6 +724,11 @@ impl GpuEngine {
 
     pub fn read_ledger(&self) -> impl Future<Output = Ledger> + 'static {
         self.buf.read_ledger()
+    }
+
+    /// (height σ, velocity σ/τ, gas force ε/σ, work done by the gas ε).
+    pub fn read_piston(&self) -> impl Future<Output = [f64; 4]> + 'static {
+        self.buf.read_piston(self.sys.dt)
     }
 
     /// XOR bit `bit` (0 = least significant, 2⁻³² σ) of coordinate `axis` of the particle with

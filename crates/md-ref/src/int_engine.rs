@@ -10,6 +10,8 @@ pub struct Forces {
     pub potential: f64,
     /// Force of each particle on each soft wall (ε/σ), outward.
     pub wall_force: Vec<[f64; walls::WALLS]>,
+    /// Total upward force of the gas on the piston (ε/σ), summed in fixed point like the GPU.
+    pub piston_force: f64,
 }
 
 /// `cpu-int-float`: integer positions and velocities, forces in `F`.
@@ -32,6 +34,11 @@ pub struct IntEngine<F: Real> {
     /// Wall ledger totals, and per compartment along each wall.
     pub ledger: Ledger,
     pub compartment_ledger: CompartmentLedger,
+    /// Piston height (position units) and its velocity (displacement per step), if any.
+    pub piston_w: i64,
+    pub piston_v: i32,
+    /// Work done by the gas on the piston (ε).
+    pub piston_work: f64,
 }
 
 impl<F: Real> IntEngine<F> {
@@ -41,7 +48,31 @@ impl<F: Real> IntEngine<F> {
         let cells = sys.cells();
         let gravity = sys.gravity_kick();
         let per_wall = sys.compartment_counts().into_iter().max().unwrap();
-        Self { sys, state, consts, kick_c, gravity, cells, steps: 0, clock: 0, ledger: Ledger::default(), compartment_ledger: CompartmentLedger::new(per_wall) }
+        let (piston_w, piston_v) = match sys.piston {
+            Some(p) => (
+                fixed::to_fixed(p.start),
+                match p.drive {
+                    md_core::PistonDrive::Speed(u) => sys.to_step_displacement(u),
+                    md_core::PistonDrive::Free { .. } => 0,
+                },
+            ),
+            None => (0, 0),
+        };
+        Self {
+            sys,
+            state,
+            consts,
+            kick_c,
+            gravity,
+            cells,
+            steps: 0,
+            clock: 0,
+            ledger: Ledger::default(),
+            compartment_ledger: CompartmentLedger::new(per_wall),
+            piston_w,
+            piston_v,
+            piston_work: 0.0,
+        }
     }
 
     fn cell_list(&self) -> CellList {
@@ -72,6 +103,7 @@ impl<F: Real> IntEngine<F> {
         let mut kicks = vec![[0i32; 2]; s.n()];
         let mut pe = 0.0f64;
         let mut wall_force = vec![[0.0f64; walls::WALLS]; s.n()];
+        let mut piston_fixed = 0i64;
         for i in 0..s.n() {
             let pi = s.pos[i];
             let si = s.species[i] as usize;
@@ -124,15 +156,32 @@ impl<F: Real> IntEngine<F> {
                     }
                 }
             }
+            if self.sys.piston.is_some() {
+                // The piston: a soft wall at height piston_w, pushing down.
+                let Some(df) = F::sep(self.piston_w - pi[1]) else {
+                    kicks[i] = [kx, ky];
+                    pe += 0.5 * pe_i.to_f64() + wall_pe;
+                    continue;
+                };
+                if df < F::from_f64(walls::SOFT_RC) {
+                    let one = F::from_f64(1.0);
+                    let s2 = one / (df * df);
+                    let s6 = s2 * s2 * s2;
+                    let f = F::from_f64(24.0) * s6 * (F::from_f64(2.0) * s6 - one) / df;
+                    ky = ky.wrapping_sub((f * c).round_even().to_i32());
+                    piston_fixed += (f.to_f64() * walls::PISTON_FORCE_SCALE).round() as i64;
+                    wall_pe += (F::from_f64(4.0) * s6 * (s6 - one) + one).to_f64();
+                }
+            }
             kicks[i] = [kx, ky];
             pe += 0.5 * pe_i.to_f64() + wall_pe;
         }
-        Forces { kicks, potential: pe, wall_force }
+        Forces { kicks, potential: pe, wall_force, piston_force: piston_fixed as f64 / walls::PISTON_FORCE_SCALE }
     }
 
     pub fn step(&mut self, n: usize) {
         for _ in 0..n {
-            let Forces { kicks, wall_force, .. } = self.forces();
+            let Forces { kicks, wall_force, piston_force, .. } = self.forces();
             for (i, wf) in wall_force.iter().enumerate() {
                 for w in 0..walls::WALLS {
                     if wf[w] != 0.0 {
@@ -192,12 +241,33 @@ impl<F: Real> IntEngine<F> {
                         }
                     }
                 }
+                if self.sys.piston.is_some() && x[1] >= self.piston_w {
+                    x[1] = 2 * self.piston_w - 1 - x[1];
+                    v[1] = v[1].wrapping_neg();
+                }
                 self.state.vel[i] = v;
                 self.state.pos[i] = x;
             }
+            self.move_piston(piston_force);
             self.steps += 1;
             self.clock = self.clock.wrapping_add(1);
         }
+    }
+
+    /// The piston's own leapfrog: a kick from the net force (free pistons), a drift, and stops.
+    fn move_piston(&mut self, gas_force: f64) {
+        let Some(p) = self.sys.piston else { return };
+        if let md_core::PistonDrive::Free { mass, force } = p.drive {
+            self.piston_v = self.piston_v.wrapping_add(walls::piston_kick(&self.sys, gas_force - force, mass));
+        }
+        let old = self.piston_w;
+        self.piston_w += self.piston_v as i64;
+        let (lo, hi) = (fixed::to_fixed(p.min), fixed::to_fixed(p.max));
+        if self.piston_w < lo || self.piston_w > hi {
+            self.piston_w = self.piston_w.clamp(lo, hi);
+            self.piston_v = 0;
+        }
+        self.piston_work += gas_force * fixed::to_f64(self.piston_w - old);
     }
 
     /// A particle crossed wall `side` of `axis`: update its velocity and the ledger.
@@ -235,11 +305,18 @@ impl<F: Real> IntEngine<F> {
     /// Time reversal: `v ← −(v + kick(x) + g)`. Running n steps, reversing, running n steps and
     /// reversing again restores the initial state bit for bit (when every wall is hard).
     pub fn reverse(&mut self) {
-        let (kicks, _) = self.kicks();
+        let Forces { kicks, piston_force, .. } = self.forces();
         for (v, k) in self.state.vel.iter_mut().zip(&kicks) {
             for a in 0..2 {
                 v[a] = v[a].wrapping_add(k[a]).wrapping_add(self.gravity[a]).wrapping_neg();
             }
+        }
+        if let Some(p) = self.sys.piston {
+            let kick = match p.drive {
+                md_core::PistonDrive::Free { mass, force } => walls::piston_kick(&self.sys, piston_force - force, mass),
+                md_core::PistonDrive::Speed(_) => 0,
+            };
+            self.piston_v = self.piston_v.wrapping_add(kick).wrapping_neg();
         }
         self.steps = -self.steps;
     }

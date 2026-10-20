@@ -49,6 +49,27 @@ pub struct System {
     /// A semi-permeable membrane: a thin wall across the box that reflects some species and
     /// lets the others through.
     pub membrane: Option<Membrane>,
+    /// A piston: a soft wall that replaces the top (y-high) wall and moves.
+    pub piston: Option<Piston>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum PistonDrive {
+    /// Moves at a fixed speed (σ/τ; positive opens the box).
+    Speed(f64),
+    /// Moves freely under the gas pressure and a constant external force (ε/σ, pushing down),
+    /// with mass M.
+    Free { mass: f64, force: f64 },
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Piston {
+    pub drive: PistonDrive,
+    /// Initial height (σ).
+    pub start: f64,
+    /// The piston stops at these heights (σ).
+    pub min: f64,
+    pub max: f64,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -82,7 +103,7 @@ impl System {
     pub fn new(box_len: [i64; 2], dt: f64, pair: Pair, masses: Vec<f64>) -> Self {
         assert!(!masses.is_empty() && masses.len() <= MAX_SPECIES);
         let ns = masses.len();
-        let s = Self { box_len, dt, pairs: vec![pair; ns * ns], masses, walls: [None, None], gravity: [0.0, 0.0], seed: 1, compartments: [0, 0], thermostat: None, membrane: None };
+        let s = Self { box_len, dt, pairs: vec![pair; ns * ns], masses, walls: [None, None], gravity: [0.0, 0.0], seed: 1, compartments: [0, 0], thermostat: None, membrane: None, piston: None };
         s.check();
         s
     }
@@ -149,6 +170,16 @@ impl System {
         assert!(self.walls[axis].is_some(), "a membrane needs walls on its axis");
         let blocks = blocked.iter().fold(0u32, |m, &s| m | 1 << s);
         self.membrane = Some(Membrane { axis, position: crate::fixed::to_fixed(position_sigma), blocks });
+        self
+    }
+
+    /// Replace the top wall by a piston starting at height `start` σ (y must have walls; the
+    /// box height is the piston's upper limit).
+    pub fn with_piston(mut self, drive: PistonDrive, start: f64, min: f64) -> Self {
+        assert!(self.walls[1].is_some(), "a piston needs walls on y");
+        let max = self.box_f64()[1];
+        assert!(start <= max && min < start);
+        self.piston = Some(Piston { drive, start, min, max });
         self
     }
 

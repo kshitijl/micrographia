@@ -262,3 +262,63 @@ fn membrane_pressure_of_a_dilute_gas() {
     eprintln!("dilute gas: membrane pressure {pi:.5}, far wall {wall:.5}, ρkT {c:.5}");
     assert!((pi / c - 1.0).abs() < 0.1);
 }
+
+fn gas_under_piston(n: usize, density: f64, drive: md_core::PistonDrive, seed: u64) -> (System, State) {
+    let mut bl = init::box_for(n, density, 1.0);
+    bl[1] *= 2;
+    let h = md_core::fixed::to_f64(bl[1]) / 2.0;
+    let sys = System::new(bl, init::DT, Pair::wca(), vec![1.0]).with_walls(1, Wall::Soft, Wall::Hard).with_piston(drive, h, 2.0);
+    let mut s = init::fluid(&sys, n, 1.0, seed);
+    for q in s.pos.iter_mut() {
+        q[1] /= 2;
+    }
+    (sys, s)
+}
+
+#[test]
+fn piston_on_the_gpu_matches_the_cpu_and_reverses() {
+    let p = prims();
+    let (sys, s0) = gas_under_piston(3000, 0.3, md_core::PistonDrive::Speed(-0.5), 19);
+    let mut cpu = IntEngine::<f32>::new(sys.clone(), s0.clone());
+    let mut gpu = GpuEngine::new(&p, sys.clone(), &s0);
+    cpu.step(400);
+    gpu.step(400);
+    let (w_cpu, w_gpu) = (md_core::fixed::to_f64(cpu.piston_w), block_on(gpu.read_piston())[0]);
+    assert!((w_cpu - w_gpu).abs() < 1e-9, "piston heights {w_cpu} vs {w_gpu}");
+    let g = GpuEngine::new(&p, sys.clone(), &cpu.state);
+    // Same positions and piston height: kicks agree (the GPU engine starts at the initial height,
+    // so compare at the start instead).
+    let (kg, _) = block_on(GpuEngine::new(&p, sys.clone(), &s0).kicks());
+    let (kc, _) = IntEngine::<f64>::new(sys.clone(), s0.clone()).kicks();
+    let worst = kg.iter().zip(&kc).map(|(a, b)| (a[1] - b[1]).abs()).max().unwrap();
+    assert!(worst < 64, "kick difference {worst}");
+    drop(g);
+    gpu.reverse();
+    gpu.step(400);
+    gpu.reverse();
+    assert_eq!(block_on(gpu.read_state()), s0);
+    assert!((block_on(gpu.read_piston())[0] - md_core::fixed::to_f64(md_core::fixed::to_fixed(sys.piston.unwrap().start))).abs() < 1e-12);
+}
+
+/// Slow compression with no heat exchange follows the adiabat T·A = const (2D, γ = 2). Small
+/// molecules (σ = 0.4) keep the gas nearly ideal; with σ = 1 at these densities the second
+/// virial coefficient adds ~10% (T·A grows as exp(B₂ Δρ)).
+#[test]
+fn slow_compression_is_adiabatic() {
+    let p = prims();
+    let n = 2000;
+    let (sys, s0) = gas_under_piston(n, 0.05, md_core::PistonDrive::Speed(-0.1), 20);
+    let sys = sys.with_pair(0, 0, Pair { eps: 1.0, sigma: 0.4, rc: 0.4 * 2f64.powf(1.0 / 6.0) });
+    let width = sys.box_f64()[0];
+    let mut e = GpuEngine::new(&p, sys.clone(), &s0);
+    e.step(2000);
+    let t = |s: &State| s.half_step_kinetic(&sys) / n as f64;
+    let (t0, h0) = (t(&block_on(e.read_state())), block_on(e.read_piston())[0]);
+    let steps = ((h0 * 0.6) / (0.1 * sys.dt)) as usize;
+    e.step(steps);
+    let (t1, h1) = (t(&block_on(e.read_state())), block_on(e.read_piston())[0]);
+    let (a0, a1) = (width * (h0 - 1.0), width * (h1 - 1.0));
+    let work = -block_on(e.read_piston())[3];
+    eprintln!("slow compression {h0:.1} → {h1:.1} σ: T {t0:.3} → {t1:.3}, T·A ratio {:.3}; work on gas {work:.0} ε, ΔKE {:.0} ε", t1 * a1 / (t0 * a0), (t1 - t0) * n as f64);
+    assert!((t1 * a1 / (t0 * a0) - 1.0).abs() < 0.08);
+}

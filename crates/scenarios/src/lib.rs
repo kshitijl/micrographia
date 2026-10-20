@@ -59,7 +59,7 @@ pub struct Scenario {
     pub radii: Vec<f64>,
 }
 
-pub const NAMES: &[&str] = &["cream", "corner", "boltzmann", "heavy", "oilwater", "heatflow", "osmosis"];
+pub const NAMES: &[&str] = &["cream", "corner", "boltzmann", "heavy", "oilwater", "heatflow", "osmosis", "compress"];
 
 pub fn build(name: &str, o: &Options) -> Result<Scenario, String> {
     match name {
@@ -70,6 +70,7 @@ pub fn build(name: &str, o: &Options) -> Result<Scenario, String> {
         "oilwater" => Ok(oilwater(o)),
         "heatflow" => Ok(heatflow(o)),
         "osmosis" => Ok(osmosis(o)),
+        "compress" => Ok(compress(o)),
         _ => Err(format!("unknown scenario {name}")),
     }
 }
@@ -244,6 +245,29 @@ pub fn osmosis(o: &Options) -> Scenario {
         }
     }
     Scenario { warmup: o.get("warmup", 4000.0) as usize, finish: Finish::None, marked: 1, grid: [32, 1], radii: vec![0.5, 0.5], sys, state }
+}
+
+/// A dilute gas of small molecules (σ = 0.5, nearly ideal) in a cylinder closed by a piston
+/// that starts halfway up. The box is 4:3; the piston runs between 15% and 100% of its height.
+/// Walls are insulating (soft) unless `thermal` > 0, which makes the side and bottom walls a
+/// heat bath at that temperature. Options: n, density (initial), thermal, seed.
+pub fn compress(o: &Options) -> Scenario {
+    let n = o.get("n", 3000.0) as usize;
+    let area0 = n as f64 / o.get("density", 0.05);
+    let width = (8.0 * area0 / 3.0).sqrt();
+    let height = 0.75 * width;
+    let small = Pair { eps: 1.0, sigma: 0.5, rc: 0.5 * 2f64.powf(1.0 / 6.0) };
+    let thermal = o.get("thermal", 0.0);
+    let side = if thermal > 0.0 { Wall::Thermal(thermal) } else { Wall::Soft };
+    let sys = System::new([fixed::to_fixed(width), fixed::to_fixed(height)], init::DT, small, vec![1.0])
+        .with_walls(0, side, side)
+        .with_walls(1, side, Wall::Hard)
+        .with_piston(md_core::PistonDrive::Speed(0.0), height / 2.0, 0.15 * height);
+    let mut state = init::fluid(&sys, n, 1.0, o.get("seed", 1.0) as u64);
+    for p in state.pos.iter_mut() {
+        p[1] /= 2;
+    }
+    Scenario { warmup: 0, finish: Finish::None, marked: 0, grid: [8, 8], radii: vec![0.6], sys, state }
 }
 
 #[cfg(test)]

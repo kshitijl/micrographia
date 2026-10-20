@@ -1,5 +1,6 @@
 // Kick, drift and boundaries for one particle. Requires fixed64.wgsl, threefry.wgsl and
-// params.wgsl, and module-scope `pos`, `vel`, `kicks`, `species`, `ids`, `ctl` and `wall_f`.
+// params.wgsl, and module-scope `pos`, `vel`, `kicks`, `species`, `ids`, `ctl` and `aux`
+// (per particle: potential energy, soft-wall force x and y, piston force).
 // CPU twin: md-ref IntEngine::step and collide.
 
 // Add a signed fixed-point value to ledger field `field` (0 energy, 1 impulse, 2 hits) of
@@ -9,6 +10,44 @@ fn ledger_add(w: u32, c: u32, field: u32, value: i32) {
     let v = i64_from_i32(value);
     let old = atomicAdd(&ctl[base], v.x);
     atomicAdd(&ctl[base + 1u], v.y + select(0u, 1u, old + v.x < old));
+}
+
+fn atomic_add64(k: u32, value: i32) {
+    let v = i64_from_i32(value);
+    let old = atomicAdd(&ctl[k], v.x);
+    atomicAdd(&ctl[k + 1u], v.y + select(0u, 1u, old + v.x < old));
+}
+
+fn load64(k: u32) -> vec2<u32> {
+    return vec2<u32>(atomicLoad(&ctl[k]), atomicLoad(&ctl[k + 1u]));
+}
+
+fn store64(k: u32, v: vec2<u32>) {
+    atomicStore(&ctl[k], v.x);
+    atomicStore(&ctl[k + 1u], v.y);
+}
+
+fn piston_pos() -> vec2<u32> {
+    return load64(CTL_PISTON_POS);
+}
+
+// The piston's push on a particle at p (a soft wall above it): adds the kick and energy, and
+// adds the reaction to the piston's force sum. Returns the force on the piston (ε/σ).
+fn add_piston(acc: ptr<function, Acc>, p: vec4<u32>, c: f32) -> f32 {
+    if (P.piston_mode == 0u) {
+        return 0.0;
+    }
+    let d = sep_f32(sub64(piston_pos(), p.zw));
+    if (d >= SOFT_RC) {
+        return 0.0;
+    }
+    let s2 = 1.0 / (d * d);
+    let s6 = s2 * s2 * s2;
+    let f = 24.0 * s6 * (2.0 * s6 - 1.0) / d;
+    (*acc).k.y -= i32(round(f * c));
+    (*acc).u += 4.0 * s6 * (s6 - 1.0) + 1.0;
+    atomic_add64(CTL_PISTON_FORCE, i32(round(f * 65536.0)));
+    return f;
 }
 
 fn unit_open(x: u32) -> f32 {
@@ -143,7 +182,7 @@ fn advance(i: u32) -> vec4<u32> {
             }
         }
     }
-    let wf = wall_f[i];
+    let wf = aux[i].yz;
     if (wf.x != 0.0) {
         ledger_add(select(1u, 0u, wf.x > 0.0), ledger_slot(p, 0u), 1u, i32(round(abs(wf.x) * P.dt * LEDGER_SCALE)));
     }
@@ -165,6 +204,14 @@ fn advance(i: u32) -> vec4<u32> {
             }
         }
     }
+    if (P.piston_mode != 0u) {
+        // A particle that reaches the piston's plane (only at very high speed) reflects.
+        let w = piston_pos();
+        if (!lt64(y, w)) {
+            y = sub64(sub64(add64(w, w), vec2<u32>(1u, 0u)), y);
+            v.y = -v.y;
+        }
+    }
     if ((P.periodic & 2u) != 0u) {
         y = wrap64(y, P.box_y);
     } else {
@@ -184,4 +231,43 @@ fn advance(i: u32) -> vec4<u32> {
     let q = vec4<u32>(x, y);
     pos[i] = q;
     return q;
+}
+
+// Gas force on the piston at the last force evaluation (ε/σ).
+fn piston_gas_force() -> f32 {
+    let f = load64(CTL_PISTON_FORCE);
+    return f32(bitcast<i32>(f.y)) * 65536.0 + f32(f.x) / 65536.0;
+}
+
+// The piston's leapfrog (one thread, after the particles moved): kick (free pistons), drift,
+// stops, and the work done by the gas.
+fn piston_step() {
+    var v = bitcast<i32>(atomicLoad(&ctl[CTL_PISTON_VEL]));
+    let gas = piston_gas_force();
+    if (P.piston_mode == 2u) {
+        v += i32(round((gas - P.piston_fext) * P.piston_kc));
+    }
+    let old = piston_pos();
+    var w = add64(old, i64_from_i32(v));
+    if (lt64(w, P.piston_min)) {
+        w = P.piston_min;
+        v = 0;
+    }
+    if (lt64(P.piston_max, w)) {
+        w = P.piston_max;
+        v = 0;
+    }
+    store64(CTL_PISTON_POS, w);
+    atomicStore(&ctl[CTL_PISTON_VEL], bitcast<u32>(v));
+    let dw = sep_f32(sub64(w, old));
+    atomic_add64(CTL_PISTON_WORK, i32(round(gas * dw * LEDGER_SCALE)));
+}
+
+// Time reversal for the piston: v ← −(v + kick).
+fn piston_reverse() {
+    var v = bitcast<i32>(atomicLoad(&ctl[CTL_PISTON_VEL]));
+    if (P.piston_mode == 2u) {
+        v += i32(round((piston_gas_force() - P.piston_fext) * P.piston_kc));
+    }
+    atomicStore(&ctl[CTL_PISTON_VEL], bitcast<u32>(-v));
 }
