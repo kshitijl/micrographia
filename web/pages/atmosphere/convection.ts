@@ -357,7 +357,7 @@ function draw() {
 
 function frame() {
   if (running) {
-    for (let k = 0; k < 8; k++) step();
+    for (let k = 0; k < 4; k++) step(); // an hour of air every second or so
     draw();
   }
   requestAnimationFrame(frame);
@@ -369,14 +369,20 @@ function setSky(s: typeof sky) {
   sky = s;
   sunBtn.textContent = s === "day" ? "Sunset" : "Sunshine";
 }
-sunBtn.onclick = () => setSky(sky === "day" ? "night" : "day");
-$("frun").onclick = () => {
-  running = !running;
-  $("frun").textContent = running ? "Pause" : "Run";
+function setRunning(on: boolean) {
+  running = on;
+  $("frun").textContent = on ? "Pause" : "Run";
+}
+// Sunshine, a warm bubble or a stir set the air going if it was paused.
+sunBtn.onclick = () => {
+  setSky(sky === "day" ? "night" : "day");
+  setRunning(true);
 };
+$("frun").onclick = () => setRunning(!running);
 $("freset").onclick = () => {
   reset();
   setSky("still");
+  setRunning(false);
   draw();
 };
 $("bubble").onclick = () => {
@@ -386,12 +392,14 @@ $("bubble").onclick = () => {
       const r2 = ((i - NX / 2) ** 2 + (j - 6) ** 2) / 16;
       theta[at(i, j)] += 3 * Math.exp(-r2);
     }
+  setRunning(true);
   draw();
 };
 let last: { x: number; z: number } | null = null;
 canvas.addEventListener("pointerdown", (e) => {
   canvas.setPointerCapture(e.pointerId);
   last = toGrid(e);
+  setRunning(true);
 });
 canvas.addEventListener("pointerup", () => (last = null));
 canvas.addEventListener("pointermove", (e) => {
@@ -410,10 +418,7 @@ canvas.addEventListener("pointermove", (e) => {
       omega[at(i, j)] += (vz * (-2 * dx * g) / s2 - vx * (-2 * dz * g) / s2) / D;
     }
   last = now;
-  if (!running) {
-    solvePsi();
-    draw();
-  }
+  solvePsi();
 });
 function toGrid(e: PointerEvent) {
   const r = canvas.getBoundingClientRect();
@@ -432,7 +437,7 @@ declare global {
 
 window.convectionTest = {
   run(hours: number, s: "still" | "day" | "night") {
-    running = false;
+    setRunning(false);
     reset();
     setSky(s);
     while (seconds < hours * 3600) step();
