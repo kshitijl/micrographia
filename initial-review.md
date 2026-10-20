@@ -51,7 +51,8 @@ Feedback:
 Done (to confirm):
 - [ ] 1. Yes, it was the molecules' size: each denies the others an area b ≈ πd², which makes
   gathering in half the box rarer by about e^(−N(N−1)b/2A). With the old 0.5 σ molecules that
-  is 0.80 at 6 per box and 0.54 at 10 (measured 0.81, 0.50); your 0.65 fits about 8 per box.
+  is 0.80 at 6 per box and 0.54 at 10 (measured 0.81, 0.50); 0.65 is what 9 per box gives, or
+  6 per box early on, before many events have been counted.
   The default is now 0.25 σ (nearly ideal, like air): about 0.95 of 2⁻ᴺ (0.92–1.01 over seeds;
   the page's seed shows ~0.9). A new "Molecule size" selector (0.25, 0.5, 1 σ) shows the effect
   on purpose, the page shows both the ideal and the size-corrected odds (b integrated from the
