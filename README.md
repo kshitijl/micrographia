@@ -3,11 +3,8 @@
 Browser pages that answer questions about heat, entropy and everyday physics with live
 molecular simulations on the GPU (WebGPU), so anyone with a phone or a laptop can see how the
 nano world works. Named after Robert Hooke's *Micrographia* (1665), the first popular book of
-what the microscope showed. The molecular dynamics engine is **Brownie**, after Robert Brown,
-who first saw molecules' jiggling (in pollen grains), and the Kodak Brownie, the cheap camera
-that put photography in everyone's hands. See `questions.md` for the questions,
-`docs/status.md` for what exists and how it was checked, `docs/architecture.md` for the design
-and `docs/research.md` for background.
+what the microscope showed. The molecular dynamics engine is **Rahman**, after Aneesur Rahman, who ran
+the first realistic molecular dynamics simulation (liquid argon, 1964).
 
 To look at the pages: `cargo xtask dev`, then open http://localhost:5173 in a browser with
 WebGPU (Chrome, Edge, or Safari 26+).

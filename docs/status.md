@@ -1,6 +1,6 @@
 # Status
 
-Micrographia: pages on the Brownie engine.
+Micrographia: pages on the Rahman engine.
 
 What exists, what it has been checked against, and what comes next. Numbers are from an Apple
 M1 Pro (Metal) unless stated. Run everything with `cargo xtask all`.
@@ -176,7 +176,7 @@ Priority: the original list of questions in `questions.md` (the first section), 
 need phase transitions that the 2D Lennard-Jones fluid shows poorly (its liquid exists only for
 kT ≈ 0.41–0.46, and 2D melting goes through a hexatic phase).
 
-1. **3D Brownie.** The same integer scheme in 3D (positions, cell and Verlet lists, walls, piston,
+1. **3D Rahman.** The same integer scheme in 3D (positions, cell and Verlet lists, walls, piston,
    baths, compartments, bonds), with its CPU twin and the same reversal and cross-browser checks,
    and a 3D renderer (perspective, or slices).
 2. **Phase transitions must be visible**, in 3D (LJ triple point ~0.69, critical ~1.31 kT/ε) and

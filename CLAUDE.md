@@ -1,7 +1,8 @@
 # Working on Micrographia
 
-Micrographia is browser pages that answer physics questions with live simulations; Brownie is
-its GPU molecular dynamics engine. See `README.md`, `docs/status.md` and `docs/architecture.md`.
+Micrographia is browser pages that answer physics questions with live simulations; Rahman (after
+Aneesur Rahman, who ran the first realistic MD simulation in 1964) is its GPU molecular dynamics
+engine. See `README.md`, `docs/status.md` and `docs/architecture.md`.
 
 ## Process
 
@@ -10,6 +11,10 @@ its GPU molecular dynamics engine. See `README.md`, `docs/status.md` and `docs/a
 - Page review feedback goes into `initial-review.md` as it is given, with what was done about it.
 
 ## Code
+
+- Rahman will be published for others to use, so its API matters. Build the pages on the public
+  API (the scenario builders, the engine's methods, the wasm `DiscSim` and `web/src/lib`), not on
+  internals; when a page needs something new, add it to the public API properly.
 
 - Grug brain: dumb, simple code when possible. No cleverness or abstraction that isn't paying for
   itself.
@@ -31,3 +36,9 @@ its GPU molecular dynamics engine. See `README.md`, `docs/status.md` and `docs/a
   conservation is visible and so is what a kick or a freeze does to it.
 - Each page says at the bottom what kind of simulation it is: method (molecular dynamics, ...),
   potentials, ensemble (constant energy, thermostat, heat-bath walls), size, time step.
+- Make it visceral: the viewer should feel the forces and effects, not read them off a number.
+  Things should visibly bend, stretch, burst, rise, crumple; springs coloured by their tension,
+  walls that bow, membranes that bulge.
+- A theme throughout: entropy matters more as temperature rises. An effect that gets stronger
+  when hotter (rubber's pull, osmotic pressure, depletion forces) is evidence that it is driven by
+  entropy; pages should show and say so.

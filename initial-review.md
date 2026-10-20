@@ -6,10 +6,10 @@ Delete this file once everything here has been settled.
 
 ## Decisions
 
-- **Names.** The MD engine is **Brownie** (Robert Brown; the Kodak Brownie camera that put
-  photography in everyone's hands). The project is **Micrographia** (Hooke's 1665 book showing
+- **Names.** The MD engine was first named **Brownie** (Robert Brown; the Kodak Brownie
+  camera), then renamed **Rahman** (third round). The project is **Micrographia** (Hooke's 1665 book showing
   the public the microscopic world). Done so far: README, site title, every page's top bar.
-  Open: rename the `md` crate to `brownie` (and `md-core`/`md-ref` to match)? Not done yet.
+  Open: rename the `md` crate to `rahman` (and `md-core`/`md-ref` to match)? Not done yet.
 - **Priorities.** The original list of questions comes first. That needs the 3D engine next,
   and phase transitions (boiling, melting, freezing, salt and melting point, triple point,
   temperature holding steady during a phase change) must be visible in it. Written into
@@ -215,3 +215,66 @@ Open questions (second round):
   a ragged surface with films creeping up the walls and the membrane. Many variants were tried
   (see `crates/md/tests/osmosis_demos.rs`). A clean version wants a wider tube (slower) or 3D.
 - Energy/entropy panel and tools on every remaining page: to do, page by page.
+
+## Third round of feedback
+
+### Decisions
+
+- **Rename the engine to Rahman** (after Aneesur Rahman, who ran the first realistic MD
+  simulation, of liquid argon, in 1964). Replaces "Brownie".
+- **A public API.** The MD engine will be exposed for others to use, so its API should be good.
+  Build the demos on the publicly exposed API as much as possible, not deep in the engine's
+  internals. Recorded in `CLAUDE.md`.
+- **Visceral feeling.** In general the demos should give the viewer a visceral feeling for the
+  forces and effects (see them bend, stretch, burst), not just a number. Recorded in `CLAUDE.md`.
+- **Theme: entropy matters more at higher temperature.** If an effect gets stronger as
+  temperature rises, that is evidence it is entropically driven. Emphasise this throughout.
+  Recorded in `CLAUDE.md`.
+
+### `boltzmann`
+
+1. Hard to see the graphs and the simulation at the same time. Fix the layout.
+
+### `oilwater`
+
+1. The stir button puts the molecules into an ordered lattice. Make it feel like stirring. Even
+   better: press stir and the pointer becomes a big spoon you swish around the simulation.
+2. A note on salad dressing: vigorous stirring puts it out of equilibrium, and left long enough at
+   room temperature it separates.
+3. A gravity control, with oil slightly lighter: with no gravity it still separates, with gravity
+   the oil goes to the top.
+
+### `saline`: IV drips
+
+1. Not visceral that the cell is pushed and stretched. Colour-code the membrane's stretch? (How
+   is the ring of beads made, springs?) Show the springs stretching more.
+2. Bursting: several red blood cells; tension builds in their membranes and some burst (a spring
+   over a certain force breaks from then on).
+3. The opposite direction: the cell loses water. Less visceral than bursting; what happens in real
+   life, and how can the viewer really feel it?
+
+### `compress`: bike pump
+
+1. Needs an energy graph. All pages should have one.
+
+### `rubber`
+
+1. Let the viewer feel the force, not read a number: attach the chains at each end to something
+   that bends inward visibly, or to springs that stretch inward, or a membrane of beads that
+   bends; colour springs by how hard they are stretched.
+2. The page explains where the pull comes from and that it grows with temperature (good). Does it
+   explain why a rubber band gets hot when stretched? Brainstorm a panel (same or another) for it.
+
+### `atmosphere`: pressure with height
+
+1. Don't start at the equilibrium distribution. A start dropdown: uniform, all at the bottom, all
+   at the top.
+2. Sliders for gravity strength and temperature, the two main variables. Mass matters only
+   through m·g (is that right?), so not both a gravity and a mass slider.
+3. A panel with the simpler derivation: slabs, each pushing up the slab above (pressure balance),
+   solved with discrete slabs; a slider for the number of slabs, showing it become the classic
+   differential equation and its exponential.
+4. Why "keep the gas in contact with a heat bath"? Molecules at the top move erratically. Where
+   does energy come in, why is it needed, wouldn't the effect show without it? Isn't heating from
+   the bottom what gives a temperature gradient, so adding heat uniformly and then finding a
+   uniform temperature is a bit of a cheat?
