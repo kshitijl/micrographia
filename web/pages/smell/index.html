@@ -21,7 +21,7 @@
       </header>
 
       <section>
-        <div class="stage wide" id="stage">
+        <div class="stage" id="stage" style="aspect-ratio: 8 / 1">
           <canvas id="canvas" aria-label="A corridor of gas with a puff of marked molecules spreading"></canvas>
           <div class="overlay" id="overlay">Starting the GPU…</div>
         </div>
@@ -44,6 +44,7 @@
             <div class="readout"><div class="k">diffusion coefficient D</div><div class="v" id="d">–</div></div>
             <div class="readout"><div class="k">spread</div><div class="v" id="spread">–</div></div>
             <div class="readout"><div class="k">drift</div><div class="v" id="drift">–</div></div>
+            <div class="readout"><div class="k">time to cross the corridor by diffusion alone (L²/2D)</div><div class="v" id="cross">–</div></div>
           </div>
           <div class="status" id="status">Press Run with the draught off first.</div>
         </aside>

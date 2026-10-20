@@ -619,7 +619,8 @@ pub fn smell(o: &Options) -> Scenario {
     let mut state = init::fluid(&sys, n, 1.0, seed);
     let r = o.get("blob", 8.0);
     init::mark_disc(&mut state, &sys, [w / 4.0, h / 2.0], r, 1);
-    Scenario { warmup: 0, finish: Finish::None, marked: 1, grid: [60, 1], radii: vec![0.5, 0.5], sys, state }
+    // The scent can be drawn bigger than it is, to show up in a long corridor.
+    Scenario { warmup: 0, finish: Finish::None, marked: 1, grid: [60, 1], radii: vec![0.5, o.get("scent_radius", 0.5)], sys, state }
 }
 
 /// A cup-shaped binding pocket of five pinned beads on the lower half-circle of radius `r`

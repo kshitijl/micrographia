@@ -3,7 +3,7 @@ import { LinesPlot } from "../../src/lib/plot";
 import type { DiscSim } from "../../src/lib/wasm";
 
 const draughtIn = $<HTMLInputElement>("draught");
-let width = 300;
+let width = 1600;
 let x0: Float64Array | null = null; // unwrapped positions
 let prev: Float32Array | null = null;
 let startMean = 0;
@@ -47,6 +47,7 @@ async function readout(sim: DiscSim) {
   $("spread").textContent = `${Math.sqrt(variance).toFixed(1)} σ`;
   $("drift").textContent = `${(mean - startMean).toFixed(1)} σ`;
   $("d").textContent = Number.isFinite(lastD) ? `${lastD.toFixed(2)} σ²/τ` : "–";
+  $("cross").textContent = Number.isFinite(lastD) && lastD > 0 ? `${Math.round((width * width) / (2 * lastD)).toLocaleString()} τ` : "–";
   plot.set([
     { points: series.map((s) => ({ x: s.t, y: s.sd })), color: cssVar("--accent") },
     { points: series.map((s) => ({ x: s.t, y: s.drift })), color: cssVar("--plot-back") },
@@ -57,9 +58,11 @@ const host = new SimHost({
   canvas: $<HTMLCanvasElement>("canvas"),
   overlay: $("overlay"),
   scenario: "smell",
-  options: () => ({ n: 2400, width: 300, height: 40, blob: 10, draught: Number(draughtIn.value), seed: 16 }),
+  // A long corridor (density 0.2): over this distance diffusion is hopelessly slow next to a
+  // draught. Scent molecules are drawn 3× their size so the puff shows up.
+  options: () => ({ n: 38400, width: 1600, height: 120, blob: 15, scent_radius: 1.5, draught: Number(draughtIn.value), seed: 16 }),
   names: ["air", "scent"],
-  colors: ["--species-2", "--cream"],
+  colors: ["--muted", "--cream"],
   stepsPerFrame: () => 100,
   afterSteps: (sim) => readout(sim),
   onCreate: async (sim) => {
@@ -68,7 +71,7 @@ const host = new SimHost({
     prev = null;
     series = [];
     lastD = NaN;
-    sim.set_view(0, 0, 120, 40);
+    sim.set_view(0, -40, 1600, 160);
     await readout(sim);
   },
 });
