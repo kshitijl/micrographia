@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>How Buffers Work</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 16 16%22%3E%3Ccircle cx=%228%22 cy=%228%22 r=%227%22 fill=%22%239a4a1e%22/%3E%3C/svg%3E" />
+    <link rel="stylesheet" href="../../src/lib/style.css" />
+  </head>
+  <body>
+    <nav class="topbar"><div class="wrap"><a href="../../index.html">Statistical mechanics, simulated</a></div></nav>
+    <main class="wrap">
+      <header class="question">
+        <div class="eyebrow">Chemistry of the body</div>
+        <h1>How does a buffer hold blood's pH steady when acid is added?</h1>
+        <p class="lede">
+          Acidity is the concentration of free protons (H⁺). A buffer is a crowd of molecules that grab
+          protons and let them go again. Each box here gets some acid: from none in the left column to the
+          most in the right. The bottom rows also hold buffer molecules; the top rows are plain water. Count
+          the free protons in each.
+        </p>
+      </header>
+
+      <section class="lab">
+        <div class="stage" id="stage">
+          <canvas id="canvas" aria-label="Boxes with protons and buffer anions; more acid towards the right, buffer only in the bottom rows"></canvas>
+          <div class="overlay" id="overlay">Starting the GPU…</div>
+        </div>
+        <aside class="panel">
+          <div class="buttons">
+            <button class="primary" id="run">Run</button>
+          </div>
+          <div class="legend"><span><i style="background: var(--cream)"></i>proton (acid)</span><span><i style="background: var(--accent)"></i>buffer anion</span></div>
+          <label class="row">How tightly the buffer holds a proton (ε) <span id="epsv">8.0</span>
+            <input type="range" id="eps" min="6" max="9" step="0.5" value="8" />
+          </label>
+          <div class="readouts">
+            <div class="readout"><div class="k">free protons, water</div><div class="v" id="hw">–</div></div>
+            <div class="readout"><div class="k">free protons, buffer</div><div class="v" id="hb">–</div></div>
+            <div class="readout"><div class="k">[H][A]/[HA] = K</div><div class="v" id="k">–</div></div>
+            <div class="readout"><div class="k">snapshots</div><div class="v" id="frames">0</div></div>
+          </div>
+          <canvas class="plot tall" id="plot" aria-label="Titration curves: acidity against acid added, for water and for the buffer"></canvas>
+          <div class="legend"><span><i style="background: var(--plot-back)"></i>water</span><span><i style="background: var(--accent)"></i>buffer</span><span><i style="background: var(--muted)"></i>mass action</span></div>
+          <div class="status" id="status">The readouts compare the middle column (24 protons per box). Press Run.</div>
+        </aside>
+      </section>
+
+      <article class="notes">
+        <h2>Soaking up protons</h2>
+        <p>
+          In plain water every proton added stays free, so doubling the acid doubles the free-proton
+          concentration. In the buffered boxes most added protons end up sitting on a buffer anion (A⁻ + H⁺
+          → HA), and only a few stay free. The plot shows −log₁₀ of the free-proton concentration, the pH of
+          this toy world: the buffered curve sits higher (less acid) and falls slowly until the buffer is
+          used up, at the equivalence point of one proton per anion (40 per box). Past that, the extra acid
+          has nowhere to go.
+        </p>
+        <p>
+          Why the anions take protons and give them back is statistical mechanics. A bound proton has lower
+          energy (the well depth ε) but far less room to move. The balance of the two is a constant: the
+          law of mass action, [H⁺][A⁻]/[HA] = K, with K ∝ e<sup>−ε/kT</sup>. The simulation measures that
+          ratio in every column and finds it the same while the free protons vary tenfold, and the dashed
+          curve predicted from K alone (Henderson–Hasselbalch) runs through the measured points. Make the
+          anion hold its proton tighter and K drops: a weaker acid, a buffer that works at a higher pH.
+        </p>
+        <p>
+          Blood is buffered mainly by bicarbonate: HCO₃⁻ + H⁺ ⇌ H₂CO₃ ⇌ CO₂ + H₂O. Its pK<sub>a</sub> of 6.1
+          is below blood's pH of 7.4, so on its own it would be a poor buffer. It works because the lungs
+          breathe out the CO₂, pulling the reaction to the right and taking away the added protons, while
+          the kidneys adjust the bicarbonate. Proteins (haemoglobin above all) and phosphate add more
+          capacity. A swing of 0.4 in blood pH is life-threatening, while the same acid in pure water would
+          shift its pH by several units.
+        </p>
+        <p>
+          The model: protons and anions are discs in an implicit solvent (a heat bath). A proton binds in a
+          short, deep Lennard-Jones well; repulsions keep it to one proton per anion and one anion per
+          proton. Real protons hop between water molecules and the pH scale here is in model units, but the
+          mass-action logic is exactly the chemist's.
+        </p>
+      </article>
+    </main>
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>

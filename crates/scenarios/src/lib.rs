@@ -59,7 +59,7 @@ pub struct Scenario {
     pub radii: Vec<f64>,
 }
 
-pub const NAMES: &[&str] = &["cream", "corner", "boltzmann", "heavy", "oilwater", "heatflow", "osmosis", "compress", "rubber", "atmosphere", "carnot", "boiling", "lipids", "balloon", "smell", "binding", "fep", "cell"];
+pub const NAMES: &[&str] = &["cream", "corner", "boltzmann", "heavy", "oilwater", "heatflow", "osmosis", "compress", "rubber", "atmosphere", "carnot", "boiling", "lipids", "balloon", "smell", "binding", "fep", "cell", "buffer"];
 
 pub fn build(name: &str, o: &Options) -> Result<Scenario, String> {
     match name {
@@ -81,6 +81,7 @@ pub fn build(name: &str, o: &Options) -> Result<Scenario, String> {
         "binding" => Ok(binding(o)),
         "fep" => Ok(fep(o)),
         "cell" => Ok(cell(o)),
+        "buffer" => Ok(buffer(o)),
         _ => Err(format!("unknown scenario {name}")),
     }
 }
@@ -809,4 +810,56 @@ mod tests {
             assert!(vmax < 20.0, "{name}: a particle reached {vmax} σ/τ");
         }
     }
+}
+
+/// Acid and buffer: protons (species 0) and buffer anions (species 1) in many small boxes, in an
+/// implicit solvent (a bulk bath). A proton binds to an anion in a short Lennard-Jones well
+/// (minimum at 0.56 σ, cut at 1 σ). Protons repel each other over 1.35 σ, so an anion holds at
+/// most one, and anions repel over 1.68 σ, so a proton cannot bridge two. Column c (from the left) of boxes
+/// holds c × `step` protons; the bottom `buffered_rows` rows also hold `anions` anions each, the
+/// `water_rows` rows above them none. Options: log2_box, columns, buffered_rows, water_rows,
+/// anions, step, eps (binding well depth), temperature, seed.
+pub fn buffer(o: &Options) -> Scenario {
+    let log2 = o.get("log2_box", 5.0) as u32;
+    let side = (1u64 << log2) as f64;
+    let cols = o.get("columns", 11.0) as usize;
+    let (rb, rw) = (o.get("buffered_rows", 8.0) as usize, o.get("water_rows", 4.0) as usize);
+    let anions = o.get("anions", 40.0) as usize;
+    let step = o.get("step", 8.0) as usize;
+    let t = o.get("temperature", 1.0);
+    let wca = |sigma: f64| Pair { eps: 1.0, sigma, rc: sigma * 2f64.powf(1.0 / 6.0) };
+    let sys = System::new([fixed::to_fixed(cols as f64 * side), fixed::to_fixed((rb + rw) as f64 * side)], init::DT, wca(1.0), vec![1.0, 1.0])
+        .with_walls(0, Wall::Hard, Wall::Hard)
+        .with_walls(1, Wall::Hard, Wall::Hard)
+        .with_compartments(0, log2)
+        .with_compartments(1, log2)
+        .with_pair(0, 0, wca(1.2))
+        .with_pair(0, 1, Pair { eps: o.get("eps", 6.0), sigma: 0.5, rc: 1.0 })
+        .with_pair(1, 1, wca(1.5))
+        .with_thermostat(t, 0.5);
+    let seed = o.get("seed", 1.0) as u64;
+    // Sites on a 2 σ lattice inside each box, shuffled; protons then anions take the first ones.
+    let per_axis = ((side - 2.0) / 2.0) as usize + 1;
+    let mut pos = Vec::new();
+    let mut species = Vec::new();
+    for j in 0..rb + rw {
+        for i in 0..cols {
+            let b = (j * cols + i) as u32;
+            let mut sites: Vec<usize> = (0..per_axis * per_axis).collect();
+            for k in (1..sites.len()).rev() {
+                let r = (gpu_prims::threefry::uniform(seed, 11 + b, k as u32) * (k + 1) as f64) as usize;
+                sites.swap(k, r.min(k));
+            }
+            let (np, na) = (i * step, if j < rb { anions } else { 0 });
+            assert!(np + na <= sites.len(), "too many particles for a box of {side} σ");
+            for (k, &site) in sites[..np + na].iter().enumerate() {
+                let (sx, sy) = (site % per_axis, site / per_axis);
+                pos.push([i as f64 * side + 1.0 + 2.0 * sx as f64, j as f64 * side + 1.0 + 2.0 * sy as f64]);
+                species.push(if k < np { 0 } else { 1 });
+            }
+        }
+    }
+    let vel = init::maxwell(&sys, &species, t, seed);
+    let state = State { pos: pos.iter().map(|p| [fixed::to_fixed(p[0]), fixed::to_fixed(p[1])]).collect(), vel, species };
+    Scenario { warmup: o.get("warmup", 2000.0) as usize, finish: Finish::None, marked: 0, grid: [8, 8], radii: vec![0.6, 1.0], sys, state }
 }

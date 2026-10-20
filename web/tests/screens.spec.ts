@@ -1,7 +1,7 @@
 import { test } from "@playwright/test";
 
 // Screenshots of every page after a short run, for visual review (not assertions).
-const pages = ["reversal", "corner", "boltzmann", "heavy", "heatflow", "oilwater", "osmosis", "compress", "rubber", "atmosphere", "carnot", "boiling", "lipids", "balloon", "smell", "fep", "saline", "arrhenius"];
+const pages = ["reversal", "corner", "boltzmann", "heavy", "heatflow", "oilwater", "osmosis", "compress", "rubber", "atmosphere", "carnot", "boiling", "lipids", "balloon", "smell", "fep", "saline", "arrhenius", "buffer"];
 
 for (const scheme of ["light", "dark"] as const) {
   for (const p of pages) {
@@ -12,7 +12,7 @@ for (const scheme of ["light", "dark"] as const) {
       await page.locator("#overlay, #overlay1").first().waitFor({ state: "hidden", timeout: 30_000 });
       const start = page.locator("#run, #down, #run1").first();
       await start.click();
-      await page.waitForTimeout(2500);
+      await page.waitForTimeout(p === "buffer" ? 8000 : 2500);
       await page.screenshot({ path: `test-results/screens/${p}-${scheme}.png` });
     });
   }

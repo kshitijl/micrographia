@@ -25,6 +25,7 @@ M1 Pro (Metal) unless stated. Run everything with `cargo xtask all`.
 | `fep` | How do computers predict which drug binds best? | TI and FEP agree within 0.15 kT and with direct counting within 0.5 kT (−1.47, −1.47, −1.60) |
 | `saline` | Why are IV drips saline? | Model cell area in water > saline > brine (280, 254, 176 σ²) |
 | `arrhenius` | Why do reactions double in speed every 10 °C? | Escape rates fall monotonically from kT = 1.6 to 0.8; Arrhenius slope 4.3–6.5 ε (4.8; native 5.4) |
+| `buffer` | How does a buffer hold blood's pH steady? | [H][A]/[HA] constant within 1.8× up to equivalence; at 24 protons per box <25% as many free as in water (2.5 vs 24); Henderson–Hasselbalch from K within 0.15 |
 
 Plus `selftest`: the GPU primitive and engine checks, run under the browser's shader compiler.
 
@@ -91,11 +92,11 @@ a CUDA machine).
 
 ## Since the first status report
 
-- More pages (20 in all): rubber band (entropic spring), atmosphere (barometric, isothermal
+- More pages (21 in all): rubber band (entropic spring), atmosphere (barometric, isothermal
   column), Carnot engine and heat pump (0.31 vs the 0.33 limit when slow), boiling (vapour
   pressure, Clausius–Clapeyron, latent heat ~4 ε), lipid self-assembly, helium balloon
   (Graham's law, 2.67 vs 2.69), smell (diffusion vs draught), drug binding by FEP, a saline IV
-  drip and a model cell, reaction rates (Arrhenius).
+  drip and a model cell, reaction rates (Arrhenius), buffers (mass action).
 - Engine: bonds and pinned species, membrane pores, piston, flow-relative Andersen bath with an
   exact energy ledger, M1b all-integer forces (`Arith::Int`): GPU and CPU bit-identical, golden
   hash `3aaeff680a2f0278` reproduced natively, in Chrome and in WebKit.
@@ -127,11 +128,26 @@ Eₐ ≈ 5.4 ε from the end points; the local slope steepens from 4.9 to 6.1 ε
   small boxes beat a few long runs; the solvent density per box also changes the rate (by ~2×
   between 8 σ and 16 σ boxes), as Kramers' theory of friction would have it.
 
+## Buffers
+
+The `buffer` page titrates in one run: 12 columns of 32 σ boxes get 0, 8, …, 88 protons each; six
+rows also hold 40 anions per box, three are plain water. A proton binds in a short, deep LJ well
+(σ 0.5, cut at 1 σ, ε = 8); repulsions keep one proton per anion and one anion per proton. The
+measured K = [H][A]/[HA] is 0.0025 σ⁻² within ±20% up to the equivalence point while free protons
+vary twelvefold, then drifts down by ~30% as free protons crowd and a few anions take two
+(`crates/md/tests/buffer.rs`). The first design (a wider well, weak repulsions) let protons
+bridge anion pairs and anions hold two protons, and K drifted 3.5×. Chrome reproduces the native
+run bit for bit.
+
+The boiling plateau at fixed pressure (pressure cooker) was tried and set aside for now: see
+`crates/md/tests/cooker.rs`.
+
 ## Next
 
-- Pressure cooker and boiling plateau: temperature held while boiling at fixed pressure.
+- Pressure cooker and boiling plateau: temperature held while boiling at fixed pressure (bulk
+  heating at constant power; a fluid with a wider liquid range).
 - Salt and the melting point (freezing point depression), dissolving and solubility.
-- Buffers and pH (needs a reaction model), catalysis.
+- Water's self-ionisation and pH 7; catalysis.
 - Evaporative cooling and the wet-bulb limit.
 - Maxwell's demon / Feynman ratchet (needs a rigid body).
 - Lattice protein folding: why a cooked egg cannot be uncooked.
