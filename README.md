@@ -2,7 +2,11 @@
 
 Browser pages that answer questions about heat, entropy and everyday physics with live
 molecular simulations on the GPU (WebGPU). See `questions.md` for the questions,
-`docs/architecture.md` for the design and `docs/research.md` for background.
+`docs/status.md` for what exists and how it was checked, `docs/architecture.md` for the design
+and `docs/research.md` for background.
+
+To look at the pages: `cargo xtask dev`, then open http://localhost:5173 in a browser with
+WebGPU (Chrome, Edge, or Safari 26+).
 
 ## Layout
 
@@ -11,6 +15,7 @@ crates/gpu-prims   GPU primitives (scan, sort, reduce, 64-bit atomics, Threefry)
 crates/md-core     units, fixed-point state, initial conditions, pair potentials
 crates/md-ref      CPU reference engines (integer positions with f32/f64 forces; float MD)
 crates/md          GPU engine (integer positions, f32 forces) and GPU instruments
+crates/scenarios   the systems behind the pages (pure data, runnable on any engine)
 crates/wasm        browser API (wasm-bindgen): simulations for pages, renderer, self-tests
 crates/bench       native benchmarks
 xtask              project commands

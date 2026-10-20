@@ -115,8 +115,8 @@ imports and conditionals) [memory] before writing our own.
   is async from the start; native code drives the same futures with `pollster`.
 - **No f64 in WGSL.** GPU float forces are f32; the f32/f64 switch lives in the CPU engines.
   Double-float emulation on the GPU is a possible experiment, not a planned mode.
-- With the WebGPU backend, `wgpu` passes WGSL straight to the browser. Confirm that naga is not
-  bundled into the wasm when only WGSL is used, to keep the download small [verify].
+- With the WebGPU backend, `wgpu` passes WGSL straight to the browser; naga is not bundled. The
+  whole wasm module is ~440 KB (~135 KB gzipped).
 - Threads in wasm need cross-origin isolation (COOP/COEP headers). Avoid depending on them; the
   GPU does the work, and the CPU engines in the browser are only for small demos.
 
@@ -313,6 +313,12 @@ overhead.
   committed results file; add a dashboard later if it earns its keep.
 
 ## Milestones (thin vertical slices first)
+
+Status (see `docs/status.md`): M0 and M1 are done, M2 is mostly done (walls, thermal baths,
+ledger, piston; Carnot page pending), M4's membrane and osmosis page are done, and several
+pages beyond the plan exist (corner, Boltzmann, equipartition, heat-flow fluctuations, oil and
+water, compression). M1b, M3, M5 and M6 are not started.
+
 - **M0, toolchain + gpu-prims:** the workspace skeleton and an end-to-end toolchain (native
   tests, wasm build, a browser smoke test, benchmark JSON). Then reduce-then-scan, counting sort,
   segmented reduce, two-word atomics and Threefry, tested natively and in the browser.
