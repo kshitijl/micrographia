@@ -14,9 +14,9 @@
         <div class="eyebrow">Osmosis in the body</div>
         <h1>Why are IV drips saline? What if they were pure water, or much saltier?</h1>
         <p class="lede">
-          A model red blood cell: a flexible membrane (a ring of linked beads) that water molecules can
-          slip through but salt cannot. Inside is salty fluid. Put the cell in pure water, in matching
-          saline, or in brine, and watch which way water moves.
+          Four model red blood cells: each a membrane (a ring of beads joined by springs) that water
+          molecules can slip through but salt cannot, with salty fluid inside. Put them in pure water,
+          in matching saline, or in brine, and watch what the water does to them.
         </p>
       </header>
 
@@ -29,17 +29,19 @@
           <div class="buttons">
             <button class="primary" id="run">Run</button>
           </div>
-          <label class="row">Put the cell in <span></span>
+          <label class="row">Put the cells in <span></span>
             <select id="outside">
               <option value="0">pure water</option>
               <option value="0.35" selected>saline (as salty as the cell)</option>
               <option value="0.9">brine (much saltier)</option>
             </select>
           </label>
-          <div class="legend"><span><i style="background: var(--species-2)"></i>water (small)</span><span><i style="background: var(--cream)"></i>salt</span><span><i style="background: var(--accent)"></i>membrane</span></div>
+          <div class="legend"><span><i style="background: var(--species-2)"></i>water (small)</span><span><i style="background: var(--cream)"></i>salt</span></div>
+          <div class="legend"><span>membrane:</span><span><i style="background: var(--species-2)"></i>shrunken</span><span><i style="background: #fff; box-shadow: 0 0 0 1px var(--muted)"></i>normal</span><span><i style="background: var(--highlight)"></i>about to burst</span><span><i style="background: var(--muted)"></i>burst</span></div>
           <div class="readouts">
-            <div class="readout"><div class="k">cell area (σ²)</div><div class="v" id="area">–</div></div>
+            <div class="readout"><div class="k">average cell area (σ²)</div><div class="v" id="area">–</div></div>
             <div class="readout"><div class="k">vs. in saline</div><div class="v" id="rel">–</div></div>
+            <div class="readout"><div class="k">cells burst</div><div class="v" id="burst">–</div></div>
           </div>
           <canvas class="plot tall" id="plot" aria-label="Cell area over time"></canvas>
           <div class="status" id="status">Press Run.</div>
@@ -58,21 +60,29 @@
         </p>
         <ul>
           <li><b>Pure water outside:</b> nothing outside balances the salt inside, so water flows in and the
-            cell swells until its stretched membrane pushes back. A real red blood cell's membrane can
-            barely stretch, so in pure water it swells and bursts (haemolysis). An IV of pure water would
-            destroy blood cells.</li>
+            cells swell, turning red as they near their limit, then burst: the membrane tears and the salt
+            spills out. A real red blood cell has some spare membrane (it is a flattened disc), so it can
+            swell into a sphere; beyond that its membrane can barely stretch (it tears at about 3%
+            strain), and the cell bursts. That is haemolysis, and an IV of pure water would destroy
+            blood cells by the billion, releasing their haemoglobin into the blood.</li>
           <li><b>Saline outside:</b> 0.9% salt solution matches the salt inside the cells (it is “isotonic”),
             so the flows balance and the cell keeps its size.</li>
-          <li><b>Brine outside:</b> water flows out, and the cell shrinks and crinkles (crenation). Very salty
-            drinks dehydrate you for the same reason.</li>
+          <li><b>Brine outside:</b> water is drawn out, and the cells shrink, wrinkle and turn blue. Real red
+            cells crenate: they shrivel into spiky balls that are stiff and can no longer squeeze through
+            capillaries narrower than themselves, so blood stops flowing where it needs to. Brain cells
+            shrinking in very salty blood can tear the small blood vessels around them. Very salty drinks
+            dehydrate you for the same reason.</li>
         </ul>
         <div class="caveat">
           <h3>Caveats</h3>
           <ul>
-            <li>2D, and the membrane is a ring of beads joined by springs with gaps that pass small water
-              molecules and block larger salt particles. Real membranes pass water through dedicated
-              channels (aquaporins) and are nearly unstretchable, so real cells burst where this one only
-              swells.</li>
+            <li>2D, and the membrane is a ring of beads joined by springs, with springs between
+              next-nearest beads for stiffness, and gaps that pass small water molecules and block larger
+              salt particles. Real membranes pass water through dedicated channels (aquaporins).</li>
+            <li>The springs are stretchy, and thermal jiggling shakes them far more than osmosis stretches
+              them, so the model cannot burst by a spring snapping. Instead it follows the real rule: a cell
+              bursts once it has swollen to its limit (an area, averaged over 10 τ, of 272 σ², where cells
+              in saline settle at about 210); the membrane then tears where it is most stretched.</li>
             <li>Even in saline the ring's thermal wiggling makes its area fluctuate; compare averages.</li>
             <li>Ions are uncharged particles here; real salt dissociates into two ions, which doubles its
               osmotic effect.</li>

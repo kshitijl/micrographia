@@ -784,44 +784,55 @@ pub fn fep(o: &Options) -> Scenario {
 /// A model cell in a solution: a ring of bonded membrane beads (species 2) whose gaps let small
 /// solvent molecules (species 0, σ = 0.5) through but not solute particles (species 1, "salt",
 /// σ = 1). Inside, the solute share is `inside`; outside it is `outside` (0 for pure water). A
-/// bulk heat bath keeps the temperature. Options: n, width, radius, beads, inside, outside,
-/// stiffness, seed.
+/// bulk heat bath keeps the temperature. With several cells (`cells_x` × `cells_y`, each in a
+/// square of side `width`), the membrane beads come first in id order: cell c's beads are ids
+/// c·beads … c·beads + beads − 1, in order round the ring. Options: cells_x, cells_y, width,
+/// radius, beads, density, inside, outside, stiffness, bend, rest (spring rest length over the
+/// starting spacing), seed.
 pub fn cell(o: &Options) -> Scenario {
-    let w = o.get("width", 64.0);
+    // A grid of cells, each in its own square of side `width` σ.
+    let (cx_n, cy_n) = (o.get("cells_x", 1.0) as usize, o.get("cells_y", 1.0) as usize);
+    let side = o.get("width", 64.0);
+    let (w, hgt) = (side * cx_n as f64, side * cy_n as f64);
     let radius = o.get("radius", 10.0);
     let beads = o.get("beads", 44.0) as usize;
     let small = |sigma: f64| Pair { eps: 1.0, sigma, rc: sigma * 2f64.powf(1.0 / 6.0) };
-    let sys = System::new([fixed::to_fixed(w), fixed::to_fixed(w)], init::DT, small(0.5), vec![1.0, 1.0, 1.0])
+    let sys = System::new([fixed::to_fixed(w), fixed::to_fixed(hgt)], init::DT, small(0.5), vec![1.0, 1.0, 1.0])
         .with_pair(0, 1, small(0.75))
         .with_pair(1, 1, small(1.0))
         .with_pair(0, 2, small(0.5))
         .with_pair(1, 2, small(1.5))
         .with_pair(2, 2, small(1.0))
         .with_thermostat(1.0, 0.5);
-    let c = [w / 2.0, w / 2.0];
+    let centres: Vec<[f64; 2]> = (0..cy_n).flat_map(|j| (0..cx_n).map(move |i| [(i as f64 + 0.5) * side, (j as f64 + 0.5) * side])).collect();
     let spacing = std::f64::consts::TAU * radius / beads as f64;
-    let mut pos: Vec<[f64; 2]> = (0..beads)
-        .map(|k| {
-            let a = std::f64::consts::TAU * k as f64 / beads as f64;
-            [c[0] + radius * a.cos(), c[1] + radius * a.sin()]
-        })
-        .collect();
-    let mut species = vec![2u32; beads];
-    let mut bonds: Vec<[u32; 3]> = (0..beads as u32).map(|k| [k, (k + 1) % beads as u32, 0]).collect();
-    // Bending stiffness: springs between next-nearest beads keep the ring smooth.
+    // Membrane beads first: cell by cell, in order round each ring (ids c·beads + k).
+    let mut pos: Vec<[f64; 2]> = vec![];
+    let mut bonds: Vec<[u32; 3]> = vec![];
     let next = 2.0 * radius * (std::f64::consts::TAU / beads as f64).sin();
-    bonds.extend((0..beads as u32).map(|k| [k, (k + 2) % beads as u32, 1]));
-    // Fluid on a lattice, away from the membrane; solute chosen at random by region.
+    for (ci, c) in centres.iter().enumerate() {
+        let base = (ci * beads) as u32;
+        for k in 0..beads {
+            let a = std::f64::consts::TAU * k as f64 / beads as f64;
+            pos.push([c[0] + radius * a.cos(), c[1] + radius * a.sin()]);
+        }
+        let n = beads as u32;
+        bonds.extend((0..n).map(|k| [base + k, base + (k + 1) % n, 0]));
+        // Bending stiffness: springs between next-nearest beads keep the ring smooth.
+        bonds.extend((0..n).map(|k| [base + k, base + (k + 2) % n, 1]));
+    }
+    let mut species = vec![2u32; pos.len()];
+    // Fluid on a lattice, away from the membranes; solute chosen at random by region.
     let density = o.get("density", 0.8);
     let a = (1.0 / density).sqrt();
-    let n_side = (w / a) as usize;
+    let (nx, ny) = ((w / a) as usize, (hgt / a) as usize);
     let seed = o.get("seed", 1.0) as u64;
     let (fin, fout) = (o.get("inside", 0.15), o.get("outside", 0.0));
     let mut draw = 0u32;
-    for j in 0..n_side {
-        for i in 0..n_side {
+    for j in 0..ny {
+        for i in 0..nx {
             let p = [(i as f64 + 0.5) * a, (j as f64 + 0.5) * a];
-            let r = ((p[0] - c[0]).powi(2) + (p[1] - c[1]).powi(2)).sqrt();
+            let (r, _) = centres.iter().map(|c| (((p[0] - c[0]).powi(2) + (p[1] - c[1]).powi(2)).sqrt(), 0)).fold((f64::MAX, 0), |m, x| if x.0 < m.0 { x } else { m });
             if (r - radius).abs() < 1.2 {
                 continue;
             }
@@ -836,7 +847,10 @@ pub fn cell(o: &Options) -> Scenario {
     }
     let k = o.get("stiffness", 20.0);
     let bend = o.get("bend", 0.5 * k);
-    let sys = sys.with_bonds(vec![md_core::BondType::Harmonic { k, r0: spacing }, md_core::BondType::Harmonic { k: bend, r0: next }], bonds);
+    // `rest` < 1 makes the springs' rest length shorter than the starting spacing, so the ring
+    // starts taut instead of slack.
+    let rest = o.get("rest", 1.0);
+    let sys = sys.with_bonds(vec![md_core::BondType::Harmonic { k, r0: rest * spacing }, md_core::BondType::Harmonic { k: bend, r0: rest * next }], bonds);
     let vel = init::maxwell(&sys, &species, 1.0, seed);
     let state = State { pos: pos.iter().map(|p| [fixed::to_fixed(p[0]), fixed::to_fixed(p[1])]).collect(), vel, species };
     // Membrane beads are drawn larger than their size so the cell boundary reads as a line.
