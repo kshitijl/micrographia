@@ -116,13 +116,15 @@ pub fn cream(o: &Options) -> Scenario {
 }
 
 /// Many small boxes of gas (compartments), for counting how often all molecules sit in one
-/// half. Small molecules (σ = 0.5) in boxes of 8 σ keep the gas nearly ideal.
-/// Options: per_box, boxes_x, boxes_y, seed.
+/// half. Tiny molecules (size 0.25 σ, the default) in boxes of 8 σ keep the gas nearly ideal;
+/// larger ones show the excluded-area correction to 2^-N. Options: per_box, boxes_x, boxes_y,
+/// size, seed.
 pub fn corner(o: &Options) -> Scenario {
     let per_box = o.get("per_box", 6.0) as usize;
     let (bx, by) = (o.get("boxes_x", 32.0) as i64, o.get("boxes_y", 24.0) as i64);
     let side = 8i64 << 32;
-    let small = Pair { eps: 1.0, sigma: 0.5, rc: 0.5 * 2f64.powf(1.0 / 6.0) };
+    let size = o.get("size", 0.25);
+    let small = Pair { eps: 1.0, sigma: size, rc: size * 2f64.powf(1.0 / 6.0) };
     let sys = System::new([bx * side, by * side], init::DT, small, vec![1.0])
         .with_walls(0, Wall::Hard, Wall::Hard)
         .with_walls(1, Wall::Hard, Wall::Hard)

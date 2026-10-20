@@ -34,6 +34,13 @@
           <label class="row">Molecules per box <span id="nv">6</span>
             <input type="range" id="n" min="2" max="16" value="6" />
           </label>
+          <label class="row">Molecule size <span></span>
+            <select id="size">
+              <option value="0.25" selected>0.25 σ: tiny, nearly an ideal gas (like air)</option>
+              <option value="0.5">0.5 σ</option>
+              <option value="1">1 σ: crowded</option>
+            </select>
+          </label>
           <label class="row">Count a box when all its molecules are in <span></span>
             <select id="mode">
               <option value="half" selected>the left half (odds 2^−N)</option>
@@ -41,7 +48,8 @@
             </select>
           </label>
           <div class="readouts">
-            <div class="readout"><div class="k">expected share of boxes</div><div class="v" id="pred">–</div></div>
+            <div class="readout"><div class="k">ideal gas (2^−N)</div><div class="v" id="pred">–</div></div>
+            <div class="readout"><div class="k">counting the molecules' size</div><div class="v" id="pred2">–</div></div>
             <div class="readout"><div class="k">measured share</div><div class="v" id="meas">–</div></div>
             <div class="readout"><div class="k">box-snapshots counted</div><div class="v" id="samples">0</div></div>
             <div class="readout"><div class="k">times it happened</div><div class="v" id="events">0</div></div>
@@ -68,6 +76,19 @@
           moment. With 16 molecules it is 1 in 65,536, and you will rarely see one in the whole grid. Each
           molecule you add halves the odds again.
         </p>
+        <h2>Why bigger molecules gather less often</h2>
+        <p>
+          2<sup>−N</sup> assumes the molecules are points, each free to be anywhere. Real molecules take
+          up room: no two can overlap, so each one denies the others a little area around itself. Squeezed
+          into half the box, they deny each other twice as large a share of the space, so the gathered
+          arrangements are rarer still. For N molecules in a box of area A, each denying an area b to every
+          other, the odds shrink by a factor of about e<sup>−N(N−1)b/2A</sup>. With tiny molecules
+          (0.25 σ in an 8 σ box) the correction is a few percent and the gas behaves ideally, as air at
+          room conditions does (its molecules fill a thousandth of the volume). With 1 σ molecules it
+          halves the odds. The page computes b from the molecules' actual repulsion and shows both
+          predictions; the size correction is only the first term of a series, so it slightly
+          overestimates the odds for large, crowded molecules.
+        </p>
         <h2>How long would you wait in your room?</h2>
         <p>
           The arrangement of molecules reshuffles every time they cross the box, so you get a fresh
@@ -82,9 +103,8 @@
         <div class="caveat">
           <h3>Caveats</h3>
           <ul>
-            <li>The molecules are small discs in 2D. With large molecules in a small box the count would be
-              less than binomial: crowding makes lopsided arrangements even rarer (we see this when the
-              molecules are as wide as an eighth of the box).</li>
+            <li>The molecules are discs in 2D, drawn at least half a σ across so they can be seen (the tiny
+              ones are smaller than drawn).</li>
             <li>Snapshots taken close together are not independent, so the measured share fluctuates more
               than the number of snapshots suggests.</li>
           </ul>

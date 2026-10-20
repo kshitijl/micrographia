@@ -40,3 +40,25 @@ Done (to confirm):
 Open questions:
 - Paths are recorded once a molecule has moved 0.2 σ since the last point, so they stay light
   even for long runs. They are never trimmed: after a very long run they get dense.
+
+### `corner`: all the air in one corner
+
+Feedback:
+1. "Measured share is 0.65×": measured is always lower than predicted, probably because the
+   molecules are hard spheres. Can the model be closer to the prediction (e.g. by changing the
+   potential's parameters)?
+
+Done (to confirm):
+- [ ] 1. Yes, it was the molecules' size: each denies the others an area b ≈ πd², which makes
+  gathering in half the box rarer by about e^(−N(N−1)b/2A). With the old 0.5 σ molecules that
+  is 0.80 at 6 per box and 0.54 at 10 (measured 0.81, 0.50); your 0.65 fits about 8 per box.
+  The default is now 0.25 σ (nearly ideal, like air): about 0.95 of 2⁻ᴺ (0.92–1.01 over seeds;
+  the page's seed shows ~0.9). A new "Molecule size" selector (0.25, 0.5, 1 σ) shows the effect
+  on purpose, the page shows both the ideal and the size-corrected odds (b integrated from the
+  actual repulsion), and the notes explain the correction. At 1 σ the measurement is 0.46 of
+  2⁻ᴺ and 0.98 of the corrected odds.
+
+Open questions:
+- The tiny molecules are drawn at 0.5 σ so they can be seen (noted in the caveats). Smaller
+  still (0.1 σ) would be even more ideal but needs more cells than the GPU buffers allow at
+  this box size, and the gas would mix even more slowly.
