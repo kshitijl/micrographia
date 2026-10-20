@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>One Molecule's Energy</title>
+    <title>Where Boltzmann Comes From</title>
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 16 16%22%3E%3Ccircle cx=%228%22 cy=%228%22 r=%227%22 fill=%22%239a4a1e%22/%3E%3C/svg%3E" />
     <link rel="stylesheet" href="../../src/lib/style.css" />
   </head>
@@ -12,93 +12,122 @@
     <main class="wrap">
       <header class="question">
         <div class="eyebrow">The Boltzmann distribution</div>
-        <h1>Why is one molecule's energy distributed exponentially when the whole gas has a fixed total?</h1>
+        <h1>Where does the Boltzmann distribution come from?</h1>
         <p class="lede">
-          This gas is sealed off from everything: its total energy never changes. Yet any single
-          molecule's energy jumps around wildly as it collides, and over time it follows a precise rule:
-          the chance of having energy E falls off as e<sup>−E/kT</sup>. Watch that rule appear, then watch
-          it melt into a narrow bell curve as you track bigger groups of molecules.
+          The textbook picture: many boxes of gas side by side. Molecules bounce around inside their own
+          box and can never leave it, but they push on their neighbours through the walls, so energy
+          leaks from box to box. The whole set is sealed off, so its total energy never changes. Start the
+          molecules with energies that look nothing like Boltzmann's rule, and watch every box find it.
         </p>
       </header>
 
       <section class="lab">
         <div class="stage" id="stage">
-          <canvas id="canvas" aria-label="A gas of 20,000 molecules with one highlighted"></canvas>
+          <canvas id="canvas" aria-label="48 boxes of gas; molecules coloured by speed; one box outlined"></canvas>
           <div class="overlay" id="overlay">Starting the GPU…</div>
         </div>
         <aside class="panel">
           <div class="buttons">
             <button class="primary" id="run">Run</button>
-            <button id="clear">Clear histogram</button>
+            <button id="reset">Reset</button>
           </div>
-          <label class="row">Track groups of <span id="kv">1 molecule</span>
-            <select id="k">
-              <option value="1" selected>1 molecule</option>
-              <option value="2">2 molecules</option>
-              <option value="5">5 molecules</option>
-              <option value="20">20 molecules</option>
-              <option value="100">100 molecules</option>
-              <option value="1000">1,000 molecules</option>
+          <label class="row">Start with <span></span>
+            <select id="start">
+              <option value="0" selected>every molecule the same energy</option>
+              <option value="1">half the molecules hot, half cold</option>
+              <option value="2">5% very hot, the rest a bit below average</option>
+              <option value="3">one box very hot, the rest cold</option>
+              <option value="4">the left boxes hot, the right ones cold</option>
+            </select>
+          </label>
+          <label class="row">Speed <span id="speedv">8 steps/frame</span>
+            <input type="range" id="speed" min="1" max="80" value="8" />
+          </label>
+          <div class="readouts">
+            <div class="readout"><div class="k">time (τ)</div><div class="v" id="time">0.0</div></div>
+            <div class="readout"><div class="k">total energy</div><div class="v" id="etot">–</div></div>
+            <div class="readout"><div class="k">outlined box's kT</div><div class="v" id="tbox">–</div></div>
+            <div class="readout"><div class="k">entropy per molecule</div><div class="v" id="ent">–</div></div>
+          </div>
+          <label class="row">Histogram of <span></span>
+            <select id="source">
+              <option value="all" selected>all molecules, now</option>
+              <option value="box">the outlined box (last 2 τ)</option>
             </select>
           </label>
           <label class="row">Show <span></span>
             <select id="view">
-              <option value="energy" selected>energy per molecule in the group</option>
+              <option value="energy" selected>energy</option>
               <option value="log">energy, log scale (a straight line means exponential)</option>
-              <option value="speed">speed of single molecules</option>
+              <option value="speed">speed</option>
             </select>
           </label>
-          <canvas class="plot tall" id="hist" aria-label="Histogram of energies with the theoretical curve"></canvas>
-          <div class="legend"><span><i style="background: var(--accent)"></i>measured</span><span><i style="background: var(--plot-back)"></i>theory</span></div>
-          <div class="readouts">
-            <div class="readout"><div class="k">temperature kT</div><div class="v" id="temp">–</div></div>
-            <div class="readout"><div class="k">total energy</div><div class="v" id="etot">–</div></div>
-            <div class="readout"><div class="k">red molecule's energy</div><div class="v" id="eone">–</div></div>
-            <div class="readout"><div class="k">samples</div><div class="v" id="samples">0</div></div>
-          </div>
-          <canvas class="plot" id="trace" aria-label="The red molecule's kinetic energy over time"></canvas>
+          <canvas class="plot tall" id="hist" aria-label="Histogram of molecule energies with the Boltzmann curve"></canvas>
+          <div class="legend"><span><i style="background: var(--accent)"></i>measured</span><span><i style="background: var(--plot-back)"></i>Boltzmann, at the final temperature</span></div>
+          <canvas class="plot" id="energy" aria-label="Total energy per molecule and the outlined box's temperature over time"></canvas>
+          <div class="legend"><span><i style="background: var(--accent)"></i>total energy per molecule</span><span><i style="background: var(--plot-back)"></i>outlined box's kT</span></div>
+          <canvas class="plot" id="entropy" aria-label="Entropy per molecule over time, and its maximum"></canvas>
+          <div class="legend"><span><i style="background: var(--accent)"></i>entropy</span><span><i style="background: var(--muted)"></i>the most it can be</span></div>
+          <div class="status" id="status">Press Run. Click a box to outline it.</div>
         </aside>
       </section>
 
       <article class="notes">
+        <h2>What you're seeing</h2>
+        <p>
+          Molecules are coloured by speed. Every start gives the whole set the same total energy, an
+          average of exactly 1 kT per molecule, and gives each molecule in a group exactly the same
+          energy, so the starting histogram is a few spikes. Within a few τ the collisions inside each box
+          smear the spikes into a smooth curve; over the next hundred τ the walls even out the boxes. The
+          total energy line stays flat the whole time, while the outlined box's temperature wanders,
+          settles and then keeps fluctuating a little.
+        </p>
         <h2>Where the exponential comes from</h2>
         <p>
-          Follow one molecule. The other 19,999 hold the rest of the energy, and they are vastly more
-          numerous. If our molecule has energy E, the others must share E<sub>total</sub> − E, and the number
-          of ways they can do that is what decides how likely it is. Taking a little energy from a huge
-          system shrinks its number of arrangements by the same factor each time you take another
-          slice: that factor is e<sup>−1/kT</sup> per unit of energy, which is in fact what temperature means.
-          So the chance of energy E goes as e<sup>−E/kT</sup>. Nothing told the molecule to follow this rule;
-          it is just counting, done by the collisions.
+          Think of one molecule, or one box, and everything else as its surroundings. If our molecule has
+          energy E, the rest must share E<sub>total</sub> − E, and the chance of that is proportional to the
+          number of ways they can do it. Taking a slice of energy from a huge system shrinks its number of
+          arrangements by the same factor each time you take another slice: that factor is
+          e<sup>−1/kT</sup> per unit of energy, which is what temperature means. So the chance of energy E
+          goes as e<sup>−E/kT</sup>. Nothing tells the molecules to follow this rule; it is only counting,
+          done by the collisions. The blue curve is that rule at the final temperature; the boxes reach it
+          from any start.
         </p>
         <p class="formula">P(E) ∝ Ω<sub>rest</sub>(E<sub>total</sub> − E) ∝ e<sup>−E/kT</sup></p>
-        <h2>Bigger groups: from Boltzmann to thermodynamics</h2>
+        <h2>Entropy goes up</h2>
         <p>
-          Now track groups of molecules. A group's energy is a sum of many nearly independent pieces, so
-          it piles up near the average and its spread shrinks like 1/√(group size): for 1,000 molecules
-          it is about 3% of the mean. For the 10<sup>23</sup> molecules in a glass of water the spread
-          is about one part in 10<sup>11</sup>, which is why everyday objects seem to have one definite
-          energy and temperature. The theory curve is the gamma distribution, the exact result for a sum
-          of exponential pieces.
+          The entropy plotted is Boltzmann's H-function: −Σ p ln p over the histogram of molecular
+          energies, in units of k per molecule. It measures how spread out the energies are. Spikes have
+          low entropy; of all ways to spread a fixed average energy, the exponential is the one with the
+          most, so the curve climbs to its ceiling (1 + ln kT, the grey line) and stays there. That is the
+          Boltzmann distribution derived the other way round: it is the most probable way to share the
+          energy. Boltzmann proved in 1872 that collisions make H increase.
+        </p>
+        <h2>Boxes fluctuate too</h2>
+        <p>
+          Even at the end each box's temperature jitters by about 12%. A box of 64 molecules in contact with
+          the others is a small system in a heat bath, and its energy fluctuates by about 1/√64 of its mean.
+          For a glass of water, with 10<sup>25</sup> molecules, the same rule gives fluctuations of one part
+          in 10<sup>12</sup>, which is why everyday objects seem to have one definite temperature.
         </p>
         <h2>So why does Maxwell's speed distribution peak away from zero?</h2>
         <p>
-          Switch the view to speeds. The most likely energy is zero, yet the most likely speed is not.
-          The difference is how many ways there are to have a given speed: in two dimensions a velocity
-          can point anywhere on a circle of radius v, and that circle grows with v. Multiply the
-          shrinking Boltzmann factor by the growing circle and you get a peak at v = √(kT/m). In 2D
-          that growth exactly cancels the change of variables, so the energy distribution is a pure
-          exponential with no peak at all. (In 3D the energy distribution itself has a peak, because
-          the sphere of velocities grows faster.)
+          Switch the view to speeds. The most likely energy is zero, yet the most likely speed is not. In
+          two dimensions a velocity can point anywhere on a circle of radius v, and that circle grows with
+          v. Multiply the shrinking Boltzmann factor by the growing circle and you get a peak at
+          v = √(kT/m). In 2D the growth exactly cancels the change of variables, so the energy distribution
+          is a pure exponential with no peak at all. (In 3D the energy distribution itself has a peak,
+          because the sphere of velocities grows faster.)
         </p>
         <div class="caveat">
           <h3>Caveats</h3>
           <ul>
-            <li>Kinetic energies only; the molecules also have potential energy from their neighbours,
-              which is part of the fixed total. The kinetic part follows the Boltzmann rule exactly in
-              classical physics, whatever the forces.</li>
-            <li>Groups are fixed sets of molecules scattered through the box, not a region of space.</li>
-            <li>Velocities are the integrator's half-step values, accurate to about 0.01%.</li>
+            <li>The walls between boxes stop molecules but pass on their pushes: a molecule near a wall is
+              repelled by molecules just across it. That is the only coupling; there is no thermostat.</li>
+            <li>Total energy includes the molecules' small potential energy. It is constant to a few tenths
+              of a percent over hundreds of τ; the remainder is the integrator's step-by-step error.</li>
+            <li>The entropy counts only how energies are spread, not positions, and is estimated from a
+              histogram (with the usual small-sample correction), so it sits a little below its ceiling.</li>
           </ul>
         </div>
       </article>

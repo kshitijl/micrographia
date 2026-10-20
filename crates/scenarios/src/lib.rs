@@ -59,7 +59,7 @@ pub struct Scenario {
     pub radii: Vec<f64>,
 }
 
-pub const NAMES: &[&str] = &["cream", "corner", "boltzmann", "heavy", "oilwater", "heatflow", "osmosis", "compress", "rubber", "atmosphere", "carnot", "boiling", "lipids", "balloon", "smell", "binding", "fep", "cell", "buffer", "mask", "dna", "demon"];
+pub const NAMES: &[&str] = &["cream", "corner", "boltzmann", "heavy", "oilwater", "heatflow", "osmosis", "compress", "rubber", "atmosphere", "carnot", "boiling", "lipids", "balloon", "smell", "binding", "fep", "cell", "buffer", "mask", "dna", "demon", "ensemble"];
 
 pub fn build(name: &str, o: &Options) -> Result<Scenario, String> {
     match name {
@@ -85,6 +85,7 @@ pub fn build(name: &str, o: &Options) -> Result<Scenario, String> {
         "mask" => Ok(mask(o)),
         "dna" => Ok(dna(o)),
         "demon" => Ok(demon(o)),
+        "ensemble" => Ok(ensemble(o)),
         _ => Err(format!("unknown scenario {name}")),
     }
 }
@@ -1086,4 +1087,75 @@ pub fn demon(o: &Options) -> Scenario {
     }
     let state = State { pos: pos.iter().map(|p| [fixed::to_fixed(p[0]), fixed::to_fixed(p[1])]).collect(), vel, species };
     Scenario { warmup: 0, finish: Finish::None, marked: 0, grid: [2, 1], radii: vec![0.5, door / 2.0, stop / 2.0, 0.0], sys, state }
+}
+
+/// How the `ensemble` boxes' molecules start: every molecule gets exactly the kinetic energy of
+/// its group (in a random direction), scaled so that the average is kT = 1.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum EnsembleStart {
+    /// Every molecule the same energy.
+    Equal,
+    /// In every box, half the molecules hot (1.8) and half cold (0.2).
+    HalfHot,
+    /// In every box, 5% very hot (10) and the rest just below average.
+    FewHot,
+    /// One box hot, the rest cold (0.6).
+    OneBoxHot,
+    /// The left half of the boxes hot (1.6), the right half cold (0.4).
+    LeftHot,
+}
+
+impl EnsembleStart {
+    /// From the page's option code (0–4).
+    pub fn from_code(c: f64) -> Result<Self, String> {
+        Ok(match c as i64 {
+            0 => Self::Equal,
+            1 => Self::HalfHot,
+            2 => Self::FewHot,
+            3 => Self::OneBoxHot,
+            4 => Self::LeftHot,
+            _ => return Err(format!("unknown ensemble start {c}")),
+        })
+    }
+}
+
+/// The textbook ensemble: many boxes of gas behind diathermal walls (molecules stay in their box
+/// but push on their neighbours through the walls), isolated as a whole, so the total energy is
+/// fixed. Options: boxes_x, boxes_y, log2_box, per_box, start (see [`EnsembleStart`]), dt, seed.
+pub fn ensemble(o: &Options) -> Scenario {
+    let (bx, by) = (o.get("boxes_x", 8.0) as i64, o.get("boxes_y", 6.0) as i64);
+    let log2 = o.get("log2_box", 4.0) as u32;
+    let side = 1i64 << (32 + log2);
+    let start = EnsembleStart::from_code(o.get("start", 0.0)).unwrap_or(EnsembleStart::Equal);
+    let sys = System::new([bx * side, by * side], o.get("dt", init::DT), Pair::wca(), vec![1.0])
+        .with_walls(0, Wall::Hard, Wall::Hard)
+        .with_walls(1, Wall::Hard, Wall::Hard)
+        .with_compartments(0, log2)
+        .with_compartments(1, log2)
+        .with_diathermal_compartments();
+    let per_box = o.get("per_box", 64.0) as usize;
+    let seed = o.get("seed", 1.0) as u64;
+    let mut state = init::compartment_fluid(&sys, per_box, 1.0, seed);
+    let nbox = (bx * by) as f64;
+    let energies: Vec<f64> = (0..state.n())
+        .map(|i| {
+            let [cx, cy] = sys.compartment_of(state.pos[i]);
+            let u = gpu_prims::threefry::uniform(seed, 17, i as u32);
+            match start {
+                EnsembleStart::Equal => 1.0,
+                EnsembleStart::HalfHot => if u < 0.5 { 1.8 } else { 0.2 },
+                EnsembleStart::FewHot => if u < 0.05 { 10.0 } else { 0.5 },
+                EnsembleStart::OneBoxHot => if (cx, cy) == (0, 0) { nbox - (nbox - 1.0) * 0.6 } else { 0.6 },
+                EnsembleStart::LeftHot => if (cx as i64) < bx / 2 { 1.6 } else { 0.4 },
+            }
+        })
+        .collect();
+    // Scale so the average is exactly 1 (the random splits are not exactly half or 5%).
+    let mean = energies.iter().sum::<f64>() / energies.len() as f64;
+    for (i, e) in energies.iter().enumerate() {
+        let speed = (2.0 * e / mean).sqrt();
+        let a = std::f64::consts::TAU * gpu_prims::threefry::uniform(seed, 19, i as u32);
+        state.vel[i] = [sys.to_step_displacement(speed * a.cos()), sys.to_step_displacement(speed * a.sin())];
+    }
+    Scenario { warmup: 0, finish: Finish::None, marked: 0, grid: [bx as u32, by as u32], radii: vec![0.5], sys, state }
 }

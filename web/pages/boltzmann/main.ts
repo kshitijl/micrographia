@@ -1,18 +1,29 @@
 import { $, cssVar, SimHost } from "../../src/lib/host";
-import { BarPlot, TimePlot } from "../../src/lib/plot";
+import { BarPlot, LinesPlot } from "../../src/lib/plot";
+import { cssColor } from "../../src/lib/theme";
 import type { DiscSim } from "../../src/lib/wasm";
 
-const N = 20000;
-const BINS = 40;
-const kSel = $<HTMLSelectElement>("k");
-const view = $<HTMLSelectElement>("view");
+const BOXES = [8, 6];
+const SIDE = 16;
+const BINS = 30;
+/** Bin width of the entropy estimate (kT units). */
+const DE = 0.05;
+/** Snapshots of the outlined box kept for its histogram (one per frame, ~2 τ at 8 steps/frame). */
+const KEEP = 100;
+const startSel = $<HTMLSelectElement>("start");
+const speedIn = $<HTMLInputElement>("speed");
+const sourceSel = $<HTMLSelectElement>("source");
+const viewSel = $<HTMLSelectElement>("view");
 
-let counts = new Float64Array(BINS);
-let samples = 0;
-let red = 0;
-let tMean = 1;
+let outlined = 0;
+let boxKe: Float32Array[] = []; // recent snapshots of the outlined box's kinetic energies
+let lastKe: Float32Array | null = null;
+let total0 = NaN;
+let pe = 0;
+let frames = 0;
+const series = { t: [] as number[], total: [] as number[], tbox: [] as number[], s: [] as number[], smax: [] as number[] };
 
-const bars = new BarPlot($<HTMLCanvasElement>("hist"), {
+const hist = new BarPlot($<HTMLCanvasElement>("hist"), {
   labels: [],
   yLabel: "probability density",
   color: () => cssVar("--accent"),
@@ -20,106 +31,140 @@ const bars = new BarPlot($<HTMLCanvasElement>("hist"), {
   ink: () => cssVar("--muted"),
   rule: () => cssVar("--rule"),
 });
-const trace = new TimePlot($<HTMLCanvasElement>("trace"), {
-  yMin: 0,
-  yMax: 6,
-  yLabel: "red molecule's energy / kT",
-  xLabel: "time (τ)",
-  colors: () => [cssVar("--highlight")],
-  ink: () => cssVar("--muted"),
-  rule: () => cssVar("--rule"),
-});
+const energyPlot = new LinesPlot($<HTMLCanvasElement>("energy"), { xLabel: "time (τ)", yLabel: "energy per molecule (kT)", yMin: 0, ink: () => cssVar("--muted"), rule: () => cssVar("--rule") });
+const entropyPlot = new LinesPlot($<HTMLCanvasElement>("entropy"), { xLabel: "time (τ)", yLabel: "entropy per molecule (k)", ink: () => cssVar("--muted"), rule: () => cssVar("--rule") });
 
-/** ln Γ(x) (Lanczos), for the gamma density. */
-function lnGamma(x: number): number {
-  const g = [676.5203681218851, -1259.1392167224028, 771.3234287776531, -176.6150291621406, 12.507343278686905, -0.13857109526572012, 9.984369578019572e-6, 1.5056327351493116e-7];
-  if (x < 0.5) return Math.log(Math.PI / Math.sin(Math.PI * x)) - lnGamma(1 - x);
-  x -= 1;
-  let a = 0.9999999999998099;
-  const t = x + 7.5;
-  for (let i = 0; i < 8; i++) a += g[i] / (x + i + 1);
-  return 0.5 * Math.log(2 * Math.PI) + (x + 0.5) * Math.log(t) - t + Math.log(a);
-}
-
-/** The histogram's x range, in units of kT (energy per molecule) or √(kT/m) (speed). */
-function range(): [number, number] {
-  const k = Number(kSel.value);
-  if (view.value === "speed") return [0, 4];
-  if (k === 1) return [0, 6];
-  const w = 4.5 / Math.sqrt(k);
-  return [Math.max(0, 1 - w), 1 + w];
-}
-
-/** Theoretical density at x (same units as `range`). */
-function theory(x: number): number {
-  const k = Number(kSel.value);
-  if (view.value === "speed") return x * Math.exp(-0.5 * x * x); // 2D Maxwell, v in √(kT/m)
-  // Energy per molecule e = E/k of a group of k: Gamma(k, kT/k).
-  if (x <= 0) return k === 1 ? 1 : 0;
-  return Math.exp(k * Math.log(k) + (k - 1) * Math.log(x) - k * x - lnGamma(k));
-}
-
-function clear() {
-  counts = new Float64Array(BINS);
-  samples = 0;
-  $("samples").textContent = "0";
-}
-
-function redraw() {
-  const [lo, hi] = range();
-  const w = (hi - lo) / BINS;
-  const total = counts.reduce((a, b) => a + b, 0) || 1;
-  const measured = Array.from(counts, (c) => c / total / w);
-  const th = Array.from({ length: BINS }, (_, i) => theory(lo + (i + 0.5) * w));
-  const labels = Array.from({ length: BINS }, (_, i) => (lo + i * w).toFixed(view.value === "speed" || Number(kSel.value) === 1 ? 1 : 2));
-  bars.configure({ log: view.value === "log", xLabel: view.value === "speed" ? "speed / √(kT/m)" : "energy per molecule / kT" });
-  bars.set(measured, th, labels);
-}
-
-async function readout(sim: DiscSim, t: number) {
-  const { ke } = (await sim.kinetic_energies()) as { ke: Float32Array };
-  const pe = (await sim.potential_energy()) as number;
-  let sum = 0;
-  for (let i = 0; i < ke.length; i++) sum += ke[i];
-  tMean = sum / (ke.length - 1);
-  const k = Number(kSel.value);
-  const [lo, hi] = range();
-  const w = (hi - lo) / BINS;
-  const add = (x: number) => {
-    const b = Math.floor((x - lo) / w);
-    if (b >= 0 && b < BINS) counts[b]++;
-  };
-  if (view.value === "speed") {
-    for (let i = 0; i < ke.length; i++) add(Math.sqrt((2 * ke[i]) / tMean));
-  } else {
-    for (let g = 0; g + k <= ke.length; g += k) {
-      let e = 0;
-      for (let i = g; i < g + k; i++) e += ke[i];
-      add(e / k / tMean);
-    }
+/** Boltzmann's H-function entropy −Σ p ln(p/ΔE) of energies (flat density of states in 2D), with
+ * the Miller–Madow correction (m − 1)/2N for a histogram of N samples in m occupied bins. */
+export function entropy(ke: ArrayLike<number>): number {
+  const counts = new Map<number, number>();
+  for (let i = 0; i < ke.length; i++) {
+    const b = Math.floor(ke[i] / DE);
+    counts.set(b, (counts.get(b) ?? 0) + 1);
   }
-  samples += view.value === "speed" ? ke.length : Math.floor(ke.length / k);
-  $("samples").textContent = samples.toLocaleString();
-  $("temp").textContent = tMean.toFixed(4);
-  $("etot").textContent = (sum + pe).toFixed(1);
-  $("eone").textContent = (ke[red] / tMean).toFixed(2) + " kT";
-  trace.add(t, ke[red] / tMean);
-  trace.draw();
-  redraw();
+  const n = ke.length;
+  let s = 0;
+  for (const c of counts.values()) s -= (c / n) * Math.log(c / n / DE);
+  return s + (counts.size - 1) / (2 * n);
+}
+
+function boxOf(x: number, y: number): number {
+  return Math.min(BOXES[1] - 1, Math.floor(y / SIDE)) * BOXES[0] + Math.min(BOXES[0] - 1, Math.floor(x / SIDE));
+}
+
+function overlay(): number[] {
+  const line = cssColor("--box-line");
+  const r: number[] = [];
+  const [W, H] = [BOXES[0] * SIDE, BOXES[1] * SIDE];
+  const t = 0.12;
+  for (let i = 0; i <= BOXES[0]; i++) r.push(i * SIDE - t, 0, i * SIDE + t, H, ...line);
+  for (let j = 0; j <= BOXES[1]; j++) r.push(0, j * SIDE - t, W, j * SIDE + t, ...line);
+  const [x0, y0] = [(outlined % BOXES[0]) * SIDE, Math.floor(outlined / BOXES[0]) * SIDE];
+  const hi = cssColor("--highlight");
+  const w = 0.35;
+  r.push(x0, y0, x0 + SIDE, y0 + w, ...hi, x0, y0 + SIDE - w, x0 + SIDE, y0 + SIDE, ...hi, x0, y0, x0 + w, y0 + SIDE, ...hi, x0 + SIDE - w, y0, x0 + SIDE, y0 + SIDE, ...hi);
+  return r;
+}
+
+/** Histogram of `values` (energies, or speeds if the view is speed) against Boltzmann at kT. */
+function drawHistogram(ke: ArrayLike<number>, kT: number) {
+  const speed = viewSel.value === "speed";
+  const hiX = speed ? 4 : 6;
+  const w = hiX / BINS;
+  const counts = new Float64Array(BINS);
+  for (let i = 0; i < ke.length; i++) {
+    const x = speed ? Math.sqrt((2 * ke[i]) / kT) : ke[i] / kT;
+    const b = Math.floor(x / w);
+    if (b < BINS) counts[b]++;
+  }
+  const measured = Array.from(counts, (c) => c / ke.length / w);
+  const theory = Array.from({ length: BINS }, (_, i) => {
+    const x = (i + 0.5) * w;
+    return speed ? x * Math.exp(-0.5 * x * x) : Math.exp(-x);
+  });
+  hist.configure({ log: viewSel.value === "log", xLabel: speed ? "speed / √(kT/m)" : "energy / kT" });
+  hist.set(
+    measured,
+    theory,
+    Array.from({ length: BINS }, (_, i) => (i * w).toFixed(1)),
+  );
+}
+
+function redraw(kT: number) {
+  if (lastKe) drawHistogram(sourceSel.value === "box" ? concat(boxKe) : lastKe, kT);
+  const pts = (ys: number[]) => ys.map((y, k) => ({ x: series.t[k], y }));
+  energyPlot.set([
+    { points: pts(series.total), color: cssVar("--accent") },
+    { points: pts(series.tbox), color: cssVar("--plot-back") },
+  ]);
+  entropyPlot.set([
+    { points: pts(series.smax), color: cssVar("--muted"), dashed: true },
+    { points: pts(series.s), color: cssVar("--accent") },
+  ]);
+}
+
+function concat(a: Float32Array[]): Float32Array {
+  const out = new Float32Array(a.reduce((n, x) => n + x.length, 0));
+  let o = 0;
+  for (const x of a) {
+    out.set(x, o);
+    o += x.length;
+  }
+  return out;
+}
+
+async function readout(sim: DiscSim) {
+  // Kinetic and potential energy from the same step (a stale one makes the total wobble by ~1%).
+  const [{ ke }, { pos }, u] = (await Promise.all([sim.kinetic_energies(), sim.all_positions(), sim.potential_energy()])) as [{ ke: Float32Array }, { pos: Float32Array }, number];
+  pe = u;
+  frames++;
+  const n = ke.length;
+  let kin = 0;
+  const box: number[] = [];
+  for (let i = 0; i < n; i++) {
+    kin += ke[i];
+    if (boxOf(pos[2 * i], pos[2 * i + 1]) === outlined) box.push(ke[i]);
+  }
+  const kT = kin / n;
+  const total = (kin + pe) / n;
+  if (!Number.isFinite(total0)) total0 = total;
+  boxKe.push(Float32Array.from(box));
+  if (boxKe.length > KEEP) boxKe.shift();
+  lastKe = ke;
+  const t = (sim.steps() * sim.dt());
+  const tbox = box.reduce((a, b) => a + b, 0) / Math.max(1, box.length);
+  const s = entropy(ke);
+  series.t.push(t);
+  series.total.push(total);
+  series.tbox.push(tbox);
+  series.s.push(s);
+  series.smax.push(1 + Math.log(kT));
+  $("time").textContent = t.toFixed(1);
+  $("etot").textContent = `${(total * n).toFixed(0)} (${total >= total0 ? "+" : "−"}${Math.abs((100 * (total - total0)) / total0).toFixed(2)}%)`;
+  $("tbox").textContent = tbox.toFixed(2);
+  $("ent").textContent = s.toFixed(3);
+  redraw(kT);
 }
 
 const host = new SimHost({
   canvas: $<HTMLCanvasElement>("canvas"),
   overlay: $("overlay"),
-  scenario: "boltzmann",
-  options: () => ({ n: N, density: 0.5, temperature: 1, seed: 5 }),
-  colors: ["--species-2", "--species-2"],
-  stepsPerFrame: () => 10,
-  afterSteps: (sim) => readout(sim, host.elapsed * sim.dt()),
-  onCreate: (sim) => {
-    red = sim.central(1);
-    sim.set_highlight(red);
-    clear();
+  scenario: "ensemble",
+  // Half the usual time step: the hot starts have fast molecules, and the total energy should
+  // hold to a fraction of a percent (crates/md/tests/ensemble.rs).
+  options: () => ({ boxes_x: BOXES[0], boxes_y: BOXES[1], per_box: 64, start: Number(startSel.value), dt: 0.0025, seed: 41 }),
+  colors: ["--cream"],
+  stepsPerFrame: () => Number(speedIn.value),
+  afterSteps: (sim) => readout(sim),
+  onCreate: async (sim) => {
+    boxKe = [];
+    lastKe = null;
+    total0 = NaN;
+    frames = 0;
+    for (const k of Object.keys(series) as (keyof typeof series)[]) series[k] = [];
+    sim.color_by_speed(3);
+    sim.set_overlay(new Float32Array(overlay()));
+    await readout(sim);
   },
 });
 
@@ -127,38 +172,51 @@ $("run").onclick = () => {
   host.running = !host.running;
   $("run").textContent = host.running ? "Pause" : "Run";
 };
-$("clear").onclick = clear;
-kSel.onchange = () => {
-  $("kv").textContent = kSel.selectedOptions[0].text;
-  clear();
+$("reset").onclick = () => void host.create().then(() => ($("run").textContent = "Run"));
+startSel.onchange = () => void host.create().then(() => ($("run").textContent = "Run"));
+speedIn.oninput = () => ($("speedv").textContent = `${speedIn.value} steps/frame`);
+sourceSel.onchange = viewSel.onchange = () => redraw(1);
+$<HTMLCanvasElement>("canvas").onclick = (ev) => {
+  const c = ev.currentTarget as HTMLCanvasElement;
+  const r = c.getBoundingClientRect();
+  const x = ((ev.clientX - r.left) / r.width) * BOXES[0] * SIDE;
+  const y = (1 - (ev.clientY - r.top) / r.height) * BOXES[1] * SIDE;
+  outlined = boxOf(x, y);
+  boxKe = [];
+  for (const k of ["tbox"] as const) series[k] = series[k].map(() => NaN);
+  host.sim?.set_overlay(new Float32Array(overlay()));
 };
-view.onchange = clear;
 
 declare global {
   interface Window {
-    boltzmannTest?: { ready: Promise<void>; collect(frames: number, k: number, v: string): Promise<{ measured: number[]; theory: number[] }> };
+    boltzmannTest?: {
+      ready: Promise<void>;
+      /** Recreate with a start, run `frames` readouts `every` steps apart; return the series and
+       * the worst deviation of the pooled energy histogram from Boltzmann (fraction of its peak). */
+      run(start: number, frames: number, every: number): Promise<{ t: number[]; total: number[]; tbox: number[]; s: number[]; smax: number[]; worst: number }>;
+    };
   }
 }
 
 window.boltzmannTest = {
   ready: host.ready,
-  async collect(frames: number, k: number, v: string) {
+  async run(start: number, n: number, every: number) {
     await host.ready;
-    kSel.value = String(k);
-    view.value = v;
-    clear();
-    await host.exclusive(async (sim) => {
-      for (let f = 0; f < frames; f++) {
-        sim.step(20);
-        await readout(sim, 0);
+    startSel.value = String(start);
+    await host.create();
+    return host.exclusive(async (sim) => {
+      for (let f = 0; f < n; f++) {
+        sim.step(every);
+        await readout(sim);
       }
+      const ke = lastKe!;
+      const kT = ke.reduce((a, b) => a + b, 0) / ke.length;
+      const w = 6 / BINS;
+      const counts = new Float64Array(BINS);
+      for (const e of ke) if (e / kT / w < BINS) counts[Math.floor(e / kT / w)]++;
+      let worst = 0;
+      counts.forEach((c, i) => (worst = Math.max(worst, Math.abs(c / ke.length / w - Math.exp(-(i + 0.5) * w)))));
+      return { ...series, worst };
     });
-    const [lo, hi] = range();
-    const w = (hi - lo) / BINS;
-    const total = counts.reduce((a, b) => a + b, 0);
-    return {
-      measured: Array.from(counts, (c) => c / total / w),
-      theory: Array.from({ length: BINS }, (_, i) => theory(lo + (i + 0.5) * w)),
-    };
   },
 };

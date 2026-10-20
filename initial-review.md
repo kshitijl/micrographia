@@ -91,3 +91,32 @@ Coupling options considered:
 - A thermostat or thermal walls: rejected, since they put the Boltzmann distribution in by hand.
 
 Done (to confirm):
+- [ ] 1–2. The page is rebuilt around the ensemble: 48 boxes (16 σ, 64 molecules each) behind
+  diathermal walls (a new engine option, on the GPU and the CPU twin, with exact reversal still
+  holding). Title: "Where does the Boltzmann distribution come from?". Molecules are coloured by
+  speed; click a box to outline it.
+- [ ] 3. Start menu: every molecule the same energy; half hot and half cold (mixed in every box);
+  5% very hot; one box very hot, the rest cold; left boxes hot, right cold. Every start averages
+  exactly kT = 1, and each group starts at exactly one energy (spikes in the histogram).
+- [ ] 4. Histogram of all molecules now, or of the outlined box over the last 2 τ (energy, log
+  energy or speed), against Boltzmann at the final temperature. A plot of total energy per
+  molecule (flat) and the outlined box's kT, and a readout of the total with its % change.
+  Measured: each box reaches Boltzmann within 2–5 τ; boxes even out over ~100–300 τ; box
+  temperatures keep fluctuating by ~12% (1/√64: the canonical fluctuation, explained in the
+  notes).
+- [ ] 5. Entropy: Boltzmann's H-function −Σ p ln p of the pooled energy histogram (with the
+  Miller–Madow small-sample correction), plotted against its ceiling 1 + ln kT. From equal
+  energies it rises from −2.4 to 0.95 (ceiling 0.96) within a few τ.
+- Browser tests: from equal energies, entropy reaches within 0.06 of its ceiling, the histogram
+  is within 10% of Boltzmann (2.4% measured) and total energy holds to 0.5% (0.01%); with one
+  hot box (kT 19.8) it falls below 30% of that (1.8) and the total holds to 1% (0.3%).
+
+Open questions:
+- Total energy drifts by a few tenths of a percent over hundreds of τ with the hot starts, even at
+  half the usual time step (0.0025 τ, used on this page). Part of it is that a molecule
+  reflected at a wall jumps to its mirror position, changing its distance to the molecules
+  pushing on it from across the wall. Fine for the page; worth a closer look in the 3D engine.
+- Removed from the old page: tracking groups of k molecules (the exponential narrowing into a
+  Gaussian) and the red molecule's energy trace. Bring the groups back as a second section?
+- The old page's 20,000-molecule gas is replaced by 3,072 molecules; histograms of the pooled
+  gas are a little noisier.

@@ -11,7 +11,7 @@ M1 Pro (Metal) unless stated. Run everything with `cargo xtask all`.
 |---|---|---|
 | `reversal` | Why can't you un-stir cream from coffee? | Forward + reverse restores every bit; a one-bit nudge spreads to all 8,000 molecules |
 | `corner` | Could all the air rush into one corner? | Tiny molecules (0.25 σ): all-left share 0.85–1.1 of 2⁻ᴺ (0.89); 1 σ molecules: 0.46 of 2⁻ᴺ but 0.98 of the excluded-area prediction |
-| `boltzmann` | Why is one molecule's energy exponential? | Single-molecule energies within 1% of e^(−E/kT); 2D Maxwell speeds within 1.3%; groups of 100 within 6% of the gamma law |
+| `boltzmann` | Where does the Boltzmann distribution come from? | 48 boxes behind diathermal walls: from equal energies, entropy rises from −2.4 to within 0.01 of its ceiling and energies come within 2.4% of e^(−E/kT); one hot box (kT 19.8) cools to 1.8; total energy holds to 0.01–0.3% |
 | `heavy` | Does a heavy molecule have less energy? | Light and 16× heavy species within 5% of equal kinetic energy; σ = 6, m = 400 balls converge more slowly |
 | `heatflow` | Can heat flow from cold to hot? | ~20% of 1–2 τ windows run backwards; fitted ln P(Q)/P(−Q) slope within 35% of 1/T_c − 1/T_h (measured 0.367 vs 0.333) |
 | `oilwater` | Why don't oil and water mix? | Weak cross-attraction separates (segregation > 0.3 after 200 τ); equal attraction stays mixed |
