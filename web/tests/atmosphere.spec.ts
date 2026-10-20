@@ -10,3 +10,20 @@ test("from an even start, an isolated column settles into each species' exponent
   for (let s = 0; s < 2; s++) expect(Math.abs(r.slopes[s] / r.predicted[s] - 1)).toBeLessThan(0.25);
   expect(Math.abs(r.tTop / r.tBottom - 1)).toBeLessThan(0.1);
 });
+
+test("the fluid panel: still air stays still; sunshine stirs a layer that cools with height at about the dry adiabat; night makes an inversion", async ({ page }) => {
+  await page.goto("pages/atmosphere/index.html");
+  const still = await page.evaluate(() => window.convectionTest!.run(2, "still"));
+  const day = await page.evaluate(() => window.convectionTest!.run(4, "day"));
+  const night = await page.evaluate(() => window.convectionTest!.run(2, "night"));
+  console.log(`convection: still ${JSON.stringify(still)}; day ${JSON.stringify(day)}; night ${JSON.stringify(night)}`);
+  expect(still.maxSpeed).toBeLessThan(0.01);
+  expect(still.depth).toBe(0);
+  // Measured: 2.3 km deep, 9.2 K/km after 4 h (the dry adiabat is g/cp = 9.8 K/km).
+  expect(day.depth).toBeGreaterThan(1500);
+  expect(day.depth).toBeLessThan(3500);
+  expect(day.lapse).toBeGreaterThan(8);
+  expect(day.lapse).toBeLessThan(11);
+  expect(night.ground).toBeLessThan(287);
+  expect(night.maxSpeed).toBeLessThan(0.01);
+});

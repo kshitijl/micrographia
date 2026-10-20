@@ -1,5 +1,7 @@
 import { $, cssVar, SimHost } from "../../src/lib/host";
 import { LinesPlot } from "../../src/lib/plot";
+import { side, warmth } from "./profiles";
+import "./convection";
 import { cssColor, onThemeChange } from "../../src/lib/theme";
 import type { DiscSim } from "../../src/lib/wasm";
 
@@ -48,60 +50,6 @@ let recentN = [new Float64Array(BINS), new Float64Array(BINS)];
 let recentE = new Float64Array(BINS);
 const ALPHA = 0.05;
 
-/** One vertical profile beside the column: a bar per height slice (bottom of the canvas = floor),
- * with optional dashed comparison values, and the maximum printed at the top. */
-function side(id: string, values: number[][], colors: (string | ((b: number) => string))[], dashed: number[] | null, max: number, label: (v: number) => string) {
-  const c = $<HTMLCanvasElement>(id);
-  const dpr = window.devicePixelRatio || 1;
-  const [W, H] = [c.clientWidth, c.clientHeight];
-  if (c.width !== Math.round(W * dpr) || c.height !== Math.round(H * dpr)) {
-    c.width = Math.round(W * dpr);
-    c.height = Math.round(H * dpr);
-  }
-  const ctx = c.getContext("2d")!;
-  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-  ctx.clearRect(0, 0, W, H);
-  const n = values[0].length;
-  const bh = H / n;
-  for (let b = 0; b < n; b++) {
-    let x = 0;
-    values.forEach((v, k) => {
-      const w = (Math.max(0, v[b]) / max) * W;
-      const c = colors[k];
-      ctx.fillStyle = typeof c === "string" ? c : c(b);
-      ctx.fillRect(x, H - (b + 1) * bh + 0.5, w, bh - 1);
-      x += w;
-    });
-  }
-  if (dashed) {
-    ctx.strokeStyle = cssVar("--text");
-    ctx.setLineDash([3, 3]);
-    ctx.beginPath();
-    dashed.forEach((v, b) => {
-      const [x, y] = [(Math.max(0, v) / max) * W, H - (b + 0.5) * bh];
-      if (b === 0) ctx.moveTo(x, y);
-      else ctx.lineTo(x, y);
-    });
-    ctx.stroke();
-    ctx.setLineDash([]);
-  }
-  ctx.font = "10px system-ui, sans-serif";
-  const text = label(max);
-  ctx.fillStyle = cssVar("--bg");
-  ctx.fillRect(0, 0, ctx.measureText(text).width + 4, 12);
-  ctx.fillStyle = cssVar("--muted");
-  ctx.fillText(text, 2, 10);
-}
-
-/** Blue for colder than the average, grey for the average, red for hotter (full colour at ±40%). */
-function warmth(r: number) {
-  const [cold, mid, hot] = [[60, 120, 210], [150, 140, 130], [215, 65, 45]];
-  const t = Math.max(-1, Math.min(1, (r - 1) / 0.4));
-  const [a, b] = t < 0 ? [mid, cold] : [mid, hot];
-  const c = a.map((x, i) => Math.round(x + (b[i] - x) * Math.abs(t)));
-  return `rgb(${c.join(",")})`;
-}
-
 function drawSides(masses: number[]) {
   const dh = box[1] / BINS;
   const area = dh * box[0];
@@ -118,9 +66,9 @@ function drawSides(masses: number[]) {
   }
   const nkT = n.map((x, b) => x * t[b]);
   const tAvg = t.reduce((a, x, b) => a + x * n[b], 0) / Math.max(1e-9, n.reduce((a, x) => a + x, 0));
-  side("sideRho", rho, [cssVar("--cream"), cssVar("--species-3")], null, Math.max(...n) * 1.1 || 1, (v) => v.toFixed(2));
-  side("sideP", [p], [cssVar("--plot-back")], nkT, Math.max(...p, ...nkT) * 1.1 || 1, (v) => v.toFixed(3));
-  side("sideT", [t], [(b) => warmth(t[b] / tAvg)], new Array(BINS).fill(tAvg), Math.max(...t, 0.1) * 1.3, (v) => v.toFixed(2));
+  side("sideRho", { values: rho, colors: [cssVar("--cream"), cssVar("--species-3")], hi: Math.max(...n) * 1.1 || 1, label: (v) => v.toFixed(2) });
+  side("sideP", { values: [p], colors: [cssVar("--plot-back")], dashed: nkT, hi: Math.max(...p, ...nkT) * 1.1 || 1, label: (v) => v.toFixed(3) });
+  side("sideT", { values: [t], colors: [(b) => warmth(t[b] / tAvg)], dashed: new Array(BINS).fill(tAvg), hi: Math.max(...t, 0.1) * 1.3, label: (v) => v.toFixed(2) });
 }
 
 async function readout(sim: DiscSim) {

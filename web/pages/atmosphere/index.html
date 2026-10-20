@@ -20,6 +20,7 @@
         </p>
       </header>
 
+      <h2>1. Molecules under gravity</h2>
       <section class="lab">
         <div class="left">
           <div class="with-sides">
@@ -68,6 +69,55 @@
         </aside>
       </section>
 
+      <h2>2. Sunshine: why the real atmosphere is colder aloft</h2>
+      <section class="lab">
+        <div class="left">
+          <div class="with-sides">
+            <div class="stage" style="aspect-ratio: 2 / 1">
+              <canvas id="fluid" style="cursor: grab; touch-action: none" aria-label="A slice of air 20 km wide and 10 km tall, coloured by whether it is warmer or cooler than average for its height"></canvas>
+            </div>
+            <canvas class="side" id="fluidRho" aria-label="Air density at each height"></canvas>
+            <canvas class="side" id="fluidP" aria-label="Air pressure at each height"></canvas>
+            <canvas class="side" id="fluidT" aria-label="Air temperature at each height"></canvas>
+            <div></div>
+            <div class="side-label">density (kg/m³)</div>
+            <div class="side-label">pressure (hPa)</div>
+            <div class="side-label">temper&shy;ature</div>
+          </div>
+          <div class="sub" style="font-size: 13px; color: var(--muted); margin-top: 6px">
+            Not molecules this time: a fluid model of a slice of air 20 km wide and 10 km tall. Red air is
+            warmer than the average at its height, blue cooler; the dots drift with the wind. Beside it,
+            averaged across the slice: density, pressure and temperature, each against the isothermal
+            start (dashed); the dotted line is the temperature air from the ground would have if lifted
+            without gaining or losing heat (the dry adiabat). Drag across the air to stir it.
+          </div>
+        </div>
+        <aside class="panel">
+          <div class="buttons">
+            <button class="primary" id="frun">Run</button>
+            <button class="primary" id="sun">Sunshine</button>
+            <button id="bubble">Warm bubble</button>
+            <button id="freset">Reset</button>
+          </div>
+          <div class="readouts">
+            <div class="readout"><div class="k">time</div><div class="v" id="fclock">–</div></div>
+            <div class="readout"><div class="k">air at the ground</div><div class="v" id="fground">–</div></div>
+            <div class="readout"><div class="k">stirred layer</div><div class="v" id="fdepth">–</div></div>
+            <div class="readout"><div class="k">cooling with height in it</div><div class="v" id="flapse">–</div></div>
+          </div>
+          <div class="status">
+            The air starts at 15 °C at every height, at rest: the equilibrium of part 1, which stays put.
+            Press Sunshine. The ground warms the air touching it, warm air rises in plumes and cool air
+            sinks between them, and the stirred layer settles to a temperature falling about 10 °C per
+            km. Then try Sunset: the ground cools the air from below and the stirring stops.
+          </div>
+          <div class="ensemble">
+            Not a closed system: sunshine adds energy through the ground (here several times faster
+            than a real sunny afternoon, so the hours pass quickly); at night the ground takes it away.
+          </div>
+        </aside>
+      </section>
+
       <article class="notes">
         <h2>Gravity, mass and temperature</h2>
         <p>
@@ -112,6 +162,17 @@
           atmosphere, so the temperature falls by roughly 6.5 °C per kilometre: the cooling of rising,
           expanding air, not an effect of height itself.
         </p>
+        <p>
+          Part 2 shows this with a fluid model instead of molecules. Air carries its “potential
+          temperature” with it: the temperature it would have if brought down to the ground's pressure
+          without gaining or losing heat. Sunshine warms the bottom; warm air rises, mixes, and the
+          stirred layer ends up with one potential temperature throughout, which means a real
+          temperature falling with height at g/c<sub>p</sub> ≈ 9.8 °C per km for dry air (the real
+          6.5 °C/km is lower because rising air condenses water, which releases heat). Above the stirred
+          layer the air is still in its old, isothermal state, and the layer eats upward into it as the
+          day goes on. At night the ground cools the air touching it, and cold air under warm air is
+          stable: nothing stirs, and whatever is released near the ground stays there (smog).
+        </p>
         <h2>The same thing with slabs</h2>
         <p>
           Cut the column into slabs. The gas in each slab has to hold up its own weight plus everything
@@ -140,6 +201,13 @@
               column a few hundred molecules tall shows a full atmosphere.</li>
             <li>On Earth turbulence mixes the lower ~100 km, so the heavy and light gases of air do not
               separate as they do here; they do separate higher up.</li>
+            <li>The fluid panel is a quick sketch, not a weather model: two dimensions, dry air, the
+              motion treated as incompressible (the Boussinesq approximation, a stretch over a 10 km
+              column) while the temperature and pressure are not, a uniform “eddy” viscosity standing in
+              for the turbulence the grid cannot resolve, a slow drag and radiation towards the start,
+              and an absorbing layer under the lid to let waves escape as they would into the open sky.
+              The sunshine is several times stronger than real. Two-dimensional plumes are also fatter
+              and slower than real three-dimensional ones.</li>
           </ul>
         </div>
       </article>
