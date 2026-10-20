@@ -15,11 +15,13 @@
         <h1>Why does a stretched rubber band pull back, and why does it get warm?</h1>
         <p class="lede">
           Rubber is made of long, floppy molecules. Each chain here is a string of beads held between
-          two pinned ends, jostled by heat. Nothing in the chain wants to be short, yet it pulls on its
-          ends. Measure the pull, change the temperature, and find out where the force comes from.
+          a fixed post on the left and a handle on a spring on the right, jostled by heat. Nothing in the
+          chain wants to be short, yet it drags the handle in and stretches the spring. Heat it and see
+          what happens to the pull.
         </p>
       </header>
 
+      <h2>1. Feel the pull</h2>
       <section class="lab">
         <div class="stage" id="stage">
           <canvas id="canvas" aria-label="Polymer chains held between pinned ends, wiggling"></canvas>
@@ -29,8 +31,8 @@
           <div class="buttons">
             <button class="primary" id="run">Run</button>
             <button id="record">Record point</button>
-            <button id="stretch">Stretch fast (insulated)</button>
           </div>
+          <div class="legend"><span><i style="background: var(--species-3)"></i>fixed post</span><span><i style="background: var(--cream)"></i>chain and handle</span><span><i style="background: linear-gradient(to right, var(--species-2), var(--species-3))"></i>spring, slack → taut</span></div>
           <label class="row">Ends held at this fraction of the chain's length <span id="xv">50%</span>
             <input type="range" id="x" min="0.2" max="0.85" step="0.05" value="0.5" />
           </label>
@@ -38,7 +40,8 @@
             <input type="range" id="t" min="0.6" max="3" step="0.1" value="1" />
           </label>
           <div class="readouts">
-            <div class="readout"><div class="k">pull on each end</div><div class="v" id="f">–</div></div>
+            <div class="readout"><div class="k">pull on each end (spring k × stretch)</div><div class="v" id="f">–</div></div>
+            <div class="readout"><div class="k">spring stretch</div><div class="v" id="dx">–</div></div>
             <div class="readout"><div class="k">temperature</div><div class="v" id="temp">–</div></div>
           </div>
           <canvas class="plot tall" id="plot" aria-label="Recorded pull against temperature"></canvas>
@@ -46,7 +49,42 @@
         </aside>
       </section>
 
+      <h2>2. Why stretching warms it</h2>
+      <section class="lab">
+        <div class="stage" id="stageB">
+          <canvas id="canvasB" aria-label="Chains between pinned ends, with no heat bath, coloured by speed"></canvas>
+          <div class="overlay" id="overlayB">Starting the GPU…</div>
+        </div>
+        <aside class="panel">
+          <div class="buttons">
+            <button class="primary" id="runB">Run</button>
+            <button id="pullB">Stretch fast</button>
+            <button id="releaseB">Release fast</button>
+            <button id="resetB">Reset</button>
+          </div>
+          <div class="speedbar"><span>slow</span><i></i><span>fast</span></div>
+          <div class="readouts">
+            <div class="readout"><div class="k">temperature</div><div class="v" id="tB">–</div></div>
+            <div class="readout"><div class="k">ends at this fraction of the chain's length</div><div class="v" id="xB">–</div></div>
+          </div>
+          <canvas class="plot" id="plotB" aria-label="Temperature over time"></canvas>
+          <div class="status" id="statusB">
+            These chains are insulated: no heat bath, so their energy only changes by the work done on
+            them. Stretch them quickly and the beads jiggle faster (they turn red): the temperature
+            rises. Release them quickly and it falls.
+          </div>
+        </aside>
+      </section>
+
       <article class="notes">
+        <h2>Feeling it</h2>
+        <p>
+          In part 1 each chain's right end is a handle on a soft spring to a fixed post. The chain pulls
+          the handle in until the spring pulls back as hard, so the stretched spring (blue when slack,
+          red when taut) shows the chain's pull, and its length measures it. Raise the temperature and
+          the springs stretch further: a hotter rubber band pulls harder. Heat a rubber band holding a
+          weight and it lifts the weight.
+        </p>
         <h2>The force is entropy</h2>
         <p>
           A floppy chain can wiggle into an enormous number of shapes. Most of them are crumpled; only a
@@ -56,7 +94,8 @@
           that is, from entropy.
         </p>
         <p>
-          The test is temperature. An ordinary spring's pull comes from stretched bonds and hardly
+          The test is temperature, a theme on every page of this site: effects driven by entropy get
+          stronger as it gets hotter. An ordinary spring's pull comes from stretched bonds and hardly
           depends on temperature. An entropic spring's pull is the temperature times how fast the number
           of shapes falls as you stretch, f = −T ∂S/∂x, so it grows in proportion to T. Record the pull
           at a few temperatures: the points fall on a line through the origin. That is also why a rubber
@@ -64,11 +103,14 @@
         </p>
         <h2>Why stretching warms it</h2>
         <p>
-          Press <b>Stretch fast</b>: the heat bath is switched off and the right-hand ends are pulled away
-          quickly. Straightening the chains removes shape entropy; with no heat bath to absorb the
-          difference, that entropy has to go somewhere, and it goes into faster jiggling of the beads.
-          The temperature rises. Touch a rubber band to your lips, stretch it quickly, and you feel this.
-          Let it relax and it cools again.
+          In part 2 there is no heat bath. Press <b>Stretch fast</b> and the right-hand ends are pulled
+          away quickly. Straightening the chains removes shape entropy: fewer shapes are possible. In an
+          insulated, quick stretch the total entropy cannot fall (nothing carries it away), so it has
+          to reappear somewhere else, and the only place left is the beads' motion: they jiggle faster,
+          which is to say the temperature rises. In energy terms, the pull you work against is what
+          feeds them. <b>Release fast</b> runs it backwards: the chains crumple, gaining shape entropy,
+          paid for by the beads' motion, and the temperature falls. Touch a rubber band to your lips,
+          stretch it quickly, and you feel the warmth; let it snap back and it feels cool.
         </p>
         <div class="caveat">
           <h3>Caveats</h3>

@@ -54,3 +54,31 @@ fn tension_against_temperature() {
         eprintln!("T = {t} (measured {tm:.3}), equilibrated {eq} steps: tension {f:.3}, tension/T {:.3}", f / tm);
     }
 }
+
+/// With a spring gauge on the right ends: how far the springs stretch at kT 1 and 2.
+#[test]
+#[ignore]
+fn spring_gauge() {
+    let p = gpu_prims::Prims::new(&pollster::block_on(gpu_prims::Gpu::new()).unwrap());
+    for t in [1.0, 2.0] {
+        let o = scenarios::Options::default().with("chains", 64.0).with("length", 40.0).with("stretch", 0.5).with("temperature", t).with("gauge", 0.3).with("seed", 10.0);
+        let sc = scenarios::build("rubber", &o).unwrap();
+        let mut e = md::GpuEngine::new(&p, sc.sys.clone(), &sc.state);
+        let mut line = String::new();
+        for k in 0..6 {
+            e.step(10000);
+            let s = pollster::block_on(e.read_state());
+            // Each chain ends: ..., handle (species 3), post (species 1).
+            let mut d = 0.0;
+            let mut n = 0.0;
+            for i in 0..s.n() {
+                if s.species[i] == 3 {
+                    d += md_core::fixed::to_f64(s.pos[i + 1][0] - s.pos[i][0]);
+                    n += 1.0;
+                }
+            }
+            line += &format!(" {}τ: {:.2}σ", (k + 1) * 50, d / n);
+        }
+        eprintln!("kT {t}: spring stretch{line}");
+    }
+}

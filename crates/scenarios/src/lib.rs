@@ -298,8 +298,10 @@ pub fn compress(o: &Options) -> Scenario {
 /// Rubber as an entropic spring: one bead–spring (Kremer–Grest) chain per compartment, its two
 /// end beads pinned at a set separation, in an implicit solvent (a bulk heat bath). Species: 0
 /// bead, 1 left anchor (pinned), 2 the bead bonded to the right anchor (an ordinary bead, so the
-/// page can measure the bond's tension), 3 right anchor (pinned, can be moved). Options:
-/// chains, length (beads), stretch (anchor separation / contour length), temperature, seed.
+/// page can measure the bond's tension), 3 right anchor (pinned, can be moved; or, with a gauge,
+/// a free handle on a spring to a post of species 1, appended after each chain). Options: chains,
+/// length (beads), stretch (anchor separation / contour length), temperature, gauge (spring
+/// stiffness, 0 for pinned ends), handle_mass, bath_rate, seed.
 pub fn rubber(o: &Options) -> Scenario {
     let chains = o.get("chains", 64.0) as usize;
     let length = o.get("length", 40.0) as usize;
@@ -309,13 +311,22 @@ pub fn rubber(o: &Options) -> Scenario {
     let contour = (length - 1) as f64 * bond;
     let width = ((contour * 1.1 + 6.0) / 8.0).ceil() * 8.0;
     let row = 16i64 << 32;
-    let sys = System::new([fixed::to_fixed(width), chains as i64 * row], init::DT, Pair::wca(), vec![1.0, 1.0, 1.0, 1.0])
+    // With a gauge, each chain's right end is a free, heavy handle tied by a zero-length spring of
+    // stiffness `gauge` to a fixed post (species 1, like the left anchors) at its starting
+    // position: the chains' pull stretches the springs, and you can see it. Without one the
+    // right ends are pinned too.
+    let gauge = o.get("gauge", 0.0);
+    let mut sys = System::new([fixed::to_fixed(width), chains as i64 * row], init::DT, Pair::wca(), vec![1.0, 1.0, 1.0, if gauge > 0.0 { o.get("handle_mass", 20.0) } else { 1.0 }])
         .with_walls(0, Wall::Hard, Wall::Hard)
         .with_walls(1, Wall::Hard, Wall::Hard)
         .with_compartments(1, 4)
         .with_pinned(1)
-        .with_pinned(3)
-        .with_thermostat(t, 1.0);
+        .with_thermostat(t, o.get("bath_rate", 1.0));
+    if gauge > 0.0 {
+        sys = sys.with_pair(1, 3, Pair::none());
+    } else {
+        sys = sys.with_pinned(3);
+    }
     let sep = stretch * contour;
     let x0 = 0.5 * (width - sep);
     // Lay each chain out as a serpentine: m vertical strands at least 1.1 σ apart, joined by
@@ -380,8 +391,14 @@ pub fn rubber(o: &Options) -> Scenario {
                 bonds.push([id - 1, id, 0]);
             }
         }
+        if gauge > 0.0 {
+            let handle = pos.len() as u32 - 1;
+            pos.push(pos[handle as usize]);
+            species.push(1);
+            bonds.push([handle, handle + 1, 1]);
+        }
     }
-    let sys = sys.with_bonds(vec![md_core::BondType::kremer_grest()], bonds);
+    let sys = sys.with_bonds(vec![md_core::BondType::kremer_grest(), md_core::BondType::Harmonic { k: gauge.max(1e-9), r0: 0.0 }], bonds);
     let mut vel = init::maxwell(&sys, &species, t, o.get("seed", 1.0) as u64);
     for (v, s) in vel.iter_mut().zip(&species) {
         if sys.is_pinned(*s) {
