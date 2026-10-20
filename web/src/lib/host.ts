@@ -91,7 +91,20 @@ export class SimHost {
     this.sim.resize(this.cfg.canvas.width, this.cfg.canvas.height);
   }
 
-  async create() {
+  /** Build (or rebuild) the simulation. Calls run one at a time, and each waits for the frame in
+   * flight, so the old simulation is never freed while a readout is still using it. */
+  create(): Promise<void> {
+    const next = this.creating.catch(() => {}).then(() => this.build());
+    this.creating = next;
+    return next;
+  }
+  private creating: Promise<void> = Promise.resolve();
+
+  private async build() {
+    const paused = this.paused;
+    this.paused = true;
+    while (this.busy) await new Promise((r) => setTimeout(r, 5));
+    this.paused = paused;
     this.sim?.free();
     this.sim = null;
     this.running = false;

@@ -33,10 +33,93 @@ const tplot = new LinesPlot($<HTMLCanvasElement>("temp"), {
 });
 
 function clear() {
+  recentN = [new Float64Array(BINS), new Float64Array(BINS)];
+  recentE = new Float64Array(BINS);
   counts = [new Float64Array(BINS), new Float64Array(BINS)];
   ke = new Float64Array(BINS);
   keN = new Float64Array(BINS);
   frames = 0;
+}
+
+// Recent profiles for the side plots: exponential moving averages over ~20 snapshots, so they
+// follow the gas as it settles.
+let recentN = [new Float64Array(BINS), new Float64Array(BINS)];
+let recentE = new Float64Array(BINS);
+const ALPHA = 0.05;
+
+/** One vertical profile beside the column: a bar per height slice (bottom of the canvas = floor),
+ * with optional dashed comparison values, and the maximum printed at the top. */
+function side(id: string, values: number[][], colors: (string | ((b: number) => string))[], dashed: number[] | null, max: number, label: (v: number) => string) {
+  const c = $<HTMLCanvasElement>(id);
+  const dpr = window.devicePixelRatio || 1;
+  const [W, H] = [c.clientWidth, c.clientHeight];
+  if (c.width !== Math.round(W * dpr) || c.height !== Math.round(H * dpr)) {
+    c.width = Math.round(W * dpr);
+    c.height = Math.round(H * dpr);
+  }
+  const ctx = c.getContext("2d")!;
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, W, H);
+  const n = values[0].length;
+  const bh = H / n;
+  for (let b = 0; b < n; b++) {
+    let x = 0;
+    values.forEach((v, k) => {
+      const w = (Math.max(0, v[b]) / max) * W;
+      const c = colors[k];
+      ctx.fillStyle = typeof c === "string" ? c : c(b);
+      ctx.fillRect(x, H - (b + 1) * bh + 0.5, w, bh - 1);
+      x += w;
+    });
+  }
+  if (dashed) {
+    ctx.strokeStyle = cssVar("--text");
+    ctx.setLineDash([3, 3]);
+    ctx.beginPath();
+    dashed.forEach((v, b) => {
+      const [x, y] = [(Math.max(0, v) / max) * W, H - (b + 0.5) * bh];
+      if (b === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    });
+    ctx.stroke();
+    ctx.setLineDash([]);
+  }
+  ctx.font = "10px system-ui, sans-serif";
+  const text = label(max);
+  ctx.fillStyle = cssVar("--bg");
+  ctx.fillRect(0, 0, ctx.measureText(text).width + 4, 12);
+  ctx.fillStyle = cssVar("--muted");
+  ctx.fillText(text, 2, 10);
+}
+
+/** Blue for colder than the average, grey for the average, red for hotter (full colour at ±40%). */
+function warmth(r: number) {
+  const [cold, mid, hot] = [[60, 120, 210], [150, 140, 130], [215, 65, 45]];
+  const t = Math.max(-1, Math.min(1, (r - 1) / 0.4));
+  const [a, b] = t < 0 ? [mid, cold] : [mid, hot];
+  const c = a.map((x, i) => Math.round(x + (b[i] - x) * Math.abs(t)));
+  return `rgb(${c.join(",")})`;
+}
+
+function drawSides(masses: number[]) {
+  const dh = box[1] / BINS;
+  const area = dh * box[0];
+  const rho = [0, 1].map((s) => Array.from(recentN[s], (c) => c / area));
+  const n = rho[0].map((r, b) => r + rho[1][b]);
+  const t = Array.from(recentE, (e, b) => (recentN[0][b] + recentN[1][b] > 5 ? e / (recentN[0][b] + recentN[1][b]) : 0));
+  // Pressure at the middle of each slice: the weight of everything above it, per unit width.
+  const p = new Array(BINS).fill(0);
+  let above = 0;
+  for (let b = BINS - 1; b >= 0; b--) {
+    const own = (masses[0] * rho[0][b] + masses[1] * rho[1][b]) * g * dh;
+    p[b] = above + own / 2;
+    above += own;
+  }
+  const nkT = n.map((x, b) => x * t[b]);
+  const tAvg = t.reduce((a, x, b) => a + x * n[b], 0) / Math.max(1e-9, n.reduce((a, x) => a + x, 0));
+  side("sideRho", rho, [cssVar("--cream"), cssVar("--species-3")], null, Math.max(...n) * 1.1 || 1, (v) => v.toFixed(2));
+  side("sideP", [p], [cssVar("--plot-back")], nkT, Math.max(...p, ...nkT) * 1.1 || 1, (v) => v.toFixed(3));
+  side("sideT", [t], [(b) => warmth(t[b] / tAvg)], new Array(BINS).fill(tAvg), Math.max(...t, 0.1) * 1.3, (v) => v.toFixed(2));
 }
 
 async function readout(sim: DiscSim) {
@@ -45,8 +128,12 @@ async function readout(sim: DiscSim) {
   const masses = Array.from(sim.masses());
   const dh = box[1] / BINS;
   let total = 0;
+  const nowN = [new Float64Array(BINS), new Float64Array(BINS)];
+  const nowE = new Float64Array(BINS);
   for (let i = 0; i < species.length; i++) {
     const b = Math.min(BINS - 1, Math.floor(pos[2 * i + 1] / dh));
+    nowN[species[i]][b]++;
+    nowE[b] += k[i];
     counts[species[i]][b]++;
     ke[b] += k[i];
     keN[b]++;
@@ -54,6 +141,10 @@ async function readout(sim: DiscSim) {
   }
   frames++;
   tMean = total / species.length;
+  const first = recentN[0].every((x) => x === 0) && recentN[1].every((x) => x === 0);
+  for (let s = 0; s < 2; s++) for (let b = 0; b < BINS; b++) recentN[s][b] = first ? nowN[s][b] : (1 - ALPHA) * recentN[s][b] + ALPHA * nowN[s][b];
+  for (let b = 0; b < BINS; b++) recentE[b] = first ? nowE[b] : (1 - ALPHA) * recentE[b] + ALPHA * nowE[b];
+  drawSides(masses);
   const area = dh * box[0] * frames;
   const meas = [0, 1].map((s) => Array.from(counts[s], (c, b) => ({ x: (b + 0.5) * dh, y: c / area })));
   // Theory: exponential with the measured temperature, normalized to the same number of molecules

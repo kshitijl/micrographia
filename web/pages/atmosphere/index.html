@@ -21,9 +21,25 @@
       </header>
 
       <section class="lab">
-        <div class="stage" id="stage">
-          <canvas id="canvas" aria-label="A gas column under gravity, denser at the bottom"></canvas>
-          <div class="overlay" id="overlay">Starting the GPU…</div>
+        <div class="left">
+          <div class="with-sides">
+            <div class="stage" id="stage">
+              <canvas id="canvas" aria-label="A gas column under gravity, denser at the bottom"></canvas>
+              <div class="overlay" id="overlay">Starting the GPU…</div>
+            </div>
+            <canvas class="side" id="sideRho" aria-label="Density at each height"></canvas>
+            <canvas class="side" id="sideP" aria-label="Pressure at each height"></canvas>
+            <canvas class="side" id="sideT" aria-label="Temperature at each height"></canvas>
+            <div></div>
+            <div class="side-label">density</div>
+            <div class="side-label">pressure</div>
+            <div class="side-label">temper&shy;ature</div>
+          </div>
+          <div class="sub" style="font-size: 13px; color: var(--muted); margin-top: 6px">
+            Beside the column, at each height (averaged over the last few seconds): density (light and heavy
+            molecules stacked), pressure (the weight of all the gas above, per unit width; the dashed line
+            is n kT, which it equals in equilibrium) and temperature (the dashed line is the average; bars are blue where colder than average, red where hotter).
+          </div>
         </div>
         <aside class="panel">
           <div class="buttons">
