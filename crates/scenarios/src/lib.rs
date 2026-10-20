@@ -952,7 +952,8 @@ pub fn mask(o: &Options) -> Scenario {
 /// well standing in for base pairing); beads of a strand are joined by Kremer–Grest bonds and
 /// stiffened by springs between next-nearest beads. Rows of boxes come in bands with strands of
 /// each length in `lengths` (bottom to top). Options: log2_box, columns, rows (per length),
-/// lengths (a number whose decimal digits are the lengths, e.g. 248), eps, temperature, seed.
+/// lengths (a number whose decimal digits are the lengths, e.g. 248), eps, stiffness (of the
+/// next-nearest springs), temperature, seed.
 pub fn dna(o: &Options) -> Scenario {
     let log2 = o.get("log2_box", 4.0) as u32;
     let side = (1u64 << log2) as f64;
@@ -996,7 +997,7 @@ pub fn dna(o: &Options) -> Scenario {
         .with_pair(0, 1, Pair { eps: o.get("eps", 1.5), sigma: 1.0, rc: 2.0 })
         .with_thermostat(t, 0.5);
     if !bonds.is_empty() {
-        sys = sys.with_bonds(vec![md_core::BondType::kremer_grest(), md_core::BondType::Harmonic { k: 10.0, r0: 1.94 }], bonds);
+        sys = sys.with_bonds(vec![md_core::BondType::kremer_grest(), md_core::BondType::Harmonic { k: o.get("stiffness", 10.0), r0: 1.94 }], bonds);
     }
     let seed = o.get("seed", 1.0) as u64;
     let vel = init::maxwell(&sys, &species, t, seed);

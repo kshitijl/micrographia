@@ -27,6 +27,7 @@ M1 Pro (Metal) unless stated. Run everything with `cargo xtask all`.
 | `arrhenius` | Why do reactions double in speed every 10 °C? | Escape rates fall monotonically from kT = 1.6 to 0.8; Arrhenius slope 4.3–6.5 ε (4.9 in Chrome and WebKit; native 5.4) |
 | `buffer` | How does a buffer hold blood's pH steady? | [H][A]/[HA] constant within 1.8× up to equivalence; at 24 protons per box <25% as many free as in water (2.5 vs 24); Henderson–Hasselbalch from K within 0.15 |
 | `mask` | How can a mask stop particles smaller than its holes? | Particles 3–27× smaller than the gaps caught on >20% of passes (~40%); the largest ≥0.2 more often (0.76) |
+| `dna` | How does PCR copy DNA; why do strands melt? | 8-bead strands melt ≥0.12 kT/ε above 4-bead ones (0.94 vs 0.73); single beads <20% paired at every temperature |
 
 Plus `selftest`: the GPU primitive and engine checks, run under the browser's shader compiler.
 
@@ -97,11 +98,11 @@ a CUDA machine).
 
 ## Since the first status report
 
-- More pages (22 in all): rubber band (entropic spring), atmosphere (barometric, isothermal
+- More pages (23 in all): rubber band (entropic spring), atmosphere (barometric, isothermal
   column), Carnot engine and heat pump (0.31 vs the 0.33 limit when slow), boiling (vapour
   pressure, Clausius–Clapeyron, latent heat ~4 ε), lipid self-assembly, helium balloon
   (Graham's law, 2.67 vs 2.69), smell (diffusion vs draught), drug binding by FEP, a saline IV
-  drip and a model cell, reaction rates (Arrhenius), buffers (mass action), a mask filter.
+  drip and a model cell, reaction rates (Arrhenius), buffers (mass action), a mask filter, DNA melting.
 - Engine: bonds and pinned species, membrane pores, piston, flow-relative Andersen bath with an
   exact energy ledger, a fan (the bath restricted to some species in an x slab, with a drift), M1b all-integer forces (`Arith::Int`): GPU and CPU bit-identical, golden
   hash `3aaeff680a2f0278` reproduced natively, in Chrome and in WebKit.
@@ -156,6 +157,16 @@ filter catches ~40% of particles 7–27× smaller than the gaps and ~3/4 of the 
 small-particle (diffusion) side of the most-penetrating-size curve is not resolved: even the
 smallest aerosols are as heavy as an air molecule, and the conservative well lets fast light
 particles bounce off. Stuck particles clog the filter, and the air slows from 0.65 to 0.45 σ/τ.
+
+## DNA melting
+
+The `dna` page holds one pair of bead strands per box (A beads attract only B beads; springs
+along each strand and between next-nearest beads), in bands of 1, 4 and 8 beads. Swept from hot
+to cold, 4-bead strands melt at kT ≈ 0.73 and 8-bead strands at 0.94, while single bead pairs
+never hold (2–9% paired). Pairing is only partly cooperative: near the melting temperature
+strands are mostly apart or mostly zipped with frayed ends, without real DNA's sharp
+all-or-none melting (which needs base stacking). Stiffer strands melt higher but no more sharply
+(`crates/md/tests/dna.rs`).
 
 ## Next
 

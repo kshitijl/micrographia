@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>DNA Melting and PCR</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 16 16%22%3E%3Ccircle cx=%228%22 cy=%228%22 r=%227%22 fill=%22%239a4a1e%22/%3E%3C/svg%3E" />
+    <link rel="stylesheet" href="../../src/lib/style.css" />
+  </head>
+  <body>
+    <nav class="topbar"><div class="wrap"><a href="../../index.html">Statistical mechanics, simulated</a></div></nav>
+    <main class="wrap">
+      <header class="question">
+        <div class="eyebrow">COVID, vaccines, public health</div>
+        <h1>How does a PCR test copy DNA? Why do its strands come apart when heated, and stay together when cool?</h1>
+        <p class="lede">
+          A PCR machine cycles a sample between about 95 °C, where the two strands of DNA separate, and
+          about 55 °C, where short primers stick to them so the copying can start. That only works because
+          strands pair and unpair at well-defined temperatures that depend on their length. Here each box holds one pair of model
+          strands; the rows hold short, medium and long ones. Warm them and watch which stay paired.
+        </p>
+      </header>
+
+      <section class="lab">
+        <div class="stage" id="stage">
+          <canvas id="canvas" aria-label="Boxes each holding two complementary bead strands, short at the bottom, long at the top"></canvas>
+          <div class="overlay" id="overlay">Starting the GPU…</div>
+        </div>
+        <aside class="panel">
+          <div class="buttons">
+            <button class="primary" id="run">Run</button>
+            <button id="sweep">Melting curves</button>
+          </div>
+          <div class="legend"><span><i style="background: var(--accent)"></i>strand</span><span><i style="background: var(--species-2)"></i>its partner</span><span><i style="background: var(--box-hit)"></i>paired</span></div>
+          <label class="row">Temperature kT/ε <span id="tv">–</span>
+            <input type="range" id="temp" min="0.3" max="1.4" step="0.05" value="0.9" />
+          </label>
+          <div class="readouts" id="readouts"></div>
+          <canvas class="plot tall" id="plot" aria-label="Share of paired strands against temperature, one curve per strand length"></canvas>
+          <div class="legend" id="plotlegend"></div>
+          <canvas class="plot" id="hist" aria-label="How many beads of each 8-bead strand are paired, at the current temperature"></canvas>
+          <div class="status" id="status">Press Run, or draw the melting curves (a few minutes).</div>
+        </aside>
+      </section>
+
+      <article class="notes">
+        <h2>Many weak bonds make a strong one</h2>
+        <p>
+          A single pair of beads is held by one attraction, worth a few kT. Thermal kicks break it easily,
+          and once broken the two beads wander off: at these temperatures a lone pair spends little time
+          together. A strand is different. Once a few of its beads are paired, the rest are held right next
+          to their partners and pair at almost no further cost in freedom. Separating the strands means
+          breaking all the pairs at once, so the strands stay together up to a melting temperature that
+          rises with their length. Near it, the histogram shows strands either fully apart or mostly
+          zipped, with frayed ends that open and close; half-paired strands are rarer.
+        </p>
+        <p>
+          Real DNA melts more sharply than this model, because neighbouring base pairs also stack on each
+          other, so a pair is much more stable next to an existing one. The model has only the zipping.
+        </p>
+        <p>
+          PCR exploits this. At 95 °C every double strand of the sample melts. At 55 °C the primers, about
+          20 bases long, are cold enough to pair firmly with their targets, long enough to be specific, and
+          short enough to melt off places where they match only partly. Chemists choose primer lengths by
+          their melting temperatures. At 72 °C the polymerase extends them into full copies, and
+          the cycle doubles the number of copies of the target, about thirty times over in a COVID test.
+        </p>
+                <p>
+          The model: beads in a strand are joined by springs and stiffened by springs between next-nearest
+          beads; A beads attract only B beads. Real DNA pairs specific bases (A with T, G with C), stacks
+          them, and is charged; none of that is here, only the statistical mechanics of zipping.
+        </p>
+      </article>
+    </main>
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>
