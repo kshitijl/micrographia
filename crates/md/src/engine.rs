@@ -462,6 +462,7 @@ pub struct GpuEngine {
     d_flip: Dispatch,
     /// Advances the clock for stochastic boundaries (only when there are any).
     d_tick: Option<Dispatch>,
+    d_set_velocity: Dispatch,
     /// Bond forces (after the pair forces), if there are bonds.
     d_bonds: Option<Dispatch>,
     /// Piston kernels: clear its force sum, move it, reverse it.
@@ -587,6 +588,7 @@ impl GpuEngine {
                 [Dispatch::new_at(gpu, &pl("piston_clear"), &[(11, &b.ctl)], 1), one("piston_move"), one("piston_flip")]
             }),
             d_flip: Dispatch::new_at(gpu, &pl("flip"), &[(0, &b.params), (1, &b.pos), (10, &b.ids)], g),
+            d_set_velocity: Dispatch::new_at(gpu, &pl("set_species_velocity"), &[(0, &b.params), (2, &b.vel), (3, &b.species)], g),
             reorder,
             path,
             sort_interval: 100,
@@ -777,6 +779,18 @@ impl GpuEngine {
         p.flip_mask = 1 << (bit % 32);
         self.gpu().queue.write_buffer(&self.buf.params, 0, bytemuck::bytes_of(&p));
         self.submit(|pass| self.d_flip.encode(pass));
+    }
+
+    /// Give every particle of `species` the velocity `v` (σ/τ). For pinned species this sets a
+    /// steady motion (anchors pulled at constant speed).
+    pub fn set_species_velocity(&mut self, species: u32, v: [f64; 2]) {
+        let mut p = self.params;
+        p.flip_index = species;
+        p.flip_word = self.sys.to_step_displacement(v[0]) as u32;
+        p.flip_mask = self.sys.to_step_displacement(v[1]) as u32;
+        self.gpu().queue.write_buffer(&self.buf.params, 0, bytemuck::bytes_of(&p));
+        self.submit(|pass| self.d_set_velocity.encode(pass));
+        self.gpu().queue.write_buffer(&self.buf.params, 0, bytemuck::bytes_of(&self.params));
     }
 
     /// Replace the state (same particle count).

@@ -59,7 +59,7 @@ pub struct Scenario {
     pub radii: Vec<f64>,
 }
 
-pub const NAMES: &[&str] = &["cream", "corner", "boltzmann", "heavy", "oilwater", "heatflow", "osmosis", "compress"];
+pub const NAMES: &[&str] = &["cream", "corner", "boltzmann", "heavy", "oilwater", "heatflow", "osmosis", "compress", "rubber"];
 
 pub fn build(name: &str, o: &Options) -> Result<Scenario, String> {
     match name {
@@ -71,6 +71,7 @@ pub fn build(name: &str, o: &Options) -> Result<Scenario, String> {
         "heatflow" => Ok(heatflow(o)),
         "osmosis" => Ok(osmosis(o)),
         "compress" => Ok(compress(o)),
+        "rubber" => Ok(rubber(o)),
         _ => Err(format!("unknown scenario {name}")),
     }
 }
@@ -270,16 +271,125 @@ pub fn compress(o: &Options) -> Scenario {
     Scenario { warmup: 0, finish: Finish::None, marked: 0, grid: [8, 8], radii: vec![0.6], sys, state }
 }
 
+/// Rubber as an entropic spring: one bead–spring (Kremer–Grest) chain per compartment, its two
+/// end beads pinned at a set separation, in an implicit solvent (a bulk heat bath). Species: 0
+/// bead, 1 left anchor (pinned), 2 the bead bonded to the right anchor (an ordinary bead, so the
+/// page can measure the bond's tension), 3 right anchor (pinned, can be moved). Options:
+/// chains, length (beads), stretch (anchor separation / contour length), temperature, seed.
+pub fn rubber(o: &Options) -> Scenario {
+    let chains = o.get("chains", 64.0) as usize;
+    let length = o.get("length", 40.0) as usize;
+    let stretch = o.get("stretch", 0.5);
+    let t = o.get("temperature", 1.0);
+    let bond = 0.97;
+    let contour = (length - 1) as f64 * bond;
+    let width = ((contour * 1.1 + 6.0) / 8.0).ceil() * 8.0;
+    let row = 16i64 << 32;
+    let sys = System::new([fixed::to_fixed(width), chains as i64 * row], init::DT, Pair::wca(), vec![1.0, 1.0, 1.0, 1.0])
+        .with_walls(0, Wall::Hard, Wall::Hard)
+        .with_walls(1, Wall::Hard, Wall::Hard)
+        .with_compartments(1, 4)
+        .with_pinned(1)
+        .with_pinned(3)
+        .with_thermostat(t, 1.0);
+    let sep = stretch * contour;
+    let x0 = 0.5 * (width - sep);
+    // Lay each chain out as a serpentine: m vertical strands at least 1.1 σ apart, joined by
+    // short horizontal steps, whose total length is the contour; beads then sit one bond length
+    // apart along it, and strands never come closer than a bead diameter.
+    let m = ((sep / 1.1).floor() as usize).max(1);
+    let d = sep / m as f64;
+    let h = ((contour - sep) / m as f64).max(0.0);
+    assert!(h <= 12.0, "stretch {stretch} too small for a 16 σ row");
+    // Half a strand up from the left anchor, full strands alternating, half a strand back down
+    // to the right anchor: total m·h vertical plus sep horizontal.
+    let mut y = h / 2.0;
+    let mut corners = vec![(0.0f64, 0.0f64), (0.0, y)];
+    for k in 1..=m {
+        let x = k as f64 * d;
+        corners.push((x, y));
+        if k < m {
+            y = -y;
+            corners.push((x, y));
+        }
+    }
+    corners.push((sep, 0.0));
+    // Walk along the polyline, placing each bead one bond length (straight-line distance) after
+    // the previous one, so beads around corners are not squeezed. The last bead (the right
+    // anchor) lands near (sep, 0).
+    let mut dense = Vec::new();
+    for w in corners.windows(2) {
+        let l = ((w[1].0 - w[0].0).powi(2) + (w[1].1 - w[0].1).powi(2)).sqrt();
+        let k = (l / 0.002).ceil().max(1.0) as usize;
+        for i in 0..k {
+            let f = i as f64 / k as f64;
+            dense.push((w[0].0 + f * (w[1].0 - w[0].0), w[0].1 + f * (w[1].1 - w[0].1)));
+        }
+    }
+    dense.push(*corners.last().unwrap());
+    let mut curve = vec![dense[0]];
+    for &q in &dense {
+        let p = *curve.last().unwrap();
+        if ((q.0 - p.0).powi(2) + (q.1 - p.1).powi(2)).sqrt() >= bond && curve.len() < length {
+            curve.push(q);
+        }
+    }
+    while curve.len() < length {
+        let p = *curve.last().unwrap();
+        curve.push((p.0 + bond, p.1));
+    }
+    let mut pos = Vec::new();
+    let mut species = Vec::new();
+    let mut bonds = Vec::new();
+    for c in 0..chains {
+        let y = (c as f64 + 0.5) * 16.0;
+        for (k, &(cx, cy)) in curve.iter().enumerate() {
+            let id = pos.len() as u32;
+            pos.push([fixed::to_fixed(x0 + cx), fixed::to_fixed(y + cy)]);
+            species.push(match k {
+                0 => 1,
+                k if k == length - 1 => 3,
+                k if k == length - 2 => 2,
+                _ => 0,
+            });
+            if k > 0 {
+                bonds.push([id - 1, id, 0]);
+            }
+        }
+    }
+    let sys = sys.with_bonds(vec![md_core::BondType::kremer_grest()], bonds);
+    let mut vel = init::maxwell(&sys, &species, t, o.get("seed", 1.0) as u64);
+    for (v, s) in vel.iter_mut().zip(&species) {
+        if sys.is_pinned(*s) {
+            *v = [0, 0];
+        }
+    }
+    let state = State { pos, vel, species };
+    Scenario { warmup: o.get("warmup", 4000.0) as usize, finish: Finish::None, marked: 0, grid: [8, 8], radii: vec![0.5, 0.7, 0.5, 0.7], sys, state }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn rubber_starts_without_overlaps_at_any_stretch() {
+        for stretch in [0.15, 0.3, 0.5, 0.8, 0.95] {
+            let sc = rubber(&Options::default().with("chains", 2.0).with("stretch", stretch));
+            let e = md_ref::IntEngine::<f64>::new(sc.sys.clone(), sc.state.clone());
+            let (kicks, pe) = e.kicks();
+            let worst = kicks.iter().map(|k| k[0].abs().max(k[1].abs())).max().unwrap();
+            // A kick of 2^24 units per step corresponds to a force of ~160 ε/σ.
+            assert!(worst < 1 << 24, "stretch {stretch}: kick {worst}, energy {pe}");
+        }
+    }
 
     #[test]
     fn every_scenario_builds_and_runs_briefly_on_the_cpu() {
         for name in NAMES {
             let mut o = Options::default();
             // Small versions, so the CPU engine finishes quickly.
-            for (k, v) in [("n", 1500.0), ("boxes_x", 8.0), ("boxes_y", 6.0), ("columns", 16.0)] {
+            for (k, v) in [("n", 1500.0), ("boxes_x", 8.0), ("boxes_y", 6.0), ("columns", 16.0), ("chains", 8.0)] {
                 o = o.with(k, v);
             }
             let sc = build(name, &o).unwrap();

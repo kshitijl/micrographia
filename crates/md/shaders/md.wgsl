@@ -138,6 +138,16 @@ fn bond_force(@builtin(global_invocation_id) gid: vec3<u32>) {
     aux[i].x += u;
 }
 
+// Set the velocity of every particle of species P.flip_index to (P.flip_word, P.flip_mask)
+// reinterpreted as i32 displacement per step (a command, using the flip fields as arguments).
+@compute @workgroup_size(256)
+fn set_species_velocity(@builtin(global_invocation_id) gid: vec3<u32>) {
+    let i = gid.x;
+    if (i < P.n && species[i] == P.flip_index) {
+        vel[i] = vec2<i32>(bitcast<i32>(P.flip_word), bitcast<i32>(P.flip_mask));
+    }
+}
+
 // After a spatial reorder: where is each id stored?
 @compute @workgroup_size(256)
 fn invert_ids(@builtin(global_invocation_id) gid: vec3<u32>) {

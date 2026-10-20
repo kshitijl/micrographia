@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Rubber Bands and Entropy</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 16 16%22%3E%3Ccircle cx=%228%22 cy=%228%22 r=%227%22 fill=%22%239a4a1e%22/%3E%3C/svg%3E" />
+    <link rel="stylesheet" href="../../src/lib/style.css" />
+  </head>
+  <body>
+    <nav class="topbar"><div class="wrap"><a href="../../index.html">Statistical mechanics, simulated</a></div></nav>
+    <main class="wrap">
+      <header class="question">
+        <div class="eyebrow">Entropic forces</div>
+        <h1>Why does a stretched rubber band pull back, and why does it get warm?</h1>
+        <p class="lede">
+          Rubber is made of long, floppy molecules. Each chain here is a string of beads held between
+          two pinned ends, jostled by heat. Nothing in the chain wants to be short, yet it pulls on its
+          ends. Measure the pull, change the temperature, and find out where the force comes from.
+        </p>
+      </header>
+
+      <section class="lab">
+        <div class="stage" id="stage">
+          <canvas id="canvas" aria-label="Polymer chains held between pinned ends, wiggling"></canvas>
+          <div class="overlay" id="overlay">Starting the GPU…</div>
+        </div>
+        <aside class="panel">
+          <div class="buttons">
+            <button class="primary" id="run">Run</button>
+            <button id="record">Record point</button>
+            <button id="stretch">Stretch fast (insulated)</button>
+          </div>
+          <label class="row">Ends held at this fraction of the chain's length <span id="xv">50%</span>
+            <input type="range" id="x" min="0.2" max="0.85" step="0.05" value="0.5" />
+          </label>
+          <label class="row">Temperature <span id="tv">1.00</span>
+            <input type="range" id="t" min="0.6" max="3" step="0.1" value="1" />
+          </label>
+          <div class="readouts">
+            <div class="readout"><div class="k">pull on each end</div><div class="v" id="f">–</div></div>
+            <div class="readout"><div class="k">temperature</div><div class="v" id="temp">–</div></div>
+          </div>
+          <canvas class="plot tall" id="plot" aria-label="Recorded pull against temperature"></canvas>
+          <div class="status" id="status">Press Run and let the average settle (about 100 τ). Record a point, change the temperature, wait, record again.</div>
+        </aside>
+      </section>
+
+      <article class="notes">
+        <h2>The force is entropy</h2>
+        <p>
+          A floppy chain can wiggle into an enormous number of shapes. Most of them are crumpled; only a
+          few are nearly straight. Holding the ends apart rules out the crumpled shapes, and the chain's
+          constant thermal jiggling keeps tugging the ends toward the arrangements it can explore more
+          freely. The bonds themselves do not get much longer: the pull comes from the number of shapes,
+          that is, from entropy.
+        </p>
+        <p>
+          The test is temperature. An ordinary spring's pull comes from stretched bonds and hardly
+          depends on temperature. An entropic spring's pull is the temperature times how fast the number
+          of shapes falls as you stretch, f = −T ∂S/∂x, so it grows in proportion to T. Record the pull
+          at a few temperatures: the points fall on a line through the origin. That is also why a rubber
+          band holding a weight <i>shortens</i> when you heat it, the opposite of most materials.
+        </p>
+        <h2>Why stretching warms it</h2>
+        <p>
+          Press <b>Stretch fast</b>: the heat bath is switched off and the right-hand ends are pulled away
+          quickly. Straightening the chains removes shape entropy; with no heat bath to absorb the
+          difference, that entropy has to go somewhere, and it goes into faster jiggling of the beads.
+          The temperature rises. Touch a rubber band to your lips, stretch it quickly, and you feel this.
+          Let it relax and it cools again.
+        </p>
+        <div class="caveat">
+          <h3>Caveats</h3>
+          <ul>
+            <li>Real rubber is a cross-linked network of chains in 3D; here each chain is separate and
+              lives in 2D, where a chain cannot cross itself. The entropic argument is the same.</li>
+            <li>The beads are bonded by stiff springs (the Kremer–Grest model), so part of the pull is
+              energetic: above T ≈ 1 the pull divided by T is constant to a few percent, but at T = 0.5
+              it is a third lower.</li>
+            <li>The surrounding solvent is not simulated; a heat bath acting on every bead stands in for
+              it.</li>
+          </ul>
+        </div>
+      </article>
+    </main>
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>

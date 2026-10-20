@@ -427,6 +427,7 @@ dependencies = [
  "md-ref",
  "naga",
  "pollster",
+ "scenarios",
  "wgpu",
 ]
 

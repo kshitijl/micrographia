@@ -246,6 +246,11 @@ impl DiscSim {
         self.engine.update_system(sys);
     }
 
+    /// Give every particle of `species` velocity (vx, vy) σ/τ (e.g. pull a pinned anchor).
+    pub fn set_species_velocity(&mut self, species: u32, vx: f64, vy: f64) {
+        self.engine.set_species_velocity(species, [vx, vy]);
+    }
+
     /// Set a fixed-speed piston's speed (σ/τ; negative compresses).
     pub fn set_piston_speed(&mut self, u: f64) {
         self.engine.set_piston_speed(u);

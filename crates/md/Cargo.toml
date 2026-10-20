@@ -13,5 +13,6 @@ wgpu.workspace = true
 bytemuck.workspace = true
 
 [dev-dependencies]
+scenarios = { path = "../scenarios" }
 pollster.workspace = true
 naga = { version = "30.0.1", features = ["wgsl-in"] }
