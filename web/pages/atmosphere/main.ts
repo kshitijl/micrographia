@@ -1,5 +1,6 @@
 import { $, cssVar, SimHost } from "../../src/lib/host";
-import { BarPlot, LinesPlot } from "../../src/lib/plot";
+import { LinesPlot } from "../../src/lib/plot";
+import { cssColor, onThemeChange } from "../../src/lib/theme";
 import type { DiscSim } from "../../src/lib/wasm";
 
 const BINS = 20;
@@ -216,32 +217,76 @@ tempIn.onchange = () =>
   });
 
 // ---- The slab picture: discrete pressure balance → the exponential. ----
+// Drawn upright: on the left the column of slabs, each coloured by the weight of air pressing
+// down on it; on the right each slab's density as a bar, against the exponential (dashed).
 const SLAB_X = 3; // m g H / kT for the drawing
-const slabs = new BarPlot($<HTMLCanvasElement>("slabs"), {
-  labels: [],
-  yLabel: "density (bottom slab = 1)",
-  xLabel: "height",
-  color: () => cssVar("--accent"),
-  theoryColor: () => cssVar("--plot-back"),
-  ink: () => cssVar("--muted"),
-  rule: () => cssVar("--rule"),
-});
 function drawSlabs() {
   const n = Number($<HTMLInputElement>("nslabs").value);
   $("nslabsv").textContent = String(n);
-  // 60 bars; each slab covers 60/n of them.
-  const bars = 60;
-  const f = 1 - SLAB_X / n;
-  const values = Array.from({ length: bars }, (_, b) => Math.max(0, f) ** Math.floor((b * n) / bars));
-  const theory = Array.from({ length: bars }, (_, b) => Math.exp((-SLAB_X * (b + 0.5)) / bars));
-  slabs.set(values, theory, Array.from({ length: bars }, () => ""));
+  const f = Math.max(0, 1 - SLAB_X / n);
+  const c = $<HTMLCanvasElement>("slabs");
+  const dpr = window.devicePixelRatio || 1;
+  const [W, H] = [c.clientWidth, c.clientHeight];
+  c.width = Math.round(W * dpr);
+  c.height = Math.round(H * dpr);
+  const ctx = c.getContext("2d")!;
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, W, H);
+  const [top, bottom] = [8, H - 22];
+  const colW = Math.min(170, W * 0.4);
+  const [px0, px1] = [colW + 24, W - 8];
+  const y = (z: number) => bottom - z * (bottom - top); // z: height as a fraction of the drawing
+  const sh = (bottom - top) / n;
+  const [light, dark] = [cssColor("--surface-2"), cssColor("--accent")];
+  ctx.font = "11px system-ui, sans-serif";
+  ctx.textBaseline = "middle";
+  for (let k = 0; k < n; k++) {
+    // Slab k has density f^k (bottom slab = 1), and carries the weight of every slab above it,
+    // including those above the drawing: a geometric series summing to f^(k+1), the pressure at
+    // its top in units of the pressure at the floor.
+    const density = f ** k;
+    const load = f ** (k + 1);
+    const shade = f > 0 ? load / f : 0; // full colour for the bottom slab, which carries the most
+    const mix = light.slice(0, 3).map((a, i) => Math.round(255 * (a + (dark[i] - a) * shade)));
+    ctx.fillStyle = `rgb(${mix.join(",")})`;
+    ctx.fillRect(0, y((k + 1) / n) + 0.5, colW, sh - 1);
+    if (sh >= 16) {
+      ctx.fillStyle = shade > 0.55 ? cssVar("--accent-ink") : cssVar("--text");
+      ctx.fillText(`holds ${load.toFixed(2)} p₀`, 6, y((k + 0.5) / n));
+    }
+    ctx.fillStyle = cssVar("--accent");
+    ctx.fillRect(px0, y((k + 1) / n) + 0.5, density * (px1 - px0), sh - 1);
+  }
+  ctx.strokeStyle = cssVar("--plot-back");
+  ctx.lineWidth = 2;
+  ctx.setLineDash([5, 4]);
+  ctx.beginPath();
+  for (let i = 0; i <= 100; i++) {
+    const z = i / 100;
+    const xx = px0 + Math.exp(-SLAB_X * z) * (px1 - px0);
+    if (i === 0) ctx.moveTo(xx, y(z));
+    else ctx.lineTo(xx, y(z));
+  }
+  ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.lineWidth = 1;
+  ctx.strokeStyle = cssVar("--rule");
+  ctx.beginPath();
+  ctx.moveTo(px0, top);
+  ctx.lineTo(px0, bottom);
+  ctx.lineTo(px1, bottom);
+  ctx.stroke();
+  ctx.fillStyle = cssVar("--muted");
+  ctx.textBaseline = "alphabetic";
+  ctx.fillText("slabs (colour: weight above)", 0, H - 6);
+  ctx.fillText("density (floor = 1)  →", px0, H - 6);
   $("slabstatus").textContent =
     n <= SLAB_X
       ? `With ${n} slab${n > 1 ? "s" : ""} the steps are too coarse: the first slab's weight alone exceeds its pressure. More slabs.`
       : `Each slab is (1 − ${SLAB_X}/${n}) = ${f.toFixed(3)} times the one below. At the top: ${f.toFixed(3)}^${n} = ${(f ** n).toFixed(4)}, against e^−${SLAB_X} = ${Math.exp(-SLAB_X).toFixed(4)}.`;
 }
 $<HTMLInputElement>("nslabs").oninput = drawSlabs;
-drawSlabs();
+onThemeChange(drawSlabs);
 
 declare global {
   interface Window {

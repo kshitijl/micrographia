@@ -128,8 +128,8 @@
             <label class="row">Number of slabs <span id="nslabsv">5</span>
               <input type="range" id="nslabs" min="1" max="60" step="1" value="5" />
             </label>
-            <canvas class="plot tall" id="slabs" aria-label="Density of each slab against height, with the exponential"></canvas>
-            <div class="legend"><span><i style="background: var(--accent)"></i>slabs, each holding up the ones above</span><span><i style="background: var(--plot-back)"></i>e<sup>−m g z / kT</sup></span></div>
+            <canvas class="plot" id="slabs" style="height: 380px" aria-label="A column of slabs, each coloured by the weight above it, and each slab's density against height with the exponential"></canvas>
+            <div class="legend"><span><i style="background: var(--accent)"></i>each slab's density: it must hold up every slab above it</span><span><i style="background: var(--plot-back)"></i>e<sup>−m g z / kT</sup></span></div>
             <div class="status" id="slabstatus"></div>
           </aside>
         </div>
