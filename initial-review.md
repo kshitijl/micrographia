@@ -371,8 +371,51 @@ Open questions (third round):
 ### `atmosphere`
 1. The slab panel: make it vertical, with the slabs drawn on screen, gravity pointing down, and the
    weight on each slab shown, perhaps colour-coded by the weight of all the slabs above it.
+2. Graphs right beside the MD box, perhaps colour-coded, of pressure, density and temperature at
+   each height, so they can be read off side by side and the uniform temperature is plain.
+3. A "sunshine" button to see ground-heating convection, probably not in MD but in a little
+   fluid-dynamics panel. Think about whether to write a GPU fluid-dynamics engine in Rust next to the
+   MD engine, and whether any effects want the two merged; write a report to read. For now, only a
+   throwaway in JavaScript for this one page's pressure and temperature panel.
 
 ### `saline`
 1. Keep the current simulation, and add a panel below with much bigger cells and stiffer, nearly
    unstretchable, more fragile springs, so they tear from too much membrane tension, as real cells
    do.
+
+### Fourth round: done (to confirm)
+
+- [ ] Every energy plot shows the total energy of the whole simulation (not per molecule), with a
+  line naming the ensemble ("Constant energy (the microcanonical ensemble): nothing adds or removes
+  energy…", or which heat bath or piston changes it), written by the engine itself.
+- [ ] `smell`: a corridor 1600 σ long (38,400 molecules), with the time diffusion alone would take
+  to cross it (σ²/2D: tens of thousands of τ) next to the draught.
+- [ ] `reversal`: "One molecule" nudges a single molecule (click one to choose it; it is
+  highlighted). Measured: one nudge 25 τ out spoils the return of all 8000.
+- [ ] `boltzmann`: starts with one box very hot. Answer to the wall question: yes, the forces are
+  the same everywhere (every pair within the repulsion's range, 1.12 σ, pushes regardless of
+  boxes), and the walls only bounce molecules' velocities exactly; the text now says exactly
+  this. Total-energy plot, flat.
+- [ ] `compress`: "Slam in" and "Yank out" (4× the fast speed) with a density and temperature
+  profile up to the piston: a slam heats the gas far past the adiabat (kT 1.03 → 8.5, against
+  1.41 for a slow push the same distance).
+- [ ] `rubber`: the "crazy mode" was an engine bug: bonds longer than 8 σ gave garbage forces
+  on the GPU (the CPU twin silently skipped them); fixed on both, with tests at 3–20 σ. The slider
+  now moves the posts smoothly without restarting. Part 2 has a spring on the left showing the
+  pull, and you drag the right end (stretch 0.996 → 1.20, release → 1.10).
+- [ ] `atmosphere`:
+  - Density (light and heavy stacked), pressure (the weight of the gas above, against n kT) and
+    temperature (blue colder / red hotter than average) beside the column, sharing its height axis.
+  - The slabs drawn upright, each coloured by the weight it holds up, with its density beside it
+    against the exponential.
+  - Part 2, a throwaway JavaScript fluid panel (2D, dry, Boussinesq motion, compressible
+    thermodynamics): still air stays still, Sunshine grows a stirred layer cooling at 9.2 K/km
+    after 4 h (dry adiabat 9.8), Sunset makes a ground inversion; warm-bubble button, drag to stir.
+  - The report: `docs/fluid-engine.md`. In short: yes to a lattice Boltzmann engine in fixed
+    point, later; DPD in Rahman first; merge by calibration, side-by-side panels and particles
+    carried by flows, not by a concurrent MD/continuum hybrid.
+- [ ] Library fix found on the way: rebuilding a simulation (Reset, changing a start menu) while
+  a readout was running freed it underneath the readout ("null pointer passed to rust"). Rebuilds
+  now wait for the frame in flight and run one at a time.
+
+Still to do (fourth round): `osmosis` classic U-tube panel; `saline` big-cell panel.
