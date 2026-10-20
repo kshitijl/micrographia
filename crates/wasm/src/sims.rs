@@ -88,16 +88,17 @@ impl DiscSim {
         self.engine.flip_species_bit(species, 0, 0);
     }
 
-    /// Resolves to the positions (σ, x and y interleaved) of the particles with the given ids.
+    /// Resolves to the positions (σ, x and y interleaved, as f64, which holds every fixed-point
+    /// position exactly) of the particles with the given ids.
     pub fn positions_of(&self, ids: Vec<u32>) -> js_sys::Promise {
         let fut = self.engine.read_positions();
         future_to_promise(async move {
             let p = fut.await;
-            let out: Vec<f32> = ids.iter().flat_map(|&i| {
+            let out: Vec<f64> = ids.iter().flat_map(|&i| {
                 let q = p[i as usize];
-                [fixed::to_f64(q[0]) as f32, fixed::to_f64(q[1]) as f32]
+                [fixed::to_f64(q[0]), fixed::to_f64(q[1])]
             }).collect();
-            Ok(Float32Array::from(&out[..]).into())
+            Ok(js_sys::Float64Array::from(&out[..]).into())
         })
     }
 

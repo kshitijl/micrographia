@@ -31,13 +31,16 @@ let paused = false; // the UI loop yields to test hooks
 let mix0: number | null = null; // raw mixing of the starting blob (coarse bins straddle its edge)
 let nudged = ""; // what was nudged since the last reversal, for the arrival message
 
-// Five traced cream molecules: their paths, in segments that break where a molecule wraps
-// round the periodic box or the direction of time changes.
-const TRACED = 5;
+// Four traced molecules (two cream, two coffee). Their outward path is a stack of samples; on
+// the way back the page lands on the same step counts and compares positions bit for bit (f64
+// holds them exactly). A sample that matches is erased, like XOR-ing it out; one that doesn't
+// stays, with the molecule's actual position drawn white next to it.
+const TRACED = 4;
 let traced: number[] = [];
-let trails: { back: boolean; pts: number[] }[][] = [];
+let path: { step: number; pos: Float64Array }[] = [];
+let kept: number[][] = []; // per molecule: outward points that the way back did not match (x, y, ...)
+let strays: number[][] = []; // per molecule: where the molecule actually was at those steps
 let tracing = false;
-let boxSize = [0, 0];
 
 function setStatus(text: string, kind: "" | "good" | "bad" = "") {
   status.textContent = text;
@@ -64,7 +67,7 @@ async function create() {
   mix0 = null;
   nudged = "";
   traced = [];
-  trails = [];
+  path = [];
   plot.clear();
   updateButtons();
   overlay.style.display = "grid";
@@ -73,9 +76,10 @@ async function create() {
   const n = Number(size.value);
   sim = await DiscSim.create(canvas, "cream", { n, density: 0.5, temperature: 1.0, seed: 7, warmup: 1000, blob: 0.2, aspect: canvas.width / canvas.height });
   applyColors();
-  boxSize = Array.from(sim.box_size());
-  traced = Array.from(sim.representatives(1, TRACED, 0.6));
-  trails = traced.map(() => []);
+  traced = await pickTraced(sim);
+  path = [];
+  kept = traced.map(() => []);
+  strays = traced.map(() => []);
   overlay.style.display = "none";
   setStatus("Press Run, let the cream spread, then reverse time.");
   updateButtons();
@@ -84,50 +88,74 @@ async function create() {
   trace();
 }
 
-/** Append the traced molecules' current positions to their paths and redraw the overlay. */
-function trace() {
+/** Two cream molecules (the blob's centre and one partway out) and two coffee molecules just
+ * outside the blob. */
+async function pickTraced(s: DiscSim): Promise<number[]> {
+  const cream = Array.from(s.representatives(1, 2, 0.6));
+  const { pos, species } = (await s.all_positions()) as { pos: Float32Array; species: Uint32Array };
+  let [cx, cy, n] = [0, 0, 0];
+  for (let i = 0; i < species.length; i++) if (species[i] === 1) [cx, cy, n] = [cx + pos[2 * i], cy + pos[2 * i + 1], n + 1];
+  [cx, cy] = [cx / n, cy / n];
+  let r = 0;
+  for (let i = 0; i < species.length; i++) if (species[i] === 1) r = Math.max(r, Math.hypot(pos[2 * i] - cx, pos[2 * i + 1] - cy));
+  const coffee = [2.2, 5.3].map((a) => {
+    const [tx, ty] = [cx + 1.3 * r * Math.cos(a), cy + 1.3 * r * Math.sin(a)];
+    let best = -1;
+    let d = Infinity;
+    for (let i = 0; i < species.length; i++) {
+      const e = (pos[2 * i] - tx) ** 2 + (pos[2 * i + 1] - ty) ** 2;
+      if (species[i] === 0 && e < d) [best, d] = [i, e];
+    }
+    return best;
+  });
+  return [...cream, ...coffee];
+}
+
+/** Record (going forward) or compare and erase (coming back) the traced molecules' positions. */
+function trace(back = false) {
   if (!sim || tracing || !traced.length) return;
   tracing = true;
   const s = sim;
-  const back = s.steps() < 0;
-  s.positions_of(new Uint32Array(traced)).then((p: Float32Array) => {
+  const step = s.steps();
+  s.positions_of(new Uint32Array(traced)).then((p: Float64Array) => {
     tracing = false;
     if (s !== sim) return;
-    traced.forEach((_, k) => {
-      const [x, y] = [p[2 * k], p[2 * k + 1]];
-      const segs = trails[k];
-      let seg = segs[segs.length - 1];
-      const last = seg ? [seg.pts[seg.pts.length - 2], seg.pts[seg.pts.length - 1]] : null;
-      const wrapped = !!last && (Math.abs(x - last[0]) > boxSize[0] / 2 || Math.abs(y - last[1]) > boxSize[1] / 2);
-      if (!seg || seg.back !== back || wrapped) {
-        seg = { back, pts: [] };
-        segs.push(seg);
+    if (!back) {
+      if (!path.length || path[path.length - 1].step < step) path.push({ step, pos: p });
+    } else {
+      const top = path[path.length - 1];
+      if (top && top.step === -step) {
+        path.pop();
+        traced.forEach((_, k) => {
+          if (top.pos[2 * k] !== p[2 * k] || top.pos[2 * k + 1] !== p[2 * k + 1]) {
+            kept[k].push(top.pos[2 * k], top.pos[2 * k + 1]);
+            strays[k].push(p[2 * k], p[2 * k + 1]);
+          }
+        });
       }
-      // Only record a point once the molecule has moved a little, so paths stay light.
-      const end = seg.pts.length ? [seg.pts[seg.pts.length - 2], seg.pts[seg.pts.length - 1]] : null;
-      if (!end || (x - end[0]) ** 2 + (y - end[1]) ** 2 > 0.04) seg.pts.push(x, y);
-    });
+    }
     drawTrails(p);
   });
 }
 
-function drawTrails(now: Float32Array) {
+/** Steps to take this frame going backward, landing exactly on the next recorded sample. */
+function backwardSteps(k: number, steps: number): number {
+  if (tracing) return 0; // wait for the comparison at the current step
+  const top = path[path.length - 1];
+  const target = top && top.step < -steps ? top.step : top && top.step === -steps ? -steps : 0;
+  return Math.min(k, -steps - target);
+}
+
+function drawTrails(now: Float64Array) {
   if (!sim) return;
   const r: number[] = [];
-  const back = cssColor("--trace-back");
+  const white = cssColor("--trace-back");
   traced.forEach((_, k) => {
     const c = cssColor(`--trace-${k + 1}`);
-    // Outward paths first, return paths (smaller, white) on top: if they coincide, the white
-    // dots sit inside the coloured ones.
-    for (const backward of [false, true]) {
-      const d = backward ? 0.09 : 0.18;
-      const col = backward ? back : c;
-      for (const seg of trails[k]) {
-        if (seg.back !== backward) continue;
-        for (let j = 0; j < seg.pts.length; j += 2) r.push(seg.pts[j] - d, seg.pts[j + 1] - d, seg.pts[j] + d, seg.pts[j + 1] + d, col[0], col[1], col[2], 0.9);
-      }
-    }
-    // The molecule itself, marked.
+    const dot = (x: number, y: number, d: number, col: number[]) => r.push(x - d, y - d, x + d, y + d, col[0], col[1], col[2], 0.9);
+    for (const q of path) dot(q.pos[2 * k], q.pos[2 * k + 1], 0.18, c);
+    for (let j = 0; j < kept[k].length; j += 2) dot(kept[k][j], kept[k][j + 1], 0.18, c);
+    for (let j = 0; j < strays[k].length; j += 2) dot(strays[k][j], strays[k][j + 1], 0.12, white);
     const [x, y] = [now[2 * k], now[2 * k + 1]];
     r.push(x - 0.75, y - 0.75, x + 0.75, y + 0.75, c[0], c[1], c[2], 0.45);
   });
@@ -184,7 +212,7 @@ function frame() {
   if (running && !observing) {
     let k = Number(speed.value);
     const steps = s.steps();
-    if (steps < 0) k = Math.min(k, -steps);
+    if (steps < 0) k = backwardSteps(k, steps);
     if (k > 0) {
       s.step(k);
       elapsed += k;
@@ -192,7 +220,7 @@ function frame() {
     $("time").textContent = (Math.abs(s.steps()) * s.dt()).toFixed(1);
     $("dir").textContent = s.steps() < 0 ? "backward" : "forward";
     observe();
-    trace();
+    trace(steps < 0);
     if (steps === 0 || s.steps() === 0) updateButtons();
     if (steps < 0 && s.steps() === 0) void arrived();
   }
@@ -230,7 +258,7 @@ function nudge(what: string, f: (s: DiscSim) => void) {
   plot.mark(elapsed * sim.dt(), "nudge");
   setStatus(`Nudged ${what} by 2⁻³² σ.${sim.steps() > 0 ? " Now reverse time." : ""}`);
 }
-$("nudge-traced").onclick = () => nudge("the 5 traced molecules", (s) => traced.forEach((i) => s.flip_bit(i)));
+$("nudge-traced").onclick = () => nudge("the 4 traced molecules", (s) => traced.forEach((i) => s.flip_bit(i)));
 $("nudge-cream").onclick = () => nudge("all the cream", (s) => s.flip_species_bit(1 << 1));
 $("nudge-all").onclick = () => nudge("every molecule", (s) => s.flip_species_bit(0b11));
 
@@ -245,8 +273,9 @@ declare global {
     reversalTest?: {
       ready: Promise<void>;
       roundTrip(steps: number, nudge: boolean): Promise<{ identical: boolean; differ: number; maxDeviation: number }>;
-      /** Recorded path points of the traced molecules, going and coming back. */
-      trails(): { going: number; back: number; traced: number };
+      /** Outward samples not yet retraced, points where the way back strayed, and how many
+       * molecules are traced. */
+      trails(): { going: number; kept: number; traced: number };
     };
   }
 }
@@ -279,7 +308,6 @@ window.reversalTest = {
     return r;
   },
   trails() {
-    const count = (back: boolean) => trails.flat().filter((g) => g.back === back).reduce((n, g) => n + g.pts.length / 2, 0);
-    return { going: count(false), back: count(true), traced: traced.length };
+    return { going: path.length, kept: kept.reduce((n, a) => n + a.length / 2, 0), traced: traced.length };
   },
 };
