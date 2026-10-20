@@ -22,9 +22,25 @@
       </header>
 
       <section class="lab">
-        <div class="stage" id="stage">
-          <canvas id="canvas" aria-label="48 boxes of gas; molecules coloured by speed; one box outlined"></canvas>
-          <div class="overlay" id="overlay">Starting the GPU…</div>
+        <div class="left">
+          <div class="stage" id="stage">
+            <canvas id="canvas" aria-label="48 boxes of gas; molecules coloured by speed; one box outlined"></canvas>
+            <div class="overlay" id="overlay">Starting the GPU…</div>
+          </div>
+          <div class="plots">
+            <div>
+              <canvas class="plot" id="hist" aria-label="Histogram of molecule energies with the Boltzmann curve"></canvas>
+              <div class="legend"><span><i style="background: var(--accent)"></i>measured</span><span><i style="background: var(--plot-back)"></i>Boltzmann</span></div>
+            </div>
+            <div>
+              <canvas class="plot" id="energy" aria-label="Total energy per molecule and the outlined box's temperature over time"></canvas>
+              <div class="legend"><span><i style="background: var(--accent)"></i>total energy per molecule</span><span><i style="background: var(--plot-back)"></i>outlined box's kT</span></div>
+            </div>
+            <div>
+              <canvas class="plot" id="entropy" aria-label="Entropy per molecule over time, and its maximum"></canvas>
+              <div class="legend"><span><i style="background: var(--accent)"></i>entropy</span><span><i style="background: var(--muted)"></i>the most it can be</span></div>
+            </div>
+          </div>
         </div>
         <aside class="panel">
           <div class="buttons">
@@ -63,12 +79,6 @@
               <option value="speed">speed</option>
             </select>
           </label>
-          <canvas class="plot tall" id="hist" aria-label="Histogram of molecule energies with the Boltzmann curve"></canvas>
-          <div class="legend"><span><i style="background: var(--accent)"></i>measured</span><span><i style="background: var(--plot-back)"></i>Boltzmann, at the final temperature</span></div>
-          <canvas class="plot" id="energy" aria-label="Total energy per molecule and the outlined box's temperature over time"></canvas>
-          <div class="legend"><span><i style="background: var(--accent)"></i>total energy per molecule</span><span><i style="background: var(--plot-back)"></i>outlined box's kT</span></div>
-          <canvas class="plot" id="entropy" aria-label="Entropy per molecule over time, and its maximum"></canvas>
-          <div class="legend"><span><i style="background: var(--accent)"></i>entropy</span><span><i style="background: var(--muted)"></i>the most it can be</span></div>
           <div class="status" id="status">Press Run. Click a box to outline it; drag to select molecules.</div>
         </aside>
       </section>

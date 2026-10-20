@@ -424,3 +424,28 @@ table.results th {
   border-radius: 5px;
   background: linear-gradient(to right, var(--species-2), var(--species-3));
 }
+
+/* Keep the simulation in view while a long panel scrolls past it. */
+.lab > .stage,
+.lab > .left {
+  position: sticky;
+  top: 12px;
+}
+@media (max-width: 860px) {
+  .lab > .stage,
+  .lab > .left {
+    position: static;
+  }
+}
+/* Plots in a row under a simulation. */
+.plots {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 12px;
+}
+@media (max-width: 860px) {
+  .plots {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
