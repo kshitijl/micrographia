@@ -10,7 +10,7 @@ pub struct FloatEngine<F: Real> {
     /// Half-step velocities `v_{n−1/2}`.
     pub vel: Vec<[F; 2]>,
     pub species: Vec<u32>,
-    consts: PairConsts<F>,
+    consts: Vec<PairConsts<F>>,
     box_len: [F; 2],
     inv_mass: Vec<F>,
     dt: F,
@@ -19,12 +19,14 @@ pub struct FloatEngine<F: Real> {
 
 impl<F: Real> FloatEngine<F> {
     /// Start from the same initial condition as the integer engines.
+    /// Periodic boundaries only (the reference for bulk observables).
     pub fn from_state(sys: System, state: &State) -> Self {
+        assert!(sys.periodic(0) && sys.periodic(1), "FloatEngine supports periodic boxes only");
         let b = sys.box_f64();
         let pos = state.pos.iter().map(|p| [F::from_f64(fixed::to_f64(p[0])), F::from_f64(fixed::to_f64(p[1]))]).collect();
         let vel = state.vel.iter().map(|v| [F::from_f64(sys.velocity(v[0])), F::from_f64(sys.velocity(v[1]))]).collect();
         Self {
-            consts: PairConsts::new(&sys.pair),
+            consts: sys.pairs.iter().map(PairConsts::new).collect(),
             box_len: [F::from_f64(b[0]), F::from_f64(b[1])],
             inv_mass: sys.masses.iter().map(|m| F::from_f64(1.0 / m)).collect(),
             dt: F::from_f64(sys.dt),
@@ -56,8 +58,10 @@ impl<F: Real> FloatEngine<F> {
         let zero = F::from_f64(0.0);
         let mut forces = vec![[zero; 2]; self.pos.len()];
         let mut pe = 0.0;
+        let ns = self.sys.species();
         for i in 0..self.pos.len() {
             let pi = self.pos[i];
+            let si = self.species[i] as usize;
             let (mut fx_i, mut fy_i, mut pe_i) = (zero, zero, zero);
             list.for_neighbors(cell(pi), |j| {
                 if j == i {
@@ -65,7 +69,7 @@ impl<F: Real> FloatEngine<F> {
                 }
                 let dx = self.min_image(self.pos[j][0] - pi[0], 0);
                 let dy = self.min_image(self.pos[j][1] - pi[1], 1);
-                if let Some((fr, u)) = self.consts.eval(dx, dy) {
+                if let Some((fr, u)) = self.consts[si * ns + self.species[j] as usize].eval(dx, dy) {
                     fx_i += -fr * dx;
                     fy_i += -fr * dy;
                     pe_i += u;

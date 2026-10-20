@@ -4,10 +4,10 @@
 use crate::{ForceMode, GpuEngine};
 use gpu_prims::checks::{CheckResult, SplitMix};
 use gpu_prims::Prims;
-use md_core::{init, Pair, State, System};
+use md_core::{init, Pair, State, System, Wall};
 use md_ref::IntEngine;
 
-pub const NAMES: &[&str] = &["md_kicks_vs_cpu", "md_run_to_run", "md_reversal", "md_permutation", "md_momentum", "md_verlet_vs_cells"];
+pub const NAMES: &[&str] = &["md_kicks_vs_cpu", "md_run_to_run", "md_reversal", "md_permutation", "md_momentum", "md_verlet_vs_cells", "md_walls_reversal"];
 
 pub async fn run(name: &str, prims: &Prims) -> CheckResult {
     match name {
@@ -17,6 +17,7 @@ pub async fn run(name: &str, prims: &Prims) -> CheckResult {
         "md_permutation" => permutation(prims).await,
         "md_momentum" => momentum(prims).await,
         "md_verlet_vs_cells" => verlet_vs_cells(prims).await,
+        "md_walls_reversal" => walls_reversal(prims).await,
         _ => Err(format!("unknown check {name}")),
     }
 }
@@ -125,4 +126,27 @@ pub async fn verlet_vs_cells(prims: &Prims) -> CheckResult {
         return Err("Verlet-list and cell-list trajectories differ".into());
     }
     Ok(format!("identical trajectories over 1000 steps ({rebuilds} list rebuilds, decided on the GPU)"))
+}
+
+/// Hard and soft walls, gravity and a two-species pair table, reversed exactly.
+pub async fn walls_reversal(prims: &Prims) -> CheckResult {
+    let sys = System::new(init::box_for(3000, 0.4, 1.0), init::DT, Pair::lj(2.5), vec![1.0, 3.0])
+        .with_pair(0, 1, Pair { eps: 0.5, sigma: 1.2, rc: 3.0 })
+        .with_walls(0, Wall::Hard, Wall::Hard)
+        .with_walls(1, Wall::Soft, Wall::Soft)
+        .with_gravity([0.0, -0.05]);
+    let mut s0 = init::fluid(&sys, 3000, 1.0, 7);
+    for i in (0..3000).step_by(4) {
+        s0.species[i] = 1;
+    }
+    let mut e = GpuEngine::new(prims, sys, &s0);
+    e.step(1500);
+    let hits: u64 = e.read_ledger().await.hits.iter().sum();
+    e.reverse();
+    e.step(1500);
+    e.reverse();
+    if e.read_state().await != s0 {
+        return Err("walls + gravity + mixture: reversal did not restore the state".into());
+    }
+    Ok(format!("exact reversal with walls ({hits} hits), gravity and a binary mixture"))
 }

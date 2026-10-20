@@ -236,20 +236,19 @@ pub async fn threefry_check(prims: &Prims) -> CheckResult {
 pub async fn gate(prims: &Prims) -> CheckResult {
     let gpu = &prims.gpu;
     let target = util::storage(gpu, "target", 4096 * 4);
-    let flags = util::storage_init(gpu, "flags", &[0u32, 0]);
-    let stats = util::storage(gpu, "stats", 4);
-    let g = Gated::new(prims, &flags, &stats, vec![prims.fill(&target, 4096, 7)]);
+    let ctl = util::storage_init(gpu, "ctl", &[0u32, 0]);
+    let g = Gated::new(prims, &ctl, 0, 1, vec![prims.fill(&target, 4096, 7)]);
     submit(prims, |p| g.encode(p));
     if util::read::<u32>(gpu, &target, 4096).await.iter().any(|&x| x != 0) {
         return Err("closed gate still ran its dispatches".into());
     }
-    gpu.queue.write_buffer(&flags, 0, bytemuck::bytes_of(&1u32));
+    gpu.queue.write_buffer(&ctl, 0, bytemuck::bytes_of(&1u32));
     submit(prims, |p| g.encode(p));
     if util::read::<u32>(gpu, &target, 4096).await.iter().any(|&x| x != 7) {
         return Err("open gate did not run its dispatches".into());
     }
-    let f = util::read::<u32>(gpu, &flags, 1).await[0];
-    let s = util::read::<u32>(gpu, &stats, 1).await[0];
+    let w = util::read::<u32>(gpu, &ctl, 2).await;
+    let (f, s) = (w[0], w[1]);
     if f != 0 || s != 1 {
         return Err(format!("after opening: flag {f} (want 0), count {s} (want 1)"));
     }

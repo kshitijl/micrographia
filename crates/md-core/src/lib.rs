@@ -9,7 +9,8 @@ pub mod fixed;
 pub mod init;
 pub mod pair;
 pub mod system;
+pub mod walls;
 
 pub use fixed::{FRAC_BITS, ONE};
 pub use pair::Pair;
-pub use system::{State, System};
+pub use system::{State, System, Wall};

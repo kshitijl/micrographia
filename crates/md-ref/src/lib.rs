@@ -15,7 +15,7 @@ mod real;
 
 pub use cells::CellList;
 pub use float_engine::FloatEngine;
-pub use int_engine::IntEngine;
+pub use int_engine::{Forces, IntEngine};
 pub use real::Real;
 
 /// Energies per configuration, in ε.

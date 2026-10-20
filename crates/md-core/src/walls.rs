@@ -1,0 +1,65 @@
+//! Wall collisions shared by the engines: exact mirrors for hard walls, and the bath
+//! distribution for thermal walls.
+
+use crate::system::System;
+use gpu_prims::threefry;
+
+/// Walls are numbered `2 * axis + side` (side 0 at 0, side 1 at L).
+pub const WALLS: usize = 4;
+
+/// Mirror a coordinate that left `[0, l)` back inside. The mirrors are about −½ and l − ½
+/// position units, so each is an exact involution on integers.
+pub fn mirror(x: i64, l: i64) -> (i64, Option<usize>) {
+    if x < 0 {
+        (-1 - x, Some(0))
+    } else if x >= l {
+        (2 * l - 1 - x, Some(1))
+    } else {
+        (x, None)
+    }
+}
+
+/// Energy and momentum exchanged with each wall, accumulated in fixed point exactly as the
+/// GPU does (so totals do not depend on the order of collisions).
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct Ledger {
+    /// Energy given to the system by each wall (ε).
+    pub energy: [f64; WALLS],
+    /// Normal momentum the system gave to each wall (m σ / τ); divided by elapsed time and wall
+    /// length this is the pressure.
+    pub impulse: [f64; WALLS],
+    pub hits: [u64; WALLS],
+}
+
+/// Fixed-point scale of ledger entries: 2⁻²⁴ ε (or m σ/τ).
+pub const LEDGER_SCALE: f64 = (1u64 << 24) as f64;
+
+/// RNG streams for wall draws.
+pub const STREAM_WALL: u32 = 0x5741_4c4c;
+
+/// A thermal wall's new velocity (σ/τ) for a particle of mass `m`: the normal component from
+/// the Maxwell flux distribution, pointing into the box (`inward` = ±1), the tangential one
+/// Gaussian. Counter-based on (particle id, step).
+pub fn thermal_velocity(sys: &System, id: u32, clock: u32, t: f64, m: f64, inward: f64) -> (f64, f64) {
+    let key = [sys.seed as u32, (sys.seed >> 32) as u32 ^ STREAM_WALL];
+    let r = threefry::threefry2x32([id, clock], key);
+    let r2 = threefry::threefry2x32([id, clock], [key[0], key[1] ^ 1]);
+    let u1 = 1.0 - threefry::to_unit_f64(r);
+    let (u2, u3) = (1.0 - threefry::to_unit_f64([r2[0], 0]), threefry::to_unit_f64([r2[1], 0]));
+    let sd = (t / m).sqrt();
+    let normal = inward * sd * (-2.0 * u1.ln()).sqrt();
+    let tangential = sd * (-2.0 * u2.ln()).sqrt() * (std::f64::consts::TAU * u3).cos();
+    (normal, tangential)
+}
+
+/// The soft wall: WCA in the distance d (σ) of a particle centre from the wall, with σ = ε = 1.
+pub const SOFT_RC: f64 = 1.122_462_048_309_373; // 2^(1/6)
+
+/// (force away from the wall, energy) at distance `d` from a soft wall, in f64.
+pub fn soft_wall(d: f64) -> (f64, f64) {
+    if d >= SOFT_RC {
+        return (0.0, 0.0);
+    }
+    let s6 = 1.0 / d.powi(6);
+    (24.0 * s6 * (2.0 * s6 - 1.0) / d, 4.0 * s6 * (s6 - 1.0) + 1.0)
+}

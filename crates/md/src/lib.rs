@@ -8,14 +8,16 @@ pub mod observe;
 pub use engine::{ForceMode, GpuEngine};
 
 pub const FIXED64_WGSL: &str = gpu_prims::prims::FIXED64_WGSL;
+pub const THREEFRY_WGSL: &str = gpu_prims::prims::THREEFRY_WGSL;
 pub const PARAMS_WGSL: &str = include_str!("../shaders/params.wgsl");
+pub const BOUNDARY_WGSL: &str = include_str!("../shaders/boundary.wgsl");
 pub const MD_WGSL: &str = include_str!("../shaders/md.wgsl");
 pub const REORDER_WGSL: &str = include_str!("../shaders/reorder.wgsl");
 pub const NEIGHBORS_WGSL: &str = include_str!("../shaders/neighbors.wgsl");
 pub const OBSERVE_WGSL: &str = include_str!("../shaders/observe.wgsl");
 
 pub fn md_source() -> String {
-    format!("{FIXED64_WGSL}\n{PARAMS_WGSL}\n{MD_WGSL}")
+    format!("{FIXED64_WGSL}\n{THREEFRY_WGSL}\n{PARAMS_WGSL}\n{BOUNDARY_WGSL}\n{MD_WGSL}")
 }
 
 pub fn reorder_source() -> String {
@@ -23,7 +25,7 @@ pub fn reorder_source() -> String {
 }
 
 pub fn neighbors_source() -> String {
-    format!("{FIXED64_WGSL}\n{PARAMS_WGSL}\n{NEIGHBORS_WGSL}")
+    format!("{FIXED64_WGSL}\n{THREEFRY_WGSL}\n{PARAMS_WGSL}\n{BOUNDARY_WGSL}\n{NEIGHBORS_WGSL}")
 }
 
 pub fn observe_source() -> String {

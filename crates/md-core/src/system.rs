@@ -3,24 +3,114 @@
 use crate::fixed::{self, ONE, UNIT};
 use crate::pair::Pair;
 
-/// Up to this many species (the GPU keeps per-species constants in one vec4).
+/// Up to this many species (the GPU keeps per-species constants in vec4s).
 pub const MAX_SPECIES: usize = 4;
+
+/// What happens at a wall (walls sit at 0 and L of a non-periodic axis and act on particle
+/// centres).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum Wall {
+    /// Specular reflection: exact, and exactly time-reversible. Under an external force the
+    /// leapfrog reflection gains or loses O(Δt) energy per hit; use `Soft` there.
+    Hard,
+    /// A smooth repulsive (WCA) wall acting on the distance of a particle centre from the wall:
+    /// conserves energy to O(Δt²) like the pair forces, and is exactly reversible. The force on
+    /// it is recorded in the ledger, giving the pressure.
+    Soft,
+    /// A heat bath at temperature T: a particle that hits it leaves with a velocity drawn from
+    /// the bath's distribution (Maxwell flux for the normal component). The energy exchanged is
+    /// booked exactly in the wall's ledger.
+    Thermal(f64),
+}
 
 #[derive(Clone, Debug)]
 pub struct System {
-    /// Periodic box lengths in position units.
+    /// Box lengths in position units.
     pub box_len: [i64; 2],
     pub dt: f64,
-    pub pair: Pair,
-    /// Mass per species; species only differ by mass (and by colour on pages).
+    /// Mass per species.
     pub masses: Vec<f64>,
+    /// Interaction of each species pair, row-major `[a * ns + b]`, symmetric.
+    pub pairs: Vec<Pair>,
+    /// Per axis: `None` for periodic, or the walls at 0 and at L.
+    pub walls: [Option<[Wall; 2]>; 2],
+    /// Uniform acceleration (σ/τ²) on every particle.
+    pub gravity: [f64; 2],
+    /// Seed for stochastic boundaries.
+    pub seed: u64,
 }
 
 impl System {
+    /// A periodic system in which every species pair interacts through `pair`.
     pub fn new(box_len: [i64; 2], dt: f64, pair: Pair, masses: Vec<f64>) -> Self {
         assert!(!masses.is_empty() && masses.len() <= MAX_SPECIES);
-        assert!(pair.rc < 7.9, "cutoff must be below 8 σ");
-        Self { box_len, dt, pair, masses }
+        let ns = masses.len();
+        let s = Self { box_len, dt, pairs: vec![pair; ns * ns], masses, walls: [None, None], gravity: [0.0, 0.0], seed: 1 };
+        s.check();
+        s
+    }
+
+    fn check(&self) {
+        for p in &self.pairs {
+            assert!(p.rc < 7.9, "cutoff must be below 8 σ");
+        }
+    }
+
+    pub fn species(&self) -> usize {
+        self.masses.len()
+    }
+
+    /// Set the interaction between species `a` and `b` (both orders).
+    pub fn with_pair(mut self, a: u32, b: u32, pair: Pair) -> Self {
+        let ns = self.species();
+        self.pairs[a as usize * ns + b as usize] = pair;
+        self.pairs[b as usize * ns + a as usize] = pair;
+        self.check();
+        self
+    }
+
+    pub fn with_walls(mut self, axis: usize, lo: Wall, hi: Wall) -> Self {
+        self.walls[axis] = Some([lo, hi]);
+        self
+    }
+
+    pub fn with_gravity(mut self, g: [f64; 2]) -> Self {
+        self.gravity = g;
+        self
+    }
+
+    pub fn with_seed(mut self, seed: u64) -> Self {
+        self.seed = seed;
+        self
+    }
+
+    pub fn pair(&self, a: u32, b: u32) -> &Pair {
+        &self.pairs[a as usize * self.species() + b as usize]
+    }
+
+    /// The largest cutoff of any pair.
+    pub fn rc_max(&self) -> f64 {
+        self.pairs.iter().map(|p| p.rc).fold(0.0, f64::max)
+    }
+
+    pub fn periodic(&self, axis: usize) -> bool {
+        self.walls[axis].is_none()
+    }
+
+    /// True if nothing stochastic happens: the dynamics is then exactly reversible.
+    pub fn deterministic(&self) -> bool {
+        self.walls.iter().flatten().flatten().all(|w| !matches!(w, Wall::Thermal(_)))
+    }
+
+    pub fn has_soft_walls(&self) -> bool {
+        self.walls.iter().flatten().flatten().any(|w| *w == Wall::Soft)
+    }
+
+    /// The integer gravity kick per step (position units per step², the same for every
+    /// species).
+    pub fn gravity_kick(&self) -> [i32; 2] {
+        let k = |g: f64| (g * self.dt * self.dt * ONE as f64).round() as i32;
+        [k(self.gravity[0]), k(self.gravity[1])]
     }
 
     pub fn box_f64(&self) -> [f64; 2] {
@@ -47,9 +137,9 @@ impl System {
         (v * self.dt * ONE as f64).round() as i32
     }
 
-    /// Cells per axis for a cell list with cutoff rc.
+    /// Cells per axis for a cell list with the largest cutoff.
     pub fn cells(&self) -> [u32; 2] {
-        self.cells_for(self.pair.rc)
+        self.cells_for(self.rc_max())
     }
 
     /// Cells per axis for a cell list of radius `r`: as many as fit with side ≥ r plus a margin

@@ -3,7 +3,8 @@ use gpu_prims::prims::{BinPlan, Gated};
 use gpu_prims::util::{self, Dispatch, WG};
 use gpu_prims::{fixed64, Gpu, Prims};
 use md_core::system::MAX_SPECIES;
-use md_core::{State, System};
+use md_core::walls::{Ledger, LEDGER_SCALE, WALLS};
+use md_core::{State, System, Wall};
 use std::future::Future;
 
 /// Mirrors `struct Params` in `params.wgsl`.
@@ -20,19 +21,36 @@ pub struct Params {
     pub half_y: [u32; 2],
     pub box_f: [f32; 2],
     pub cell_scale: [f32; 2],
-    pub rc2: f32,
-    pub eps4: f32,
-    pub sigma2: f32,
-    pub shift: f32,
-    pub kick_c: [f32; 4],
     pub flip_index: u32,
     pub flip_word: u32,
     pub flip_mask: u32,
-    pub _pad: u32,
+    pub cap: u32,
     pub list_r2: f32,
     pub half_skin2: f32,
-    pub cap: u32,
     pub mbits: u32,
+    pub periodic: u32,
+    pub nspecies: u32,
+    pub seed_lo: u32,
+    pub seed_hi: u32,
+    pub _p0: u32,
+    pub gravity: [i32; 2],
+    pub vstep: f32,
+    pub dt: f32,
+    pub kick_c: [f32; 4],
+    pub mass: [f32; 4],
+    pub wall_kind: [u32; 4],
+    pub wall_t: [f32; 4],
+    pub pairs: [[f32; 4]; 16],
+}
+
+/// Words of the control buffer (see `params.wgsl`).
+pub mod ctl {
+    pub const REBUILD: u32 = 0;
+    pub const OVERFLOW: u32 = 1;
+    pub const CLOCK: u32 = 2;
+    pub const REBUILDS: u32 = 3;
+    pub const LEDGER: usize = 8;
+    pub const WORDS: usize = 32;
 }
 
 /// How pair forces find their partners.
@@ -64,7 +82,7 @@ impl ForceMode {
 
     pub fn verlet_with_skin(sys: &System, n: usize, skin: f64) -> Self {
         let density = n as f64 / sys.area();
-        let r = sys.pair.rc + skin;
+        let r = sys.rc_max() + skin;
         let mut cap = (2.0 * std::f64::consts::PI * r * r * density).ceil() as u32 + 8;
         // Keep the list within one storage binding (128 MiB by default).
         let max_cap = ((128u64 << 20) / (4 * n.max(1) as u64)) as u32;
@@ -81,15 +99,40 @@ impl Params {
             ForceMode::Verlet { skin, cap } => (skin, cap),
         };
         // Cells must hold every pair within the list radius.
-        let [ncx, ncy] = sys.cells_for(sys.pair.rc + skin);
-        let (rc2, eps4, sigma2, shift) = sys.pair.gpu_constants();
+        let rc = sys.rc_max();
+        let [ncx, ncy] = sys.cells_for(rc + skin);
+        let ns = sys.species();
         let mut kick_c = [0f32; 4];
-        for s in 0..sys.masses.len() {
+        let mut mass = [1f32; 4];
+        for s in 0..ns {
             kick_c[s] = sys.kick_coeff(s as u32) as f32;
+            mass[s] = sys.masses[s] as f32;
+        }
+        let mut pairs = [[0f32; 4]; 16];
+        for a in 0..ns {
+            for bb in 0..ns {
+                let (rc2, eps4, sigma2, shift) = sys.pair(a as u32, bb as u32).gpu_constants();
+                pairs[a * 4 + bb] = [rc2, eps4, sigma2, shift];
+            }
+        }
+        let mut wall_kind = [0u32; 4];
+        let mut wall_t = [0f32; 4];
+        for axis in 0..2 {
+            if let Some(ws) = sys.walls[axis] {
+                for side in 0..2 {
+                    let (k, t) = match ws[side] {
+                        Wall::Hard => (0, 0.0),
+                        Wall::Soft => (1, 0.0),
+                        Wall::Thermal(t) => (2, t),
+                    };
+                    wall_kind[2 * axis + side] = k;
+                    wall_t[2 * axis + side] = t as f32;
+                }
+            }
         }
         let mbits = 32 - (ncx.max(ncy) - 1).leading_zeros();
         // Conservative margins against f32 rounding in the list tests.
-        let list_r = (sys.pair.rc + skin) * (1.0 + 1e-4);
+        let list_r = (rc + skin) * (1.0 + 1e-4);
         let half_skin = 0.5 * skin * (1.0 - 1e-3);
         Self {
             n,
@@ -102,19 +145,26 @@ impl Params {
             half_y: fixed64::split(sys.box_len[1] / 2),
             box_f: [b[0] as f32, b[1] as f32],
             cell_scale: [(ncx as f64 / b[0]) as f32, (ncy as f64 / b[1]) as f32],
-            rc2,
-            eps4,
-            sigma2,
-            shift,
-            kick_c,
             flip_index: 0,
             flip_word: 0,
             flip_mask: 0,
-            _pad: 0,
+            cap,
             list_r2: (list_r * list_r) as f32,
             half_skin2: (half_skin * half_skin) as f32,
-            cap,
             mbits,
+            periodic: sys.periodic(0) as u32 | (sys.periodic(1) as u32) << 1,
+            nspecies: ns as u32,
+            seed_lo: sys.seed as u32,
+            seed_hi: (sys.seed >> 32) as u32,
+            _p0: 0,
+            gravity: sys.gravity_kick(),
+            vstep: (sys.dt * md_core::ONE as f64) as f32,
+            dt: sys.dt as f32,
+            kick_c,
+            mass,
+            wall_kind,
+            wall_t,
+            pairs,
         }
     }
 }
@@ -151,10 +201,10 @@ pub struct Buffers {
     pub keys: wgpu::Buffer,
     pub kicks: wgpu::Buffer,
     pub pe: wgpu::Buffer,
-    /// flags[0]: neighbour-list rebuild needed; flags[1]: list overflow (sticky).
-    pub flags: wgpu::Buffer,
-    /// stats[0]: number of neighbour-list rebuilds.
-    pub stats: wgpu::Buffer,
+    /// Control words: list flags, clock, wall ledger (see [`ctl`]).
+    pub ctl: wgpu::Buffer,
+    /// Force on each particle from soft walls (for the ledger).
+    pub wall_f: wgpu::Buffer,
 }
 
 /// Put per-slot values into id order.
@@ -198,9 +248,25 @@ impl Buffers {
     pub fn read_list_stats(&self) -> impl Future<Output = (u32, bool)> + 'static {
         let b = self.clone();
         async move {
-            let stats: Vec<u32> = util::read(&b.gpu, &b.stats, 1).await;
-            let flags: Vec<u32> = util::read(&b.gpu, &b.flags, 2).await;
-            (stats[0], flags[1] != 0)
+            let w: Vec<u32> = util::read(&b.gpu, &b.ctl, ctl::WORDS).await;
+            (w[ctl::REBUILDS as usize], w[ctl::OVERFLOW as usize] != 0)
+        }
+    }
+
+    /// The wall ledger (energy and impulse exchanged with each wall, and hits).
+    pub fn read_ledger(&self) -> impl Future<Output = Ledger> + 'static {
+        let b = self.clone();
+        async move {
+            let w: Vec<u32> = util::read(&b.gpu, &b.ctl, ctl::WORDS).await;
+            let word = |k: usize| fixed64::join([w[k], w[k + 1]]);
+            let mut l = Ledger::default();
+            for wall in 0..WALLS {
+                let base = ctl::LEDGER + 6 * wall;
+                l.energy[wall] = word(base) as f64 / LEDGER_SCALE;
+                l.impulse[wall] = word(base + 2) as f64 / LEDGER_SCALE;
+                l.hits[wall] = word(base + 4) as u64;
+            }
+            l
         }
     }
 }
@@ -261,6 +327,13 @@ struct CellPath {
     integrate: Dispatch,
 }
 
+/// Initial control words: a list rebuild is pending.
+fn initial_ctl() -> Vec<u32> {
+    let mut w = vec![0u32; ctl::WORDS];
+    w[ctl::REBUILD as usize] = 1;
+    w
+}
+
 /// Verlet-list force path: gated (reorder + build list), force over the list.
 struct ListPath {
     rebuild: Gated,
@@ -285,6 +358,8 @@ pub struct GpuEngine {
     reorder: Reorder,
     d_reverse: Dispatch,
     d_flip: Dispatch,
+    /// Advances the clock for stochastic boundaries (only when there are any).
+    d_tick: Option<Dispatch>,
     /// Cell-list mode only: reorder storage into Morton order every this many steps (0 =
     /// never). Verlet mode reorders at every list rebuild.
     pub sort_interval: u32,
@@ -316,8 +391,8 @@ impl GpuEngine {
             keys: util::storage(gpu, "keys", n as u64 * 4),
             kicks: util::storage(gpu, "kicks", n as u64 * 8),
             pe: util::storage(gpu, "pe", n as u64 * 4),
-            flags: util::storage_init(gpu, "flags", &[1u32, 0]),
-            stats: util::storage(gpu, "stats", 4),
+            ctl: util::storage_init(gpu, "ctl", &initial_ctl()),
+            wall_f: util::storage(gpu, "wall force", n as u64 * 8),
         };
         let g = util::groups(n, WG);
         let b = &buf;
@@ -332,10 +407,25 @@ impl GpuEngine {
                     force: Dispatch::new_at(
                         gpu,
                         &pl("force"),
-                        &[(0, &b.params), (1, &b.pos), (3, &b.species), (5, &bin.starts), (6, &bin.counts), (7, &bin.sorted), (8, &b.kicks), (9, &b.pe)],
+                        &[
+                            (0, &b.params),
+                            (1, &b.pos),
+                            (3, &b.species),
+                            (5, &bin.starts),
+                            (6, &bin.counts),
+                            (7, &bin.sorted),
+                            (8, &b.kicks),
+                            (9, &b.pe),
+                            (12, &b.wall_f),
+                        ],
                         g,
                     ),
-                    integrate: Dispatch::new_at(gpu, &pl("integrate"), &[(0, &b.params), (1, &b.pos), (2, &b.vel), (8, &b.kicks)], g),
+                    integrate: Dispatch::new_at(
+                        gpu,
+                        &pl("integrate"),
+                        &[(0, &b.params), (1, &b.pos), (2, &b.vel), (3, &b.species), (8, &b.kicks), (10, &b.ids), (11, &b.ctl), (12, &b.wall_f)],
+                        g,
+                    ),
                     bin,
                 })
             }
@@ -348,23 +438,23 @@ impl GpuEngine {
                 let build = Dispatch::new_at(
                     gpu,
                     &npl("build_list"),
-                    &[(0, &b.params), (1, &b.pos), (4, &reorder.bin.starts), (5, &reorder.bin.counts), (6, &nbr), (7, &nbr_count), (8, &ref_pos), (9, &b.flags)],
+                    &[(0, &b.params), (1, &b.pos), (4, &reorder.bin.starts), (5, &reorder.bin.counts), (6, &nbr), (7, &nbr_count), (8, &ref_pos), (9, &b.ctl)],
                     g,
                 );
                 let mut list = reorder.dispatches();
                 list.push(build);
                 Path::List(ListPath {
-                    rebuild: Gated::new(prims, &b.flags, &b.stats, list),
+                    rebuild: Gated::new(prims, &b.ctl, ctl::REBUILD, ctl::REBUILDS, list),
                     force: Dispatch::new_at(
                         gpu,
                         &npl("force_list"),
-                        &[(0, &b.params), (1, &b.pos), (3, &b.species), (6, &nbr), (7, &nbr_count), (10, &b.kicks), (11, &b.pe)],
+                        &[(0, &b.params), (1, &b.pos), (3, &b.species), (6, &nbr), (7, &nbr_count), (10, &b.kicks), (11, &b.pe), (13, &b.wall_f)],
                         g,
                     ),
                     integrate: Dispatch::new_at(
                         gpu,
                         &npl("integrate_list"),
-                        &[(0, &b.params), (1, &b.pos), (2, &b.vel), (8, &ref_pos), (9, &b.flags), (10, &b.kicks)],
+                        &[(0, &b.params), (1, &b.pos), (2, &b.vel), (3, &b.species), (8, &ref_pos), (9, &b.ctl), (10, &b.kicks), (12, &b.ids), (13, &b.wall_f)],
                         g,
                     ),
                     _lists: [nbr, nbr_count, ref_pos],
@@ -373,6 +463,7 @@ impl GpuEngine {
         };
         Self {
             d_reverse: Dispatch::new_at(gpu, &pl("reverse"), &[(0, &b.params), (2, &b.vel), (8, &b.kicks)], g),
+            d_tick: (!sys.deterministic()).then(|| Dispatch::new_at(gpu, &pl("tick"), &[(11, &b.ctl)], 1)),
             d_flip: Dispatch::new_at(gpu, &pl("flip"), &[(0, &b.params), (1, &b.pos), (10, &b.ids)], g),
             reorder,
             path,
@@ -437,6 +528,9 @@ impl GpuEngine {
             Path::Cells(c) => c.integrate.encode(pass),
             Path::List(l) => l.integrate.encode(pass),
         }
+        if let Some(t) = &self.d_tick {
+            t.encode(pass);
+        }
     }
 
     fn submit(&self, f: impl FnOnce(&mut wgpu::ComputePass<'_>)) {
@@ -495,7 +589,11 @@ impl GpuEngine {
     }
 
     fn request_rebuild(&self) {
-        self.gpu().queue.write_buffer(&self.buf.flags, 0, bytemuck::bytes_of(&1u32));
+        self.gpu().queue.write_buffer(&self.buf.ctl, 4 * ctl::REBUILD as u64, bytemuck::bytes_of(&1u32));
+    }
+
+    pub fn read_ledger(&self) -> impl Future<Output = Ledger> + 'static {
+        self.buf.read_ledger()
     }
 
     /// XOR bit `bit` (0 = least significant, 2⁻³² σ) of coordinate `axis` of the particle with

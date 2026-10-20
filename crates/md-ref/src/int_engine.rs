@@ -1,29 +1,44 @@
 use crate::cells::{cell_of, CellList};
 use crate::real::{PairConsts, Real};
 use crate::Energy;
-use md_core::{fixed, State, System};
+use md_core::walls::{self, Ledger};
+use md_core::{fixed, State, System, Wall};
+
+/// The result of a force evaluation.
+pub struct Forces {
+    pub kicks: Vec<[i32; 2]>,
+    pub potential: f64,
+    /// Force on each soft wall (ε/σ), outward.
+    pub wall_force: [f64; walls::WALLS],
+}
 
 /// `cpu-int-float`: integer positions and velocities, forces in `F`.
 ///
 /// Each pair's kick `round(−f/r · c · d)` is converted to an integer before it is summed, so
 /// the total is independent of summation order, and Newton's third law holds bit for bit when
-/// masses are equal. The step is exactly reversible: see [`IntEngine::reverse`].
+/// masses are equal. The step is exactly reversible (with periodic or hard walls): see
+/// [`IntEngine::reverse`].
 pub struct IntEngine<F: Real> {
     pub sys: System,
     pub state: State,
-    consts: PairConsts<F>,
+    consts: Vec<PairConsts<F>>,
     kick_c: Vec<F>,
+    gravity: [i32; 2],
     cells: [u32; 2],
     /// Net steps taken (decreases while running reversed).
     pub steps: i64,
+    /// Steps taken in either direction; the counter for stochastic boundaries.
+    pub clock: u32,
+    pub ledger: Ledger,
 }
 
 impl<F: Real> IntEngine<F> {
     pub fn new(sys: System, state: State) -> Self {
-        let consts = PairConsts::new(&sys.pair);
-        let kick_c = (0..sys.masses.len() as u32).map(|s| F::from_f64(sys.kick_coeff(s))).collect();
+        let consts = sys.pairs.iter().map(PairConsts::new).collect();
+        let kick_c = (0..sys.species() as u32).map(|s| F::from_f64(sys.kick_coeff(s))).collect();
         let cells = sys.cells();
-        Self { sys, state, consts, kick_c, cells, steps: 0 }
+        let gravity = sys.gravity_kick();
+        Self { sys, state, consts, kick_c, gravity, cells, steps: 0, clock: 0, ledger: Ledger::default() }
     }
 
     fn cell_list(&self) -> CellList {
@@ -34,16 +49,30 @@ impl<F: Real> IntEngine<F> {
         })
     }
 
+    fn separation(&self, a: i64, b: i64, axis: usize) -> i64 {
+        if self.sys.periodic(axis) { fixed::min_image(a, b, self.sys.box_len[axis]) } else { b - a }
+    }
+
     /// Integer kicks at the current positions, and the potential energy.
     pub fn kicks(&self) -> (Vec<[i32; 2]>, f64) {
+        let f = self.forces();
+        (f.kicks, f.potential)
+    }
+
+    /// Integer kicks (pairs and soft walls), the potential energy, and the force on each soft
+    /// wall (ε/σ, pushing outward).
+    pub fn forces(&self) -> Forces {
         let s = &self.state;
         let b = self.sys.box_f64();
+        let ns = self.sys.species();
         let list = self.cell_list();
         let mut kicks = vec![[0i32; 2]; s.n()];
         let mut pe = 0.0f64;
+        let mut wall_force = [0.0f64; walls::WALLS];
         for i in 0..s.n() {
             let pi = s.pos[i];
-            let c = self.kick_c[s.species[i] as usize];
+            let si = s.species[i] as usize;
+            let c = self.kick_c[si];
             let cell = [cell_of(fixed::to_f64(pi[0]), b[0], self.cells[0]), cell_of(fixed::to_f64(pi[1]), b[1], self.cells[1])];
             let (mut kx, mut ky) = (0i32, 0i32);
             let mut pe_i = F::from_f64(0.0);
@@ -52,75 +81,147 @@ impl<F: Real> IntEngine<F> {
                     return;
                 }
                 let pj = s.pos[j];
-                let dx = fixed::min_image(pi[0], pj[0], self.sys.box_len[0]);
-                let dy = fixed::min_image(pi[1], pj[1], self.sys.box_len[1]);
+                let dx = self.separation(pi[0], pj[0], 0);
+                let dy = self.separation(pi[1], pj[1], 1);
                 let (Some(fx), Some(fy)) = (F::sep(dx), F::sep(dy)) else { return };
-                if let Some((fr, u)) = self.consts.eval(fx, fy) {
+                if let Some((fr, u)) = self.consts[si * ns + s.species[j] as usize].eval(fx, fy) {
                     let a = -fr * c;
                     kx = kx.wrapping_add((a * fx).round_even().to_i32());
                     ky = ky.wrapping_add((a * fy).round_even().to_i32());
                     pe_i += u;
                 }
             });
+            let mut wall_pe = 0.0;
+            for a in 0..2 {
+                let Some(ws) = self.sys.walls[a] else { continue };
+                for side in 0..2 {
+                    if ws[side] != Wall::Soft {
+                        continue;
+                    }
+                    // Distance from the wall, exactly as the GPU computes it.
+                    let d = if side == 0 { pi[a] } else { self.sys.box_len[a] - pi[a] };
+                    let Some(df) = F::sep(d) else { continue };
+                    if df < F::from_f64(walls::SOFT_RC) {
+                        let one = F::from_f64(1.0);
+                        let s2 = one / (df * df);
+                        let s6 = s2 * s2 * s2;
+                        let f = F::from_f64(24.0) * s6 * (F::from_f64(2.0) * s6 - one) / df;
+                        let k = (f * c).round_even().to_i32();
+                        let k = if side == 0 { k } else { k.wrapping_neg() };
+                        if a == 0 {
+                            kx = kx.wrapping_add(k);
+                        } else {
+                            ky = ky.wrapping_add(k);
+                        }
+                        wall_force[2 * a + side] += f.to_f64();
+                        wall_pe += (F::from_f64(4.0) * s6 * (s6 - one) + one).to_f64();
+                    }
+                }
+            }
             kicks[i] = [kx, ky];
-            pe += 0.5 * pe_i.to_f64();
+            pe += 0.5 * pe_i.to_f64() + wall_pe;
         }
-        (kicks, pe)
+        Forces { kicks, potential: pe, wall_force }
     }
 
     pub fn step(&mut self, n: usize) {
         for _ in 0..n {
-            let (kicks, _) = self.kicks();
+            let Forces { kicks, wall_force, .. } = self.forces();
+            for w in 0..walls::WALLS {
+                self.ledger.impulse[w] += wall_force[w] * self.sys.dt;
+            }
             let l = self.sys.box_len;
             for i in 0..self.state.n() {
-                let v = &mut self.state.vel[i];
-                let x = &mut self.state.pos[i];
+                let mut v = self.state.vel[i];
+                let mut x = self.state.pos[i];
                 for a in 0..2 {
-                    v[a] = v[a].wrapping_add(kicks[i][a]);
-                    x[a] = fixed::wrap(x[a] + v[a] as i64, l[a]);
+                    v[a] = v[a].wrapping_add(kicks[i][a]).wrapping_add(self.gravity[a]);
+                    x[a] += v[a] as i64;
                 }
+                for a in 0..2 {
+                    match self.sys.walls[a] {
+                        None => x[a] = fixed::wrap(x[a], l[a]),
+                        Some(ws) => {
+                            let (m, side) = walls::mirror(x[a], l[a]);
+                            if let Some(side) = side {
+                                x[a] = m;
+                                self.collide(i, a, side, ws[side], &mut v);
+                            }
+                        }
+                    }
+                }
+                self.state.vel[i] = v;
+                self.state.pos[i] = x;
             }
             self.steps += 1;
+            self.clock = self.clock.wrapping_add(1);
         }
     }
 
-    /// Time reversal: `v ← −(v + kick(x))`. Running n steps, reversing, running n steps and
-    /// reversing again restores the initial state bit for bit.
+    /// A particle crossed wall `side` of `axis`: update its velocity and the ledger.
+    fn collide(&mut self, i: usize, axis: usize, side: usize, wall: Wall, v: &mut [i32; 2]) {
+        let m = self.sys.masses[self.state.species[i] as usize];
+        let w = 2 * axis + side;
+        let before = [self.sys.velocity(v[0]), self.sys.velocity(v[1])];
+        match wall {
+            // A particle can reach a soft wall's plane only at very high speed; reflect it.
+            Wall::Hard | Wall::Soft => v[axis] = v[axis].wrapping_neg(),
+            Wall::Thermal(t) => {
+                let inward = if side == 0 { 1.0 } else { -1.0 };
+                let (vn, vt) = walls::thermal_velocity(&self.sys, i as u32, self.clock, t, m, inward);
+                v[axis] = self.sys.to_step_displacement(vn);
+                v[1 - axis] = self.sys.to_step_displacement(vt);
+            }
+        }
+        let after = [self.sys.velocity(v[0]), self.sys.velocity(v[1])];
+        let ke = |u: [f64; 2]| 0.5 * m * (u[0] * u[0] + u[1] * u[1]);
+        self.ledger.energy[w] += ke(after) - ke(before);
+        self.ledger.impulse[w] += (m * (before[axis] - after[axis])).abs();
+        self.ledger.hits[w] += 1;
+    }
+
+    /// Time reversal: `v ← −(v + kick(x) + g)`. Running n steps, reversing, running n steps and
+    /// reversing again restores the initial state bit for bit (when every wall is hard).
     pub fn reverse(&mut self) {
         let (kicks, _) = self.kicks();
         for (v, k) in self.state.vel.iter_mut().zip(&kicks) {
             for a in 0..2 {
-                v[a] = v[a].wrapping_add(k[a]).wrapping_neg();
+                v[a] = v[a].wrapping_add(k[a]).wrapping_add(self.gravity[a]).wrapping_neg();
             }
         }
         self.steps = -self.steps;
     }
 
-    /// Kinetic energy at the current (on-step) time, using `v_n = (v_{n−1/2} + v_{n+1/2}) / 2`,
-    /// and the potential energy.
-    pub fn energy(&self) -> Energy {
-        let (kicks, potential) = self.kicks();
-        let s = &self.state;
-        let mut kinetic = 0.0;
-        for i in 0..s.n() {
-            let m = self.sys.masses[s.species[i] as usize];
-            for a in 0..2 {
-                let v = 0.5 * (self.sys.velocity(s.vel[i][a]) + self.sys.velocity(s.vel[i][a].wrapping_add(kicks[i][a])));
-                kinetic += 0.5 * m * v * v;
-            }
-        }
-        Energy { kinetic, potential }
-    }
-
-    /// On-step velocities in σ/τ.
+    /// On-step velocities `v_n = (v_{n−1/2} + v_{n+1/2}) / 2` in σ/τ (ignoring wall hits during
+    /// the next half step).
     pub fn velocities(&self) -> Vec<[f64; 2]> {
         let (kicks, _) = self.kicks();
         let s = &self.state;
         (0..s.n())
             .map(|i| {
-                let v = |a: usize| 0.5 * (self.sys.velocity(s.vel[i][a]) + self.sys.velocity(s.vel[i][a].wrapping_add(kicks[i][a])));
+                let v = |a: usize| {
+                    let next = s.vel[i][a].wrapping_add(kicks[i][a]).wrapping_add(self.gravity[a]);
+                    0.5 * (self.sys.velocity(s.vel[i][a]) + self.sys.velocity(next))
+                };
                 [v(0), v(1)]
             })
             .collect()
+    }
+
+    /// Kinetic energy at the current (on-step) time and the potential energy (pair energy
+    /// plus gravitational energy relative to the origin).
+    pub fn energy(&self) -> Energy {
+        let v = self.velocities();
+        let (_, mut potential) = self.kicks();
+        let s = &self.state;
+        let mut kinetic = 0.0;
+        for i in 0..s.n() {
+            let m = self.sys.masses[s.species[i] as usize];
+            kinetic += 0.5 * m * (v[i][0] * v[i][0] + v[i][1] * v[i][1]);
+            for a in 0..2 {
+                potential -= m * self.sys.gravity[a] * fixed::to_f64(s.pos[i][a]);
+            }
+        }
+        Energy { kinetic, potential }
     }
 }

@@ -247,9 +247,9 @@ impl BinPlan {
     }
 }
 
-/// A list of dispatches that runs only if `flags[0]` is nonzero when the gate executes (the
+/// A list of dispatches that runs only if `ctl[flag]` is nonzero when the gate executes (the
 /// gate then clears it). Decided on the GPU through indirect dispatch, so a simulation loop
-/// never waits for the host. `stats[0]` counts the times the gate opened.
+/// never waits for the host. `ctl[counter]` counts the times the gate opened.
 pub struct Gated {
     gate: Dispatch,
     args: wgpu::Buffer,
@@ -257,7 +257,7 @@ pub struct Gated {
 }
 
 impl Gated {
-    pub fn new(prims: &Prims, flags: &wgpu::Buffer, stats: &wgpu::Buffer, list: Vec<Dispatch>) -> Self {
+    pub fn new(prims: &Prims, ctl: &wgpu::Buffer, flag: u32, counter: u32, list: Vec<Dispatch>) -> Self {
         let gpu = &prims.gpu;
         let base: Vec<u32> = list.iter().map(|d| d.groups).collect();
         let base_buf = util::storage_init(gpu, "gate base", &base);
@@ -267,8 +267,8 @@ impl Gated {
             usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::INDIRECT,
             mapped_at_creation: false,
         });
-        let params = util::uniform_init(gpu, "gate", &Params4::n(list.len() as u32));
-        let gate = Dispatch::new(gpu, &prims.gate, &[flags, &base_buf, &args, stats, &params], 1);
+        let params = util::uniform_init(gpu, "gate", &Params4 { a: list.len() as u32, b: flag, c: counter, d: 0 });
+        let gate = Dispatch::new(gpu, &prims.gate, &[ctl, &base_buf, &args, &params], 1);
         Self { gate, args, list }
     }
 
