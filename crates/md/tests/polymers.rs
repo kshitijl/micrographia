@@ -96,3 +96,28 @@ fn removed_bonds_exert_no_force() {
     assert!(run(false) > 0);
     assert_eq!(run(true), 0);
 }
+
+/// A bond stretched past 8 σ (beyond any pair cutoff) pulls with the right force, on the GPU
+/// and the CPU twin alike. (The GPU used to turn such separations into garbage.)
+#[test]
+fn long_bonds_pull_correctly() {
+    let p = gpu_prims::Prims::new(&pollster::block_on(gpu_prims::Gpu::new()).unwrap());
+    let k = 0.1;
+    let sys = md_core::System::new([md_core::fixed::to_fixed(64.0); 2], md_core::init::DT, md_core::Pair::wca(), vec![1.0])
+        .with_bonds(vec![md_core::BondType::Harmonic { k, r0: 0.0 }], vec![[0, 1, 0]]);
+    for d in [3.0, 8.0, 12.5, -20.25] {
+        let state = md_core::State {
+            pos: vec![[md_core::fixed::to_fixed(30.0), md_core::fixed::to_fixed(32.0)], [md_core::fixed::to_fixed(30.0 + d), md_core::fixed::to_fixed(32.0)]],
+            vel: vec![[0, 0], [0, 0]],
+            species: vec![0, 0],
+        };
+        let mut g = md::GpuEngine::new(&p, sys.clone(), &state);
+        let (kg, _) = pollster::block_on(g.kicks());
+        let (kc, _) = md_ref::IntEngine::<f32>::new(sys.clone(), state.clone()).kicks();
+        let expect = k * d * sys.kick_coeff(0);
+        eprintln!("bond {d} σ: GPU kick {}, CPU {}, expected {expect:.0}", kg[0][0], kc[0][0]);
+        assert!((kg[0][0] as f64 - expect).abs() < 1e-4 * expect.abs() + 2.0, "GPU kick at {d} σ");
+        assert_eq!(kg[0][0], kc[0][0], "GPU and CPU differ at {d} σ");
+        assert_eq!(kg[1][0], -kg[0][0], "Newton's third law at {d} σ");
+    }
+}

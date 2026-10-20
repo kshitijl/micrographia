@@ -171,6 +171,31 @@ fn sep2(a: vec4<u32>, b: vec4<u32>) -> vec2<f32> {
     return vec2<f32>(sep_f32(dx), sep_f32(dy));
 }
 
+// Like sep_f32, but any length: within 8 σ the same exact path; beyond, the magnitude's whole
+// σ plus its fraction, then the sign (so still antisymmetric). For bonds, which can stretch past
+// the pair cutoffs. Same operations as md_core::fixed::sep_long_f32.
+fn sep_long(d: vec2<u32>) -> f32 {
+    let hi = bitcast<i32>(d.y);
+    if (hi >= -8 && hi <= 7) {
+        return sep_f32(d);
+    }
+    let m = select(d, neg64(d), hi < 0);
+    let mag = f32(m.y) + ldexp(f32(m.x), -32);
+    return select(mag, -mag, hi < 0);
+}
+
+fn sep2_long(a: vec4<u32>, b: vec4<u32>) -> vec2<f32> {
+    var dx = sub64(b.xy, a.xy);
+    var dy = sub64(b.zw, a.zw);
+    if ((P.periodic & 1u) != 0u) {
+        dx = min_image64(dx, P.box_x, P.half_x);
+    }
+    if ((P.periodic & 2u) != 0u) {
+        dy = min_image64(dy, P.box_y, P.half_y);
+    }
+    return vec2<f32>(sep_long(dx), sep_long(dy));
+}
+
 fn wrap64(x: vec2<u32>, l: vec2<u32>) -> vec2<u32> {
     if (is_neg64(x)) {
         return add64(x, l);

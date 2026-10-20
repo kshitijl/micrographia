@@ -60,6 +60,17 @@ pub fn sep_f32(d: i64) -> Option<f32> {
     Some(if d < 0 { -mag } else { mag })
 }
 
+/// Like [`sep_f32`], but for any separation: within 8 σ the same; beyond, the magnitude's whole σ
+/// plus its fraction in f32, then the sign (still antisymmetric). Exactly the GPU's `sep_long`.
+pub fn sep_long_f32(d: i64) -> f32 {
+    if let Some(s) = sep_f32(d) {
+        return s;
+    }
+    let m = d.unsigned_abs();
+    let mag = (m >> 32) as u32 as f32 + (m as u32) as f32 * (1.0 / 4294967296.0);
+    if d < 0 { -mag } else { mag }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

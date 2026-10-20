@@ -165,7 +165,8 @@ impl<F: Real> IntEngine<F> {
                 }
                 let bc = self.bond_consts[self.partners[i][2 * k + 1] as usize];
                 let pj = s.pos[j as usize];
-                let (Some(fx), Some(fy)) = (F::sep(self.separation(pi[0], pj[0], 0)), F::sep(self.separation(pi[1], pj[1], 1))) else { continue };
+                // Bonds can be longer than the 8 σ the pair separation handles.
+                let (fx, fy) = (F::sep_long(self.separation(pi[0], pj[0], 0)), F::sep_long(self.separation(pi[1], pj[1], 1)));
                 let (fr, u) = bc.eval(fx * fx + fy * fy);
                 let a = -fr * c;
                 kx = kx.wrapping_add((a * fx).round_even().to_i32());

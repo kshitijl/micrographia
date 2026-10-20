@@ -23,6 +23,8 @@ pub trait Real:
     fn to_i32(self) -> i32;
     /// A fixed-point pair separation as a float in σ, or `None` if it is beyond 8 σ.
     fn sep(d: i64) -> Option<Self>;
+    /// A fixed-point separation of any length (for bonds), as the GPU converts it.
+    fn sep_long(d: i64) -> Self;
     fn floor(self) -> Self;
     fn sqrt(self) -> Self;
 }
@@ -44,6 +46,9 @@ impl Real for f32 {
     /// Exactly the GPU's conversion.
     fn sep(d: i64) -> Option<Self> {
         fixed::sep_f32(d)
+    }
+    fn sep_long(d: i64) -> Self {
+        fixed::sep_long_f32(d)
     }
     fn floor(self) -> Self {
         f32::floor(self)
@@ -70,6 +75,9 @@ impl Real for f64 {
     /// Exact (every separation below 8 σ is representable in f64).
     fn sep(d: i64) -> Option<Self> {
         if (-fixed::SEP_LIMIT..fixed::SEP_LIMIT).contains(&d) { Some(fixed::to_f64(d)) } else { None }
+    }
+    fn sep_long(d: i64) -> Self {
+        fixed::to_f64(d)
     }
     fn floor(self) -> Self {
         f64::floor(self)

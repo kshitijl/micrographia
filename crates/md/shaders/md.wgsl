@@ -118,7 +118,8 @@ fn bond_force(@builtin(global_invocation_id) gid: vec3<u32>) {
             if (other == 0xffffffffu) {
                 continue;
             }
-            let f = sep2(pi, pos[slot_of[other]]);
+            // Bonds can be longer than the 8 σ the pair separation handles.
+            let f = sep2_long(pi, pos[slot_of[other]]);
             let r2 = f.x * f.x + f.y * f.y;
             let bt = P.bond_types[ty];
             var fr = 0.0;
