@@ -59,7 +59,7 @@ pub struct Scenario {
     pub radii: Vec<f64>,
 }
 
-pub const NAMES: &[&str] = &["cream", "corner", "boltzmann", "heavy", "oilwater", "heatflow", "osmosis", "compress", "rubber", "atmosphere", "carnot", "boiling", "lipids"];
+pub const NAMES: &[&str] = &["cream", "corner", "boltzmann", "heavy", "oilwater", "heatflow", "osmosis", "compress", "rubber", "atmosphere", "carnot", "boiling", "lipids", "balloon", "smell"];
 
 pub fn build(name: &str, o: &Options) -> Result<Scenario, String> {
     match name {
@@ -76,6 +76,8 @@ pub fn build(name: &str, o: &Options) -> Result<Scenario, String> {
         "carnot" => Ok(carnot(o)),
         "boiling" => Ok(boiling(o)),
         "lipids" => Ok(lipids(o)),
+        "balloon" => Ok(balloon(o)),
+        "smell" => Ok(smell(o)),
         _ => Err(format!("unknown scenario {name}")),
     }
 }
@@ -501,6 +503,48 @@ pub fn lipids(o: &Options) -> Scenario {
     let vel = init::maxwell(&sys, &species, t, seed);
     let state = State { pos: pos.iter().map(|p| [fixed::to_fixed(p[0]), fixed::to_fixed(p[1])]).collect(), vel, species };
     Scenario { warmup: 0, finish: Finish::None, marked: 1, grid: [8, 8], radii: vec![0.5 * head, 0.5], sys, state }
+}
+
+/// A "balloon" (the left quarter of the box) holding equal numbers of a light gas (species 0,
+/// m = 1, helium) and a heavy one (species 1, m = heavy, air), behind a wall with small pores;
+/// outside is empty. Dilute, so molecules effuse through the pores. Options: n, heavy, pore
+/// (width σ), seed.
+pub fn balloon(o: &Options) -> Scenario {
+    let n = o.get("n", 1000.0) as usize;
+    let small = Pair { eps: 1.0, sigma: 0.3, rc: 0.3 * 2f64.powf(1.0 / 6.0) };
+    let masses = vec![1.0, o.get("heavy", 29.0 / 4.0)];
+    let sys = System::new([128i64 << 32, 96i64 << 32], init::DT, small, masses.clone())
+        .with_walls(0, Wall::Hard, Wall::Hard)
+        .with_walls(1, Wall::Hard, Wall::Hard)
+        .with_membrane(0, 32.0, &[0, 1])
+        .with_pores(4, o.get("pore", 0.6));
+    let inside = System::new([31i64 << 32, 96i64 << 32], init::DT, small, masses).with_walls(0, Wall::Hard, Wall::Hard).with_walls(1, Wall::Hard, Wall::Hard);
+    let seed = o.get("seed", 1.0) as u64;
+    let mut state = init::fluid(&inside, n, 1.0, seed);
+    for i in (1..n).step_by(2) {
+        state.species[i] = 1;
+    }
+    state.vel = init::maxwell(&sys, &state.species, 1.0, seed);
+    Scenario { warmup: 0, finish: Finish::None, marked: 1, grid: [4, 1], radii: vec![0.5, 0.7], sys, state }
+}
+
+/// A channel of gas (periodic along x, thermal walls top and bottom) with a blob of marked
+/// "smell" molecules (species 1, otherwise identical) at a quarter of the way along. A body
+/// force along x (`draught`, σ/τ²) drives a flow; the thermal walls take away the heat it makes.
+/// Options: n, density, width, height, blob (radius σ), draught, seed.
+pub fn smell(o: &Options) -> Scenario {
+    let n = o.get("n", 6000.0) as usize;
+    let (w, h) = (o.get("width", 300.0), o.get("height", 40.0));
+    let area = w * h;
+    let _ = o.get("density", n as f64 / area);
+    let sys = System::new([fixed::to_fixed(w), fixed::to_fixed(h)], init::DT, Pair::wca(), vec![1.0, 1.0])
+        .with_walls(1, Wall::Thermal(1.0), Wall::Thermal(1.0))
+        .with_gravity([o.get("draught", 0.0), 0.0]);
+    let seed = o.get("seed", 1.0) as u64;
+    let mut state = init::fluid(&sys, n, 1.0, seed);
+    let r = o.get("blob", 8.0);
+    init::mark_disc(&mut state, &sys, [w / 4.0, h / 2.0], r, 1);
+    Scenario { warmup: 0, finish: Finish::None, marked: 1, grid: [60, 1], radii: vec![0.5, 0.5], sys, state }
 }
 
 #[cfg(test)]

@@ -46,6 +46,8 @@ struct Params {
     thermo: vec4<f32>,
     // Membrane: (axis or 0xffffffff for none, bitmask of blocked species, position lo, hi).
     membrane: vec4<u32>,
+    // Membrane pores: (log2 of the period in position units or 0, width lo, width hi, 0).
+    pores: vec4<u32>,
     // Piston (replaces the y-high wall): mode 0 none, 1 fixed speed, 2 free; the kick factor
     // Δt²·2³²/M; the external force pushing down (ε/σ); and its lower and upper stops.
     piston_mode: u32,

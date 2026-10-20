@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Leaky Helium Balloons</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 16 16%22%3E%3Ccircle cx=%228%22 cy=%228%22 r=%227%22 fill=%22%239a4a1e%22/%3E%3C/svg%3E" />
+    <link rel="stylesheet" href="../../src/lib/style.css" />
+  </head>
+  <body>
+    <nav class="topbar"><div class="wrap"><a href="../../index.html">Statistical mechanics, simulated</a></div></nav>
+    <main class="wrap">
+      <header class="question">
+        <div class="eyebrow">Graham's law</div>
+        <h1>Why does a helium balloon go flat faster than one filled with air?</h1>
+        <p class="lede">
+          The left part of this box is the balloon. Its wall has a few tiny holes. Inside are equal
+          numbers of light “helium” molecules and heavier “air” molecules, all at the same temperature.
+          Watch which ones get out first.
+        </p>
+      </header>
+
+      <section class="lab">
+        <div class="stage" id="stage">
+          <canvas id="canvas" aria-label="Light and heavy molecules leaking from a box through pores"></canvas>
+          <div class="overlay" id="overlay">Starting the GPU…</div>
+        </div>
+        <aside class="panel">
+          <div class="buttons">
+            <button class="primary" id="run">Run</button>
+            <button id="reset">Refill</button>
+          </div>
+          <div class="legend"><span><i style="background: var(--cream)"></i>“helium” (m = 1)</span><span><i style="background: var(--species-2)"></i>“air” (m = <span id="mv">7.25</span>)</span></div>
+          <label class="row">Mass of the heavy gas <span id="hv">7.25</span>
+            <input type="range" id="heavy" min="1" max="16" step="0.25" value="7.25" />
+          </label>
+          <div class="readouts">
+            <div class="readout"><div class="k">helium still inside</div><div class="v" id="nl">–</div></div>
+            <div class="readout"><div class="k">air still inside</div><div class="v" id="nh">–</div></div>
+            <div class="readout"><div class="k">leak-rate ratio, measured</div><div class="v" id="ratio">–</div></div>
+            <div class="readout"><div class="k">√(m_air / m_He)</div><div class="v" id="graham">–</div></div>
+          </div>
+          <canvas class="plot tall" id="plot" aria-label="Share of each gas remaining inside over time"></canvas>
+          <div class="status" id="status">Press Run.</div>
+        </aside>
+      </section>
+
+      <article class="notes">
+        <h2>Same energy, different speeds</h2>
+        <p>
+          At the same temperature every molecule has the same average kinetic energy ½mv², so lighter
+          molecules move faster: a helium atom is about 2.7 times faster than an average air molecule,
+          because air molecules are about 7.25 times heavier (√7.25 ≈ 2.7). A molecule leaves through a hole
+          only if it happens to arrive there, and faster molecules arrive more often. So the rate at which
+          each gas leaks out through small holes goes as 1/√m. That is Graham's law of effusion, found by
+          experiment in the 1840s:
+        </p>
+        <p class="formula">rate<sub>He</sub> / rate<sub>air</sub> = √(m<sub>air</sub> / m<sub>He</sub>) ≈ 2.7</p>
+        <p>
+          The page measures each gas's leak rate from how fast its count inside falls and compares the
+          ratio with √(mass ratio). Change the heavy gas's mass and watch the ratio follow.
+        </p>
+        <h2>Real balloons</h2>
+        <p>
+          A rubber balloon has no actual holes: gas molecules dissolve into the rubber and diffuse
+          through it. That is a different process, but it favours small, light molecules too, which is why
+          helium balloons sag within a day while air-filled ones last for weeks. (Foil balloons hold helium
+          much longer.) The holes here show the simplest version of the effect: pure speed.
+        </p>
+        <div class="caveat">
+          <h3>Caveats</h3>
+          <ul>
+            <li>2D, tiny molecules (σ = 0.3) in a dilute gas, so that molecules reach the holes one at a
+              time; in a dense gas flow through a hole is collective and the mass dependence weakens.</li>
+            <li>Escaped molecules can come back in; the measured ratio uses the early, nearly exponential
+              part of the leak and reads a little below √(mass ratio).</li>
+          </ul>
+        </div>
+      </article>
+    </main>
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>

@@ -322,3 +322,33 @@ fn slow_compression_is_adiabatic() {
     eprintln!("slow compression {h0:.1} → {h1:.1} σ: T {t0:.3} → {t1:.3}, T·A ratio {:.3}; work on gas {work:.0} ε, ΔKE {:.0} ε", t1 * a1 / (t0 * a0), (t1 - t0) * n as f64);
     assert!((t1 * a1 / (t0 * a0) - 1.0).abs() < 0.08);
 }
+
+/// Effusion through small pores: a light and a heavy gas leak at rates in the ratio √(m_heavy /
+/// m_light) (Graham's law). Needs a dilute gas (mean free path ≫ pore width); at a density of
+/// 1 per σ² the measured ratio was 2.1 instead of 3.
+#[test]
+fn effusion_through_pores_follows_graham() {
+    let p = prims();
+    let n = 1000;
+    let small = Pair { eps: 1.0, sigma: 0.3, rc: 0.3 * 2f64.powf(1.0 / 6.0) };
+    let sys = System::new([128i64 << 32, 128i64 << 32], init::DT, small, vec![1.0, 9.0])
+        .with_walls(0, Wall::Hard, Wall::Hard)
+        .with_membrane(0, 32.0, &[0, 1])
+        .with_pores(4, 0.6);
+    // Everything starts inside (left of the membrane).
+    let inside = System::new([31i64 << 32, 128i64 << 32], init::DT, small, vec![1.0, 9.0]).with_walls(0, Wall::Hard, Wall::Hard);
+    let mut s0 = init::fluid(&inside, n, 1.0, 21);
+    for i in (1..n).step_by(2) {
+        s0.species[i] = 1;
+    }
+    s0.vel = init::maxwell(&sys, &s0.species, 1.0, 21);
+    let mut e = GpuEngine::new(&p, sys.clone(), &s0);
+    let left = |s: &State, sp: u32| s.pos.iter().zip(&s.species).filter(|(q, k)| **k == sp && md_core::fixed::to_f64(q[0]) < 32.0).count() as f64;
+    e.step(80000);
+    let s = block_on(e.read_state());
+    let (l, h) = (left(&s, 0) / (n / 2) as f64, left(&s, 1) / (n / 2) as f64);
+    // Early on the leak is exponential: N(t) = N0 exp(−k t) with k ∝ 1/√m.
+    let ratio = l.ln() / h.ln();
+    eprintln!("after 400 τ: {:.1}% of the light and {:.1}% of the heavy gas remain; rate ratio {ratio:.2} (Graham: 3)", 100.0 * l, 100.0 * h);
+    assert!((ratio / 3.0 - 1.0).abs() < 0.2);
+}

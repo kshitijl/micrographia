@@ -120,11 +120,20 @@ pub struct Membrane {
     pub position: i64,
     /// Bit s set if species s is blocked.
     pub blocks: u32,
+    /// Pores: openings that let every species through, `pore_width` wide, one every
+    /// 2^`pore_shift` position units along the membrane (0 for no pores).
+    pub pore_shift: u32,
+    pub pore_width: i64,
 }
 
 impl Membrane {
     pub fn blocks(&self, species: u32) -> bool {
         self.blocks & (1 << species) != 0
+    }
+
+    /// Is position `along` (the coordinate along the membrane) inside a pore?
+    pub fn in_pore(&self, along: i64) -> bool {
+        self.pore_shift != 0 && (along & ((1i64 << self.pore_shift) - 1)) < self.pore_width
     }
 }
 
@@ -209,7 +218,15 @@ impl System {
     pub fn with_membrane(mut self, axis: usize, position_sigma: f64, blocked: &[u32]) -> Self {
         assert!(self.walls[axis].is_some(), "a membrane needs walls on its axis");
         let blocks = blocked.iter().fold(0u32, |m, &s| m | 1 << s);
-        self.membrane = Some(Membrane { axis, position: crate::fixed::to_fixed(position_sigma), blocks });
+        self.membrane = Some(Membrane { axis, position: crate::fixed::to_fixed(position_sigma), blocks, pore_shift: 0, pore_width: 0 });
+        self
+    }
+
+    /// Open pores `width` σ wide every 2^`log2_period` σ along the membrane.
+    pub fn with_pores(mut self, log2_period: u32, width: f64) -> Self {
+        let m = self.membrane.as_mut().expect("add a membrane first");
+        m.pore_shift = 32 + log2_period;
+        m.pore_width = crate::fixed::to_fixed(width);
         self
     }
 

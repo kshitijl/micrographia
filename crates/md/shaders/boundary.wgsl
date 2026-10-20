@@ -166,6 +166,16 @@ fn andersen(i: u32, v: vec2<i32>) -> vec2<i32> {
     return out;
 }
 
+// Is the coordinate `along` the membrane inside a pore? (Pore period 2^s, s ≥ 32.)
+fn in_pore(along: vec2<u32>) -> bool {
+    let s = P.pores.x;
+    if (s == 0u) {
+        return false;
+    }
+    let offset = vec2<u32>(along.x, along.y & ((1u << (s - 32u)) - 1u));
+    return lt64(offset, P.pores.yz);
+}
+
 // Leapfrog: v += kick + gravity; x += v; then periodic wrap or wall collision per axis.
 // Returns the new position (also stored).
 fn advance(i: u32) -> vec4<u32> {
@@ -175,7 +185,7 @@ fn advance(i: u32) -> vec4<u32> {
     var x = add64(p.xy, i64_from_i32(v.x));
     var y = add64(p.zw, i64_from_i32(v.y));
     // A semi-permeable membrane reflects blocked species (exact mirror about position − ½).
-    if (P.membrane.x < 2u && (P.membrane.y & (1u << species[i])) != 0u) {
+    if (P.membrane.x < 2u && (P.membrane.y & (1u << species[i])) != 0u && !in_pore(select(p.xy, p.zw, P.membrane.x == 0u))) {
         let a = P.membrane.x;
         let w = P.membrane.zw;
         let before = select(p.zw, p.xy, a == 0u);

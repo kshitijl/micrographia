@@ -44,6 +44,7 @@ pub struct Params {
     pub ncomp: [u32; 2],
     pub thermo: [f32; 4],
     pub membrane: [u32; 4],
+    pub pores: [u32; 4],
     pub piston_mode: u32,
     pub piston_kc: f32,
     pub piston_fext: f32,
@@ -203,6 +204,13 @@ impl Params {
                     [m.axis as u32, m.blocks, w[0], w[1]]
                 }
                 None => [u32::MAX, 0, 0, 0],
+            },
+            pores: match sys.membrane {
+                Some(m) if m.pore_shift != 0 => {
+                    let w = fixed64::split(m.pore_width);
+                    [m.pore_shift, w[0], w[1], 0]
+                }
+                _ => [0; 4],
             },
             piston_mode: match sys.piston.map(|p| p.drive) {
                 None => 0,

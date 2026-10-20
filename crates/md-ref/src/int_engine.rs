@@ -249,7 +249,7 @@ impl<F: Real> IntEngine<F> {
                 }
                 if let Some(mb) = self.sys.membrane {
                     let a = mb.axis;
-                    if mb.blocks(self.state.species[i]) {
+                    if mb.blocks(self.state.species[i]) && !mb.in_pore(old[1 - a]) {
                         if let Some((m, face)) = walls::cross_membrane(old[a], x[a], mb.position) {
                             x[a] = m;
                             let mass = self.sys.masses[self.state.species[i] as usize];
