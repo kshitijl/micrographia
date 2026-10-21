@@ -33,10 +33,13 @@ struct Params3 {
     features: u32,
     // The heat bath acts on species with their bit set here.
     thermo_species: u32,
+    // Neighbour lists: capacity per particle (0: cell list every step).
+    cap: u32,
     _p0: u32,
-    _p1: u32,
     // Cells per σ on each axis (w unused).
     cell_scale: vec4<f32>,
+    // Neighbour lists: (squared list radius (rc + skin)², squared half skin, 0, 0).
+    list: vec4<f32>,
     // Integer gravity kick per step (w unused).
     gravity: vec4<i32>,
     // Per species: force → integer kick factor Δt²·2³²/m, and mass.
@@ -98,10 +101,17 @@ struct Cmd3 {
 @group(0) @binding(17) var<storage, read_write> tmp_species: array<u32>;
 @group(0) @binding(18) var<storage, read_write> tmp_ids: array<u32>;
 @group(0) @binding(19) var<storage, read_write> ke: array<f32>;
+// Neighbour lists (column-major: entry k of particle i at k·n + i), their lengths, and where each
+// particle was when they were built.
+@group(0) @binding(20) var<storage, read_write> nbr: array<u32>;
+@group(0) @binding(21) var<storage, read_write> nbr_count: array<u32>;
+@group(0) @binding(22) var<storage, read_write> ref_pos: array<Pos3>;
 
 const WALL_SOFT: u32 = 1u;
 const WALL_THERMAL: u32 = 2u;
 const SOFT_RC: f32 = 1.122462;
+const CTL_REBUILD: u32 = 0u;
+const CTL_OVERFLOW: u32 = 1u;
 const CTL_CLOCK: u32 = 2u;
 // Ledger: per wall w (0..5, then the bath as 6): energy, impulse, hits, 2 words each.
 const CTL_LEDGER: u32 = 16u;
@@ -202,8 +212,60 @@ fn cells(@builtin(global_invocation_id) gid: vec3<u32>) {
     keys[i] = (c.z * P.ncy + c.y) * P.ncx + c.x;
 }
 
+struct Acc {
+    k: vec3<i32>,
+    u: f32,
+}
+
+// Add the pair (i, j) to `acc`. Same operations, in the same order, as md-ref's
+// IntEngine3::forces.
+fn add_pair(acc: ptr<function, Acc>, pi: Pos3, pj: Pos3, si: u32, sj: u32, c: f32) {
+    let f = sep3(pi, pj);
+    let pc = P.pairs[si * 4u + sj];
+    let r2 = f.x * f.x + f.y * f.y + f.z * f.z;
+    if (r2 < pc.x) {
+        let s2 = pc.z / r2;
+        let s6 = s2 * s2 * s2;
+        let fr = 6.0 * pc.y * s6 * (2.0 * s6 - 1.0) / r2;
+        let a = -fr * c;
+        (*acc).k += vec3<i32>(i32(round(a * f.x)), i32(round(a * f.y)), i32(round(a * f.z)));
+        (*acc).u += 0.5 * (pc.y * s6 * (s6 - 1.0) - pc.w);
+    }
+}
+
+// Soft (WCA) walls on the distance of the centre from each wall: adds their kicks and energy,
+// and returns their force on the particle (per axis).
+fn add_soft_walls(acc: ptr<function, Acc>, pi: Pos3, c: f32) -> vec3<f32> {
+    var wf = vec3<f32>(0.0, 0.0, 0.0);
+    if ((P.features & 1u) == 0u) {
+        return wf;
+    }
+    for (var a = 0u; a < 3u; a++) {
+        if ((P.periodic & (1u << a)) != 0u) {
+            continue;
+        }
+        let x = axis_of(pi, a);
+        for (var side = 0u; side < 2u; side++) {
+            if (P.wall_kind[(2u * a + side) / 4u][(2u * a + side) % 4u] != WALL_SOFT) {
+                continue;
+            }
+            let d = sep_f32(select(x, sub64(box_of(a), x), side == 1u));
+            if (d < SOFT_RC) {
+                let s2 = 1.0 / (d * d);
+                let s6 = s2 * s2 * s2;
+                let f = 24.0 * s6 * (2.0 * s6 - 1.0) / d;
+                let kw = i32(round(f * c));
+                (*acc).k[a] += select(kw, -kw, side == 1u);
+                wf[a] += select(f, -f, side == 1u);
+                (*acc).u += 4.0 * s6 * (s6 - 1.0) + 1.0;
+            }
+        }
+    }
+    return wf;
+}
+
 // Gather: each thread sums the integer kicks on its particle from the 3×3×3 neighbouring cells
-// (and soft walls). Same operations, in the same order, as md-ref's IntEngine3::forces.
+// (and soft walls).
 @compute @workgroup_size(256)
 fn force(@builtin(global_invocation_id) gid: vec3<u32>) {
     let i = gid.x;
@@ -214,8 +276,7 @@ fn force(@builtin(global_invocation_id) gid: vec3<u32>) {
     let si = species[i];
     let c = P.kick_c[si];
     let cc = cell_of(pi);
-    var k = vec3<i32>(0, 0, 0);
-    var u = 0.0;
+    var acc = Acc(vec3<i32>(0, 0, 0), 0.0);
     for (var oz = 0u; oz < 3u; oz++) {
         let cz = (cc.z + P.ncz + oz - 1u) % P.ncz;
         for (var oy = 0u; oy < 3u; oy++) {
@@ -227,51 +288,16 @@ fn force(@builtin(global_invocation_id) gid: vec3<u32>) {
                 let end = start + cell_count[cell];
                 for (var q = start; q < end; q++) {
                     let j = cell_items[q];
-                    if (j == i) {
-                        continue;
-                    }
-                    let f = sep3(pi, pos[j]);
-                    let pc = P.pairs[si * 4u + species[j]];
-                    let r2 = f.x * f.x + f.y * f.y + f.z * f.z;
-                    if (r2 < pc.x) {
-                        let s2 = pc.z / r2;
-                        let s6 = s2 * s2 * s2;
-                        let fr = 6.0 * pc.y * s6 * (2.0 * s6 - 1.0) / r2;
-                        let a = -fr * c;
-                        k += vec3<i32>(i32(round(a * f.x)), i32(round(a * f.y)), i32(round(a * f.z)));
-                        u += 0.5 * (pc.y * s6 * (s6 - 1.0) - pc.w);
+                    if (j != i) {
+                        add_pair(&acc, pi, pos[j], si, species[j], c);
                     }
                 }
             }
         }
     }
-    // Soft (WCA) walls on the distance of the centre from each wall.
-    var wf = vec3<f32>(0.0, 0.0, 0.0);
-    if ((P.features & 1u) != 0u) {
-        for (var a = 0u; a < 3u; a++) {
-            if ((P.periodic & (1u << a)) != 0u) {
-                continue;
-            }
-            let x = axis_of(pi, a);
-            for (var side = 0u; side < 2u; side++) {
-                if (P.wall_kind[(2u * a + side) / 4u][(2u * a + side) % 4u] != WALL_SOFT) {
-                    continue;
-                }
-                let d = sep_f32(select(x, sub64(box_of(a), x), side == 1u));
-                if (d < SOFT_RC) {
-                    let s2 = 1.0 / (d * d);
-                    let s6 = s2 * s2 * s2;
-                    let f = 24.0 * s6 * (2.0 * s6 - 1.0) / d;
-                    let kw = i32(round(f * c));
-                    k[a] += select(kw, -kw, side == 1u);
-                    wf[a] += select(f, -f, side == 1u);
-                    u += 4.0 * s6 * (s6 - 1.0) + 1.0;
-                }
-            }
-        }
-    }
-    kicks[i] = i3(k);
-    aux[i] = vec4<f32>(u, wf);
+    let wf = add_soft_walls(&acc, pi, c);
+    kicks[i] = i3(acc.k);
+    aux[i] = vec4<f32>(acc.u, wf);
 }
 
 fn ledger_add(w: u32, field: u32, value: i32) {
@@ -370,12 +396,8 @@ fn bound(i: u32, s: u32, a: u32, x: vec2<u32>, v: ptr<function, vec3<i32>>) -> v
 }
 
 // Leapfrog: v += kick + gravity (then the bath); x += v; then wrap or walls on each axis.
-@compute @workgroup_size(256)
-fn integrate(@builtin(global_invocation_id) gid: vec3<u32>) {
-    let i = gid.x;
-    if (i >= P.n) {
-        return;
-    }
+// Returns the new position (also stored).
+fn advance(i: u32) -> Pos3 {
     let s = species[i];
     var g = P.gravity.xyz;
     if (P.pinned != 0u && is_pinned(s)) {
@@ -396,7 +418,99 @@ fn integrate(@builtin(global_invocation_id) gid: vec3<u32>) {
     let y = bound(i, s, 1u, add64(p.y, i64_from_i32(v.y)), &v);
     let z = bound(i, s, 2u, add64(p.z, i64_from_i32(v.z)), &v);
     vel[i] = i3(v);
-    pos[i] = Pos3(x, y, z);
+    let q = Pos3(x, y, z);
+    pos[i] = q;
+    return q;
+}
+
+@compute @workgroup_size(256)
+fn integrate(@builtin(global_invocation_id) gid: vec3<u32>) {
+    let i = gid.x;
+    if (i < P.n) {
+        advance(i);
+    }
+}
+
+// ---- Verlet lists (as neighbors.wgsl in 2D). Storage is in Morton order of cells when a list
+// is built (the reorder runs first), so the particles of Morton cell c occupy the slots
+// [cell_start[c], cell_start[c] + cell_count[c]). A pair is listed if it is within rc + skin; the
+// list stays valid until some particle has moved half the skin, which `integrate_list` detects
+// exactly. Forces are then the same function of positions as with the cell list. ----
+
+@compute @workgroup_size(256)
+fn build_list(@builtin(global_invocation_id) gid: vec3<u32>) {
+    let i = gid.x;
+    if (i >= P.n) {
+        return;
+    }
+    let pi = pos[i];
+    let cc = cell_of(pi);
+    var count = 0u;
+    for (var oz = 0u; oz < 3u; oz++) {
+        let cz = (cc.z + P.ncz + oz - 1u) % P.ncz;
+        for (var oy = 0u; oy < 3u; oy++) {
+            let cy = (cc.y + P.ncy + oy - 1u) % P.ncy;
+            for (var ox = 0u; ox < 3u; ox++) {
+                let cx = (cc.x + P.ncx + ox - 1u) % P.ncx;
+                let key = spread3(cx) | (spread3(cy) << 1u) | (spread3(cz) << 2u);
+                let start = cell_start[key];
+                let end = start + cell_count[key];
+                for (var j = start; j < end; j++) {
+                    if (j == i) {
+                        continue;
+                    }
+                    let f = sep3(pi, pos[j]);
+                    if (dot(f, f) < P.list.x) {
+                        if (count < P.cap) {
+                            nbr[count * P.n + i] = j;
+                        }
+                        count++;
+                    }
+                }
+            }
+        }
+    }
+    if (count > P.cap) {
+        atomicMax(&ctl[CTL_OVERFLOW], 1u);
+        count = P.cap;
+    }
+    nbr_count[i] = count;
+    ref_pos[i] = pi;
+}
+
+@compute @workgroup_size(256)
+fn force_list(@builtin(global_invocation_id) gid: vec3<u32>) {
+    let i = gid.x;
+    if (i >= P.n) {
+        return;
+    }
+    let pi = pos[i];
+    let si = species[i];
+    let c = P.kick_c[si];
+    var acc = Acc(vec3<i32>(0, 0, 0), 0.0);
+    let m = nbr_count[i];
+    for (var k = 0u; k < m; k++) {
+        let j = nbr[k * P.n + i];
+        add_pair(&acc, pi, pos[j], si, species[j], c);
+    }
+    let wf = add_soft_walls(&acc, pi, c);
+    kicks[i] = i3(acc.k);
+    aux[i] = vec4<f32>(acc.u, wf);
+}
+
+// Leapfrog and boundaries, then flag a rebuild if this particle has moved half the skin since
+// the list was built (wall mirrors count as moves, so this stays conservative).
+@compute @workgroup_size(256)
+fn integrate_list(@builtin(global_invocation_id) gid: vec3<u32>) {
+    let i = gid.x;
+    if (i >= P.n) {
+        return;
+    }
+    let q = advance(i);
+    let d = sep3(ref_pos[i], q);
+    if (dot(d, d) >= P.list.y) {
+        atomicMax(&ctl[CTL_REBUILD], 1u);
+    }
 }
 
 // Advance the clock used by stochastic boundaries (once per step, after integrate).

@@ -208,14 +208,21 @@ fn md3_case(prims: &Prims, args: &Args, n: usize) -> CaseResult {
     let sys = three::System3::new(three::cube_for(n, args.density), init::DT, args.pair, vec![1.0]);
     let species = vec![0; n];
     let s0 = three::State3 { pos: three::fcc(n, sys.box_len, three::fcc_cells(n, sys.box_len), 0.05, 1), vel: three::maxwell(&sys, &species, 1.0, 1), species };
-    let mut e = md::GpuEngine3::new(prims, sys, &s0);
+    let mode = match (args.cells, args.skin) {
+        (true, _) => ForceMode::CellList,
+        (false, None) => md::engine3::verlet3(&sys, n),
+        (false, Some(skin)) => md::engine3::verlet3_with_skin(&sys, n, skin),
+    };
+    let mut e = md::GpuEngine3::with_mode(prims, sys, &s0, mode);
     e.step(300);
     gpu.wait();
     let t = Instant::now();
     e.step(args.steps);
     gpu.wait();
     let steps_per_s = args.steps as f64 / t.elapsed().as_secs_f64();
-    CaseResult { n, steps_per_s, ns_per_particle_step: 1e9 / (steps_per_s * n as f64), phase_ns: vec![], rebuilds: 0 }
+    let (rebuilds, overflow) = pollster::block_on(e.buf.read_list_stats());
+    assert!(!overflow, "neighbour list overflowed");
+    CaseResult { n, steps_per_s, ns_per_particle_step: 1e9 / (steps_per_s * n as f64), phase_ns: vec![], rebuilds }
 }
 
 fn main() {
@@ -231,7 +238,7 @@ fn main() {
     println!("device: {device}   commit: {commit}");
     let bw = copy_bandwidth(&gpu);
     println!("copy bandwidth: {bw:.0} GB/s (read + write)");
-    let mode_name = if args.cells || args.three { "cells" } else { "verlet" };
+    let mode_name = if args.cells { "cells" } else { "verlet" };
     println!(
         "\n{}, {} {} fluid, density {}, {} initial storage order, {}",
         if args.int { "gpu-int-int" } else { "gpu-int-f32" },
@@ -239,7 +246,7 @@ fn main() {
         args.pair_name,
         args.density,
         if args.shuffle { "shuffled" } else { "lattice" },
-        if args.cells || args.three { "cell list every step" } else { "Verlet lists (skin 0.3)" }
+        if args.cells { "cell list every step" } else { "Verlet lists (skin 0.4)" }
     );
     let mut lines = Vec::new();
     let mut header = false;

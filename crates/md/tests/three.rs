@@ -131,3 +131,21 @@ fn bath_and_hot_walls_set_the_temperature() {
     eprintln!("3D heat-bath walls at 2.0: kT = {t:.3}; energy from walls {:.1} ε over {} hits", l.energy[4] + l.energy[5], l.hits[4] + l.hits[5]);
     assert!((t - 2.0).abs() < 0.1);
 }
+
+#[test]
+fn verlet_lists_and_cell_list_give_the_same_trajectory() {
+    let p = prims();
+    let (sys, s) = liquid(6000, 0.8, 1.0, true);
+    let mut cells = GpuEngine3::with_mode(&p, sys.clone(), &s, md::ForceMode::CellList);
+    let mut lists = GpuEngine3::new(&p, sys, &s);
+    cells.step(2000);
+    lists.step(2000);
+    let (a, b) = (block_on(cells.read_state()), block_on(lists.read_state()));
+    let (rebuilds, overflow) = block_on(lists.buf.read_list_stats());
+    eprintln!("3D: {rebuilds} list rebuilds in 2000 steps");
+    assert!(!overflow);
+    assert!(rebuilds > 10);
+    // Each pair's kick is rounded to an integer before summing, so the order in which neighbours
+    // are visited does not matter: the trajectories agree bit for bit.
+    assert_eq!(a.hash(), b.hash());
+}

@@ -2,7 +2,8 @@
 //! cell list over 3×3×3 cells. Its own kernels and buffers, so the 2D engine is unchanged.
 
 use bytemuck::{Pod, Zeroable};
-use gpu_prims::prims::{BinPlan, ReducePlan, Scalar};
+use crate::ForceMode;
+use gpu_prims::prims::{BinPlan, Gated, ReducePlan, Scalar};
 use gpu_prims::util::{self, Dispatch, WG};
 use gpu_prims::{fixed64, Gpu, Prims};
 use md_core::system::MAX_SPECIES;
@@ -35,9 +36,10 @@ pub struct Params3 {
     pub dt: f32,
     pub features: u32,
     pub thermo_species: u32,
+    pub cap: u32,
     pub _p0: u32,
-    pub _p1: u32,
     pub cell_scale: [f32; 4],
+    pub list: [f32; 4],
     pub gravity: [i32; 4],
     pub kick_c: [f32; 4],
     pub mass: [f32; 4],
@@ -48,10 +50,34 @@ pub struct Params3 {
     pub pairs: [[f32; 4]; 16],
 }
 
+/// Verlet lists in 3D: a 0.4 σ skin and room for twice the mean number of neighbours, but never
+/// less than a dense liquid's (ρσ³ up to ~1.1: a crystal or drop in an empty box is far denser
+/// than the box's average).
+pub fn verlet3(sys: &System3, n: usize) -> ForceMode {
+    verlet3_with_skin(sys, n, 0.4)
+}
+
+pub fn verlet3_with_skin(sys: &System3, n: usize, skin: f64) -> ForceMode {
+    let r = sys.rc_max() + skin;
+    let density = n as f64 / sys.volume();
+    let mut cap = (4.0 / 3.0 * std::f64::consts::PI * r * r * r * (2.0 * density).max(1.2)).ceil() as u32 + 8;
+    // Keep the list within one storage binding (128 MiB by default).
+    cap = cap.min(((128u64 << 20) / (4 * n.max(1) as u64)) as u32);
+    ForceMode::Verlet { skin, cap }
+}
+
 impl Params3 {
-    pub fn new(sys: &System3, n: u32) -> Self {
+    pub fn new(sys: &System3, n: u32, mode: ForceMode) -> Self {
         let b = sys.box_f64();
-        let [ncx, ncy, ncz] = sys.cells_for(sys.rc_max());
+        let (skin, cap) = match mode {
+            ForceMode::CellList => (0.0, 0),
+            ForceMode::Verlet { skin, cap } => (skin, cap),
+        };
+        // Cells must hold every pair within the list radius.
+        let [ncx, ncy, ncz] = sys.cells_for(sys.rc_max() + skin);
+        // Conservative margins against f32 rounding in the list tests.
+        let list_r = (sys.rc_max() + skin) * (1.0 + 1e-4);
+        let half_skin = 0.5 * skin * (1.0 - 1e-3);
         let ns = sys.species();
         let mut kick_c = [0f32; 4];
         let mut mass = [1f32; 4];
@@ -114,9 +140,10 @@ impl Params3 {
             dt: sys.dt as f32,
             features: sys.has_soft_walls() as u32,
             thermo_species: sys.thermostat.map_or(0, |t| t.species),
+            cap,
             _p0: 0,
-            _p1: 0,
             cell_scale: [(ncx as f64 / b[0]) as f32, (ncy as f64 / b[1]) as f32, (ncz as f64 / b[2]) as f32, 0.0],
+            list: [(list_r * list_r) as f32, (half_skin * half_skin) as f32, 0.0, 0.0],
             gravity: [g[0], g[1], g[2], 0],
             kick_c,
             mass,
@@ -146,8 +173,12 @@ struct Cmd3 {
 }
 
 const SET_CHUNK: usize = 1024;
-/// Words of the control buffer: header (clock at word 2), then 7 ledger slots of 6 words.
+/// Words of the control buffer: header (list rebuild flag, overflow, clock, rebuild count),
+/// then 7 ledger slots of 6 words.
 const CTL_WORDS: usize = 16 + 6 * WALLS3;
+const CTL_REBUILD: u32 = 0;
+const CTL_OVERFLOW: usize = 1;
+const CTL_REBUILDS: u32 = 3;
 const CTL_LEDGER: usize = 16;
 
 pub fn pack_positions3(pos: &[[i64; 3]]) -> Vec<[u32; 6]> {
@@ -236,6 +267,15 @@ impl Buffers3 {
         }
     }
 
+    /// (neighbour-list rebuilds so far, whether a list ever overflowed).
+    pub fn read_list_stats(&self) -> impl Future<Output = (u32, bool)> + 'static {
+        let b = self.clone();
+        async move {
+            let w: Vec<u32> = util::read(&b.gpu, &b.ctl, 16).await;
+            (w[CTL_REBUILDS as usize], w[CTL_OVERFLOW] != 0)
+        }
+    }
+
     pub fn read_ledger(&self) -> impl Future<Output = Ledger3> + 'static {
         let b = self.clone();
         async move {
@@ -253,16 +293,23 @@ impl Buffers3 {
     }
 }
 
+/// How forces find their partners (see the 2D engine's paths).
+enum Path3 {
+    /// Cell keys, a counting sort by cell, a gather over 3×3×3 cells, every step.
+    Cells { cells: Dispatch, bin: BinPlan, force: Dispatch, integrate: Dispatch },
+    /// A gated rebuild (reorder, then build the lists) when some particle has moved half the
+    /// skin, then the force over the list.
+    List { rebuild: Gated, force: Dispatch, integrate: Dispatch, _lists: [wgpu::Buffer; 3] },
+}
+
 /// `gpu-int-f32` in 3D.
 pub struct GpuEngine3 {
     pub prims: Prims,
     pub sys: System3,
+    pub mode: ForceMode,
     pub params: Params3,
     pub buf: Buffers3,
-    cells: Dispatch,
-    bin: BinPlan,
-    force: Dispatch,
-    integrate: Dispatch,
+    path: Path3,
     tick: Option<Dispatch>,
     reverse: Dispatch,
     kick_region: Dispatch,
@@ -282,13 +329,20 @@ pub struct GpuEngine3 {
 }
 
 impl GpuEngine3 {
+    /// With Verlet lists, which in 3D are faster than a cell list at every size we tried (a 3D
+    /// cell list scans ~4.6 times the volume of a list's sphere).
     pub fn new(prims: &Prims, sys: System3, state: &State3) -> Self {
+        let mode = verlet3(&sys, state.n());
+        Self::with_mode(prims, sys, state, mode)
+    }
+
+    pub fn with_mode(prims: &Prims, sys: System3, state: &State3, mode: ForceMode) -> Self {
         assert!(sys.masses.len() <= MAX_SPECIES);
         let gpu = &prims.gpu;
         let n = state.n() as u32;
-        let params = Params3::new(&sys, n);
+        let params = Params3::new(&sys, n, mode);
         let mut ctl = vec![0u32; CTL_WORDS];
-        ctl[0] = 0;
+        ctl[CTL_REBUILD as usize] = 1;
         let buf = Buffers3 {
             gpu: gpu.clone(),
             n,
@@ -308,7 +362,6 @@ impl GpuEngine3 {
         let m = util::shader(gpu, "md3", &crate::md3_source());
         let pl = |e: &str| util::pipeline(gpu, &m, e);
         let g = util::groups(n, WG);
-        let bin = BinPlan::new(prims, &b.keys, n, params.ncell);
         let set_list = util::storage(gpu, "set list3", SET_CHUNK as u64 * 4);
         // Morton reorder: its own keys and sort, then gather into temporaries and copy back.
         let mkeys = util::storage(gpu, "morton keys3", n as u64 * 4);
@@ -330,20 +383,53 @@ impl GpuEngine3 {
             Dispatch::new_at(gpu, &pl("copy_back_meta"), &[(0, &b.params), (3, &b.species), (10, &b.ids), (17, &tmp[2]), (18, &tmp[3])], g),
         ]);
         let stochastic = (0..3).any(|a| !sys.periodic(a)) || sys.thermostat.is_some();
+        let path = match mode {
+            ForceMode::CellList => {
+                let bin = BinPlan::new(prims, &b.keys, n, params.ncell);
+                Path3::Cells {
+                    cells: Dispatch::new_at(gpu, &pl("cells"), &[(0, &b.params), (1, &b.pos), (4, &b.keys)], g),
+                    force: Dispatch::new_at(
+                        gpu,
+                        &pl("force"),
+                        &[(0, &b.params), (1, &b.pos), (3, &b.species), (5, &bin.starts), (6, &bin.counts), (7, &bin.sorted), (8, &b.kicks), (9, &b.aux)],
+                        g,
+                    ),
+                    integrate: Dispatch::new_at(
+                        gpu,
+                        &pl("integrate"),
+                        &[(0, &b.params), (1, &b.pos), (2, &b.vel), (3, &b.species), (8, &b.kicks), (9, &b.aux), (10, &b.ids), (11, &b.ctl)],
+                        g,
+                    ),
+                    bin,
+                }
+            }
+            ForceMode::Verlet { cap, .. } => {
+                let nbr = util::storage(gpu, "nbr3", n as u64 * cap as u64 * 4);
+                let nbr_count = util::storage(gpu, "nbr count3", n as u64 * 4);
+                let ref_pos = util::storage(gpu, "ref pos3", n as u64 * 24);
+                let build = Dispatch::new_at(
+                    gpu,
+                    &pl("build_list"),
+                    &[(0, &b.params), (1, &b.pos), (5, &rbin.starts), (6, &rbin.counts), (11, &b.ctl), (20, &nbr), (21, &nbr_count), (22, &ref_pos)],
+                    g,
+                );
+                let mut list = reorder.clone();
+                list.push(build);
+                Path3::List {
+                    rebuild: Gated::new(prims, &b.ctl, CTL_REBUILD, CTL_REBUILDS, list),
+                    force: Dispatch::new_at(gpu, &pl("force_list"), &[(0, &b.params), (1, &b.pos), (3, &b.species), (8, &b.kicks), (9, &b.aux), (20, &nbr), (21, &nbr_count)], g),
+                    integrate: Dispatch::new_at(
+                        gpu,
+                        &pl("integrate_list"),
+                        &[(0, &b.params), (1, &b.pos), (2, &b.vel), (3, &b.species), (8, &b.kicks), (9, &b.aux), (10, &b.ids), (11, &b.ctl), (22, &ref_pos)],
+                        g,
+                    ),
+                    _lists: [nbr, nbr_count, ref_pos],
+                }
+            }
+        };
         Self {
-            cells: Dispatch::new_at(gpu, &pl("cells"), &[(0, &b.params), (1, &b.pos), (4, &b.keys)], g),
-            force: Dispatch::new_at(
-                gpu,
-                &pl("force"),
-                &[(0, &b.params), (1, &b.pos), (3, &b.species), (5, &bin.starts), (6, &bin.counts), (7, &bin.sorted), (8, &b.kicks), (9, &b.aux)],
-                g,
-            ),
-            integrate: Dispatch::new_at(
-                gpu,
-                &pl("integrate"),
-                &[(0, &b.params), (1, &b.pos), (2, &b.vel), (3, &b.species), (8, &b.kicks), (9, &b.aux), (10, &b.ids), (11, &b.ctl)],
-                g,
-            ),
+            path,
             // Walls could be made thermal later (update_system), so keep a clock for them.
             tick: stochastic.then(|| Dispatch::new_at(gpu, &pl("tick"), &[(11, &b.ctl)], 1)),
             reverse: Dispatch::new_at(gpu, &pl("reverse"), &[(0, &b.params), (2, &b.vel), (3, &b.species), (8, &b.kicks)], g),
@@ -351,7 +437,6 @@ impl GpuEngine3 {
             set_species: Dispatch::new_at(gpu, &pl("set_species"), &[(0, &b.params), (3, &b.species), (10, &b.ids), (12, &b.cmd), (13, &set_list)], g),
             kinetic: Dispatch::new_at(gpu, &pl("kinetic"), &[(0, &b.params), (2, &b.vel), (3, &b.species), (19, &b.ke)], g),
             ke_sum: ReducePlan::new(prims, Scalar::F32, &b.ke, n),
-            bin,
             set_list,
             reorder,
             _reorder_bin: rbin,
@@ -360,6 +445,7 @@ impl GpuEngine3 {
             since_sort: 100,
             prims: prims.clone(),
             sys,
+            mode,
             params,
             buf,
             steps: 0,
@@ -385,13 +471,23 @@ impl GpuEngine3 {
     }
 
     fn encode_forces(&self, pass: &mut wgpu::ComputePass<'_>) {
-        self.cells.encode(pass);
-        self.bin.encode(pass);
-        self.force.encode(pass);
+        match &self.path {
+            Path3::Cells { cells, bin, force, .. } => {
+                cells.encode(pass);
+                bin.encode(pass);
+                force.encode(pass);
+            }
+            Path3::List { rebuild, force, .. } => {
+                rebuild.encode(pass);
+                force.encode(pass);
+            }
+        }
     }
 
     /// Advance `steps` steps (submitted, not waited for).
     pub fn step(&mut self, steps: usize) {
+        // Verlet mode reorders at every list rebuild; the cell list reorders on a timer.
+        let cells = matches!(self.path, Path3::Cells { .. });
         let mut left = steps;
         while left > 0 {
             let k = left.min(crate::engine::STEPS_PER_SUBMIT);
@@ -399,14 +495,16 @@ impl GpuEngine3 {
             let mut since = self.since_sort;
             self.submit(|pass| {
                 for _ in 0..k {
-                    if interval > 0 && since >= interval {
+                    if cells && interval > 0 && since >= interval {
                         for d in &self.reorder {
                             d.encode(pass);
                         }
                         since = 0;
                     }
                     self.encode_forces(pass);
-                    self.integrate.encode(pass);
+                    match &self.path {
+                        Path3::Cells { integrate, .. } | Path3::List { integrate, .. } => integrate.encode(pass),
+                    }
                     if let Some(t) = &self.tick {
                         t.encode(pass);
                     }
@@ -437,9 +535,9 @@ impl GpuEngine3 {
         assert_eq!(sys.walls.map(|w| w.is_some()), self.sys.walls.map(|w| w.is_some()));
         assert_eq!(sys.thermostat.is_some(), self.sys.thermostat.is_some(), "the bath can be retuned, not added or removed");
         assert!(sys.rc_max() <= self.sys.rc_max() + 1e-12, "cutoffs cannot grow at run time");
-        let mut p = Params3::new(&sys, self.n());
-        // Keep the cell geometry the buffers were sized for.
-        (p.ncx, p.ncy, p.ncz, p.ncell, p.cell_scale) = (self.params.ncx, self.params.ncy, self.params.ncz, self.params.ncell, self.params.cell_scale);
+        let mut p = Params3::new(&sys, self.n(), self.mode);
+        // Keep the cell and list geometry the buffers were sized for.
+        (p.ncx, p.ncy, p.ncz, p.ncell, p.cell_scale, p.list) = (self.params.ncx, self.params.ncy, self.params.ncz, self.params.ncell, self.params.cell_scale, self.params.list);
         self.gpu().queue.write_buffer(&self.buf.params, 0, bytemuck::bytes_of(&p));
         self.params = p;
         self.sys = sys;
@@ -475,6 +573,7 @@ impl GpuEngine3 {
         q.write_buffer(&self.buf.vel, 0, bytemuck::cast_slice(&state.vel));
         q.write_buffer(&self.buf.species, 0, bytemuck::cast_slice(&state.species));
         q.write_buffer(&self.buf.ids, 0, bytemuck::cast_slice(&(0..self.n()).collect::<Vec<u32>>()));
+        q.write_buffer(&self.buf.ctl, 4 * CTL_REBUILD as u64, bytemuck::bytes_of(&1u32));
         self.steps = 0;
         self.since_sort = self.sort_interval;
     }
