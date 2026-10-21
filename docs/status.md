@@ -53,6 +53,7 @@ M1 Pro (Metal) unless stated. Run everything with `cargo xtask all`.
 | `lines` | Why are a hot gas's spectral lines blurred? | At 1,000 K: H line 14.8 pm wide (Doppler 14.9), O 4.5 (4.4); the widths weigh the atoms at 1.01 u and 15.2 u; at 2,220 K: 21.5 and 6.6 pm (22.2, 6.6) |
 | `heatcap` (2D MD, and a quantum calculation) | Why does it take more heat to warm some gases? Why don't argon atoms spin? | Heat per degree per molecule 1.01, 2.45, 1.94 (equipartition 1, 2.5, 2; natively 1.01, 2.58, 1.98, and 2.39 with a 5× stiffer spring); quantum 3D: H₂ 1.54k at 20 K, 2.50 at 300 K, 3.47 at 10,000 K; argon 1.5 always |
 | `cloud` | Can you see the path of a single atom? | An α at 10 σ/τ leaves a 154 σ track of 240 ions, 45 in its first third and 137 in its last (the Bragg peak); hard-core collisions conserve energy at dt 0.001 (natively 1118.57 → 1118.76) |
+| `motor` (Brownian dynamics, JavaScript) | How does a molecule walk through random shaking? | Flashing ratchet walks at 0.42 steps per unit time (about 64 kT of fuel a step); grip always on −0.005, always off 0.06, cold 0.000; a load of 2 kT per step drives it backwards |
 
 Plus `selftest`: the GPU primitive and engine checks, run under the browser's shader compiler.
 

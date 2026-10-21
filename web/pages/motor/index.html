@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Walking on Noise</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 16 16%22%3E%3Cpath d=%22M0 12 L3 4 L13 12 L16 4%22 stroke=%22%239a4a1e%22 stroke-width=%221.5%22 fill=%22none%22/%3E%3Ccircle cx=%2211%22 cy=%229%22 r=%222%22 fill=%22%234f7cc4%22/%3E%3C/svg%3E" />
+    <link rel="stylesheet" href="../../src/lib/style.css" />
+  </head>
+  <body>
+    <nav class="topbar"><div class="wrap"><a href="../../index.html">Micrographia</a></div></nav>
+    <main class="wrap">
+      <header class="question">
+        <div class="eyebrow">Molecular motors: the Brownian ratchet</div>
+        <h1>How does a molecule walk, when everything around it is shaking it at random?</h1>
+        <p class="lede">
+          Inside a cell, kinesin carries cargo along a protein track, 8 nanometres a step, a hundred steps a second, through a
+          storm of molecular collisions that would knock anything that size about by more than a step every microsecond. It does
+          not fight the storm: it uses it. It lets the jiggling carry it about and, with energy from ATP, keeps only the jiggles
+          that go forwards.
+        </p>
+      </header>
+
+      <section class="lab">
+        <div class="left">
+          <canvas id="track" style="width: 100%; aspect-ratio: 2 / 1; border-radius: 10px" aria-label="Motors on sawtooth tracks"></canvas>
+          <div class="legend"><span>Thirty motors, each on its own track. The track's sawtooth grip (drawn when it is on) is steep on one side, gentle on the other. Click a lane to give its motor a kick.</span></div>
+          <canvas class="plot tall" id="drift" aria-label="Average distance walked against time"></canvas>
+          <div class="legend"><span><i style="background: var(--accent)"></i>average distance walked (steps)</span><span><i style="background: var(--muted)"></i>fuel burnt (in units of 10 kT)</span></div>
+        </div>
+        <aside class="panel">
+          <div class="buttons">
+            <button class="primary" id="run">Run</button>
+            <button id="mode">Grip: flashing</button>
+            <button id="reset">Start again</button>
+          </div>
+          <label class="row">Temperature <span id="tv">×1</span>
+            <input type="range" id="t" min="0" max="3" step="0.05" value="1" />
+          </label>
+          <label class="row">Load (pulling it back) <span id="fv">none</span>
+            <input type="range" id="f" min="0" max="8" step="0.25" value="0" />
+          </label>
+          <label class="row">Time the grip is off, per cycle <span id="offv">–</span>
+            <input type="range" id="off" min="0.005" max="0.2" step="0.005" value="0.03" />
+          </label>
+          <div class="readouts">
+            <div class="readout"><div class="k">speed (steps per unit time)</div><div class="v" id="speed">–</div></div>
+            <div class="readout"><div class="k">fuel burnt per step forward</div><div class="v" id="fuel">–</div></div>
+            <div class="readout"><div class="k">work done against the load per step</div><div class="v" id="work">–</div></div>
+          </div>
+          <div class="status" id="status">
+            Run. Each time the grip switches off, the motors wander freely; when it comes back on, each slides into the nearest
+            groove. Because the grooves are lopsided, a small wander forwards is enough to fall into the next groove ahead, but
+            it takes a large one to fall back. Try the grip always on, or always off: no walking. Cool it right down: no
+            walking either. Then pull back on them.
+          </div>
+        </aside>
+      </section>
+
+      <article class="notes">
+        <h2>Rectifying noise</h2>
+        <p>
+          A molecule can't push off from anything: anything it might push against is being knocked about as hard as it is. What
+          it can do is change its grip. While the grip is off, a motor diffuses equally forwards and backwards. When the grip
+          switches on, the lopsided potential sorts them: those that drifted forwards past the nearby crest roll into the
+          groove ahead, and only the rare ones that drifted all the way back past the far crest roll back. On average, a step
+          forwards per few cycles: the flashing ratchet (Ajdari and Prost, 1992; Astumian, 1997).
+        </p>
+        <p>
+          It needs both ingredients. With the grip always on, it is a ratchet with nothing to power it, and thermal noise alone
+          cannot make it go one way (that would be a perpetual-motion machine of the second kind: Feynman's ratchet and pawl,
+          Lectures I, ch. 46). With the grip always off there is nothing to rectify. And it needs the noise: freeze the motors
+          and they sit in their grooves. Too hot, and the grip cannot hold them. The fuel's job is to switch the grip, paying
+          for the order the sorting creates; each switch-on lifts the motors up the slope they then slide down, which is the
+          energy that ends as heat.
+        </p>
+        <p>
+          Real kinesin is a two-headed walker whose heads change their grip on the microtubule as they bind ATP and release ADP;
+          it burns about 20 kT per 8 nm step and stalls under a load of about 6 piconewtons. The principle is the same: chemistry
+          switching the grip, and thermal motion doing the moving. This blind ratchet is far more wasteful (about 60 kT a step,
+          and it stalls under a load of 1 to 2 kT per step), because it switches on a clock, whatever the motors are doing;
+          kinesin's chemistry waits for its free head to land ahead before it lets go behind.
+        </p>
+        <div class="caveat">
+          <h3>Caveats</h3>
+          <ul>
+            <li>Not molecular dynamics: overdamped Langevin dynamics of independent motors in a sawtooth potential (peak 5 kT at
+              room temperature, its crest a fifth of the way along each step), switched on and off. The surrounding water is a
+              heat bath: friction plus random kicks.</li>
+            <li>Units: a step is the track's period; time is in units of a step's diffusion time.</li>
+            <li>Fuel burnt is the potential energy the grip gives the motors when it switches on (the least the chemistry
+              must supply).</li>
+          </ul>
+        </div>
+        <section class="about-sim" id="about-sim">
+          <h2>About this simulation</h2>
+          <ul>
+            <li>Method: overdamped Langevin dynamics (Brownian dynamics, JavaScript) of 30 independent motors in 1D: each step
+              moves a motor by (force / friction) Δt plus a random step √(2D Δt).</li>
+            <li>Ensemble: a heat bath (the water) at the temperature you set; the grip's switching puts energy in, which ends
+              up in the bath.</li>
+            <li>Size: 30 motors; time step 10⁻⁴ (a step's diffusion time is 1).</li>
+          </ul>
+        </section>
+      </article>
+    </main>
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>

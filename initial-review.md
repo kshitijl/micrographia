@@ -777,3 +777,7 @@ docs/performance.md.
   to the flow) work, but molecular-size grains lowered the viscosity instead of raising it by 2.5φ; the
   liquid's viscosity is too sensitive to the solvent's dilution by the grains. Recorded in research.md §18.8
   with what it needs (bigger grains, solvent at equal pressure).
+- [ ] Brainstorm (molecular motors), new page `motor`: a flashing ratchet: 30 overdamped Brownian motors on
+  lopsided sawtooth tracks whose grip switches on and off; they walk only when it flashes, not with it always
+  on or off, and not without thermal noise; temperature, load and off-time sliders; click a lane to kick a
+  motor; fuel burnt per step against kinesin's 20 kT.
