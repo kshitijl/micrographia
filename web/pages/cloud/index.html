@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>The Track of One Atom</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 16 16%22%3E%3Crect width=%2216%22 height=%2216%22 fill=%22%231d1712%22/%3E%3Cpath d=%22M1 9 L11 8 L15 3%22 stroke=%22%23f3e4c6%22 stroke-width=%221.5%22 fill=%22none%22/%3E%3C/svg%3E" />
+    <link rel="stylesheet" href="../../src/lib/style.css" />
+  </head>
+  <body>
+    <nav class="topbar"><div class="wrap"><a href="../../index.html">Micrographia</a></div></nav>
+    <main class="wrap">
+      <header class="question">
+        <div class="eyebrow">The evidence for atoms: C. T. R. Wilson's cloud chamber, 1911</div>
+        <h1>Can you see the path of a single atom?</h1>
+        <p class="lede">
+          Not the atom, but its wake. An α particle (a helium nucleus) shot out of radium tears electrons off the air molecules
+          it passes; in air supersaturated with water, each of those ions grows a droplet, and the path shows as a white line.
+          Wilson photographed them: straight, thickening towards the end, and now and then bent sharply, where the α particle
+          has hit an atom's nucleus head on.
+        </p>
+      </header>
+
+      <section class="lab">
+        <div class="left">
+          <div class="stage" id="stage" style="aspect-ratio: 2 / 1; cursor: crosshair">
+            <canvas id="canvas" aria-label="Air in a cloud chamber, with α particles waiting at the left"></canvas>
+            <div class="overlay" id="overlay">Starting the GPU…</div>
+          </div>
+          <div class="legend"><span><i style="background: var(--muted)"></i>air</span><span><i style="background: var(--cream)"></i>droplets, where each ion was made (they fade after a while)</span><span><i style="background: var(--highlight)"></i>α particles</span><span>Drag on the chamber to aim (the length sets the speed), and let go to fire.</span></div>
+          <canvas class="plot tall" id="bragg" aria-label="Ions made along the last track"></canvas>
+          <div class="legend"><span><i style="background: var(--accent)"></i>ions made per σ along the last track, from its start: thickest just before it stops (the Bragg peak)</span></div>
+        </div>
+        <aside class="panel">
+          <div class="buttons">
+            <button class="primary" id="run">Run</button>
+            <button id="fire">Fire straight</button>
+            <button id="sweep">Sweep the ions away</button>
+            <button id="reset">Start again</button>
+          </div>
+          <div class="readouts">
+            <div class="readout"><div class="k">α particles left in the source</div><div class="v" id="left">–</div></div>
+            <div class="readout"><div class="k">last track: length, ions made</div><div class="v" id="range">–</div></div>
+            <div class="readout"><div class="k">its sharp turns (over 20°)</div><div class="v" id="kinks">–</div></div>
+            <div class="readout"><div class="k">its speed now</div><div class="v" id="speed">–</div></div>
+          </div>
+          <div class="status" id="status">
+            Run, then fire. The α particle flies almost straight through the air, losing a little energy to every molecule it
+            ionises, and more the slower it goes, so its track thickens before it stops. Fire a few: some will turn sharply, and
+            the molecule they hit recoils.
+          </div>
+        </aside>
+      </section>
+
+      <article class="notes">
+        <h2>Why the tracks are straight</h2>
+        <p>
+          An α particle is about 7,000 times heavier than an electron, and almost all of its energy goes on knocking electrons off
+          the molecules it passes: each one costs it about 35 eV, out of the 5 million it starts with, so it barely swerves. It
+          loses more per centimetre the slower it goes (it spends longer near each molecule: Bethe's formula, dE/dx ∝ 1/v²), so
+          it makes most of its ions just before it stops, a few centimetres from the source: every α particle from the same
+          radioactive atom has the same range.
+        </p>
+        <h2>Why some tracks bend</h2>
+        <p>
+          The molecules' mass is in their nuclei, which take up a hundred-thousandth of their width. An α particle passes through
+          millions of atoms between nuclear hits, but when it does come close to a nucleus it can be turned through a large
+          angle, and the nucleus recoils, making a short track of its own: the forks in Wilson's photographs. Counting how often
+          α particles turned through large angles in gold foil is how Rutherford found the nucleus, in 1911.
+        </p>
+        <p>
+          Perrin (Atoms, §119) took the tracks as the most direct evidence of all: here was one atom, its path drawn out.
+          Counting the ions along a track, and the tracks themselves, gives N again (see <a href="../counting/index.html">counting
+          atoms one at a time</a>).
+        </p>
+        <div class="caveat">
+          <h3>Caveats</h3>
+          <ul>
+            <li>The α particle's collisions with nuclei are real molecular dynamics (a tiny hard core, 0.04 σ across, inside each
+              air molecule); its slowing by ionisation is a rule added by the page: at each look it loses C/v² of energy per σ
+              travelled, making one ion per 0.2 ε lost, and the air molecules along that stretch are marked as ions (as many as are there). The energy it loses
+              leaves the simulation (it would go into the electrons).</li>
+            <li>No water vapour: each ion is drawn as a droplet where it was made, which stays put (as in a photograph) while the
+              ionised molecule itself moves on.</li>
+            <li>Scaled down: an α particle here is 7 times lighter than an air molecule (really 7, so that is right) but only
+              about 300 times as energetic as the air's molecules, and its range is about 150 molecules.</li>
+          </ul>
+        </div>
+      </article>
+    </main>
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>

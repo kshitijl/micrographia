@@ -82,7 +82,7 @@ pub struct Scenario {
     pub radii: Vec<f64>,
 }
 
-pub const NAMES: &[&str] = &["cream", "corner", "boltzmann", "heavy", "oilwater", "heatflow", "osmosis", "compress", "rubber", "atmosphere", "carnot", "boiling", "lipids", "balloon", "smell", "binding", "fep", "cell", "buffer", "mask", "dna", "demon", "ensemble", "osmosis_free", "osmometer", "flask", "emulsion", "enthalpy", "humid", "solubility", "perrin", "avogadro", "heatcap"];
+pub const NAMES: &[&str] = &["cream", "corner", "boltzmann", "heavy", "oilwater", "heatflow", "osmosis", "compress", "rubber", "atmosphere", "carnot", "boiling", "lipids", "balloon", "smell", "binding", "fep", "cell", "buffer", "mask", "dna", "demon", "ensemble", "osmosis_free", "osmometer", "flask", "emulsion", "enthalpy", "humid", "solubility", "perrin", "avogadro", "heatcap", "cloud"];
 
 pub fn build(name: &str, o: &Options) -> Result<Scenario, String> {
     let sc = build_unchecked(name, o)?;
@@ -133,6 +133,7 @@ fn build_unchecked(name: &str, o: &Options) -> Result<Scenario, String> {
         "perrin" => Ok(perrin(o)),
         "avogadro" => Ok(avogadro(o)),
         "heatcap" => Ok(heatcap(o)),
+        "cloud" => Ok(cloud(o)),
         _ => Err(format!("unknown scenario {name}")),
     }
 }
@@ -1877,4 +1878,50 @@ pub fn heatcap(o: &Options) -> Scenario {
     let vel = init::maxwell(&sys, &species, t, seed);
     let state = State { pos, vel, species };
     Scenario { warmup: 0, finish: Finish::None, marked: 0, grid: [4, 4], radii: vec![0.5], sys, state }
+}
+
+/// A cloud chamber: air (species 0, mass 7, WCA) in a closed box, with a column of α particles
+/// (mass 1) waiting at the left as species 3, pinned. A page fires one by switching it to species
+/// 1 and giving species 1 a velocity; it meets air molecules only through a tiny hard core (σ =
+/// `core`), standing for their nuclei, so it flies nearly straight and now and then turns sharply.
+/// (Its slowing by ionisation, which is spread over the electrons, is the page's.) Species 2 is
+/// ionised air, the same as air but drawn apart. Options: width, height, density (of air),
+/// temperature, core, alphas, seed. Time step 0.001 τ, for the fast α's hard collisions.
+pub fn cloud(o: &Options) -> Scenario {
+    let (w, h) = (o.get("width", 240.0), o.get("height", 120.0));
+    let t = o.get("temperature", 1.0);
+    let seed = o.get("seed", 1.0) as u64;
+    let alphas = o.get("alphas", 12.0) as usize;
+    let core = o.get("core", 0.06);
+    let wca = |sigma: f64| Pair { eps: 1.0, sigma, rc: sigma * 2f64.powf(1.0 / 6.0) };
+    let sys = System::new([fixed::to_fixed(w), fixed::to_fixed(h)], 0.001, Pair::wca(), vec![7.0, 1.0, 7.0, 1.0])
+        .with_pair(1, 0, wca(core))
+        .with_pair(1, 2, wca(core))
+        .with_pair(1, 1, Pair::none())
+        .with_pair(1, 3, Pair::none())
+        .with_pair(3, 3, Pair::none())
+        .with_walls(0, Wall::Hard, Wall::Hard)
+        .with_walls(1, Wall::Hard, Wall::Hard)
+        .with_pinned(3);
+    // The α source: a column at the left, 1.5 σ apart, around the middle.
+    let mut pos: Vec<[f64; 2]> = (0..alphas).map(|k| [3.0, 0.5 * h + 1.5 * (k as f64 - 0.5 * (alphas as f64 - 1.0))]).collect();
+    let mut species = vec![3u32; alphas];
+    let n = (o.get("density", 0.04) * (w - 7.0) * (h - 2.0)) as usize;
+    let mut k = 0u32;
+    while pos.len() < alphas + n && k < 100 * n as u32 + 100 {
+        let x = 6.0 + gpu_prims::threefry::uniform(seed, 91, 2 * k) * (w - 7.0);
+        let y = 1.0 + gpu_prims::threefry::uniform(seed, 91, 2 * k + 1) * (h - 2.0);
+        k += 1;
+        if pos[alphas..].iter().any(|q| (q[0] - x).powi(2) + (q[1] - y).powi(2) < 1.44) {
+            continue;
+        }
+        pos.push([x, y]);
+        species.push(0);
+    }
+    let mut vel = init::maxwell(&sys, &species, t, seed + 1);
+    for v in vel.iter_mut().take(alphas) {
+        *v = [0, 0];
+    }
+    let state = State { pos: pos.iter().map(|p| [fixed::to_fixed(p[0]), fixed::to_fixed(p[1])]).collect(), vel, species };
+    Scenario { warmup: 0, finish: Finish::None, marked: 0, grid: [4, 4], radii: vec![0.5, 0.35, 0.5, 0.35], sys, state }
 }

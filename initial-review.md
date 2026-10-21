@@ -767,3 +767,8 @@ docs/performance.md.
   enough heat and the crystal melts. Part 2: real 3D molecules' quantum rotor and oscillator: hydrogen stops
   spinning below ~100 K, vibrations frozen at room temperature, argon's spin never unfreezes (mass in the
   nucleus), with occupation bars of hydrogen's levels. New scenario `heatcap`.
+- [ ] Track B22, new page `cloud`: a cloud chamber. α particles wait in a pinned column; drag to aim and fire
+  (or fire straight). Each flies through the air meeting molecules only through a tiny hard core (their
+  nuclei: rare sharp turns, with the recoil), and loses C/v² per σ to ionisation (the page's rule), making
+  ions drawn as droplets where they formed; the Bragg curve of ions along the track peaks at its end
+  (137 of 240 ions in the last third). Energy panel counts what the α's spent. New scenario `cloud`.
