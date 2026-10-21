@@ -82,7 +82,7 @@ pub struct Scenario {
     pub radii: Vec<f64>,
 }
 
-pub const NAMES: &[&str] = &["cream", "corner", "boltzmann", "heavy", "oilwater", "heatflow", "osmosis", "compress", "rubber", "atmosphere", "carnot", "boiling", "lipids", "balloon", "smell", "binding", "fep", "cell", "buffer", "mask", "dna", "demon", "ensemble", "osmosis_free", "osmometer", "flask", "emulsion"];
+pub const NAMES: &[&str] = &["cream", "corner", "boltzmann", "heavy", "oilwater", "heatflow", "osmosis", "compress", "rubber", "atmosphere", "carnot", "boiling", "lipids", "balloon", "smell", "binding", "fep", "cell", "buffer", "mask", "dna", "demon", "ensemble", "osmosis_free", "osmometer", "flask", "emulsion", "enthalpy"];
 
 pub fn build(name: &str, o: &Options) -> Result<Scenario, String> {
     let sc = build_unchecked(name, o)?;
@@ -127,6 +127,7 @@ fn build_unchecked(name: &str, o: &Options) -> Result<Scenario, String> {
         "osmometer" => Ok(osmometer(o)),
         "flask" => Ok(flask(o)),
         "emulsion" => Ok(emulsion(o)),
+        "enthalpy" => Ok(enthalpy(o)),
         _ => Err(format!("unknown scenario {name}")),
     }
 }
@@ -1596,4 +1597,30 @@ pub fn osmometer(o: &Options) -> Scenario {
     let state = State { pos: pos.iter().map(|p| [fixed::to_fixed(p[0]), fixed::to_fixed(p[1])]).collect(), vel, species };
     let (warmup, finish) = if settle > 0.0 { ((settle / sys.dt) as usize, Finish::Solute { temperature: t, x_min: w / 2.0 + 0.7, fraction: f, seed }) } else { (0, Finish::None) };
     Scenario { warmup, finish, marked: 1, grid: [2, 56], radii: vec![0.5, 0.5, 0.5], sys, state }
+}
+
+/// A gas under a free piston carrying a weight (constant pressure), or under the same piston
+/// locked (`locked` = 1: a huge mass, so it does not move: constant volume), for heating in
+/// counted amounts. Hard walls; no gravity on the gas. Options: n, width, density (at the start),
+/// temperature, mass (the piston's), locked, seed. The load is set so the gas starts balanced.
+pub fn enthalpy(o: &Options) -> Scenario {
+    let n = o.get("n", 1500.0) as usize;
+    let width = o.get("width", 100.0);
+    let t = o.get("temperature", 1.0);
+    let rho = o.get("density", 0.1);
+    let h0 = n as f64 / (rho * width);
+    let top = 4.0 * h0;
+    // The pressure of the gas at the start (nearly ideal: ρT, plus the WCA's small excess),
+    // times the width, is the load that balances it.
+    let force = o.get("force", rho * t * (1.0 + 0.5 * std::f64::consts::PI * rho * 0.75) * width);
+    let mass = if o.get("locked", 0.0) > 0.0 { 1e12 } else { o.get("mass", 5.0) };
+    let sys = System::new([fixed::to_fixed(width), fixed::to_fixed(top)], init::DT, Pair::wca(), vec![1.0])
+        .with_walls(0, Wall::Hard, Wall::Hard)
+        .with_walls(1, Wall::Hard, Wall::Hard)
+        .with_piston(md_core::PistonDrive::Free { mass, force }, h0, 4.0);
+    let lower = System::new([fixed::to_fixed(width), fixed::to_fixed(h0)], init::DT, Pair::wca(), vec![1.0]).with_walls(0, Wall::Soft, Wall::Soft).with_walls(1, Wall::Soft, Wall::Soft);
+    let seed = o.get("seed", 1.0) as u64;
+    let mut state = init::fluid(&lower, n, t, seed);
+    state.vel = init::maxwell(&sys, &state.species, t, seed);
+    Scenario { warmup: 0, finish: Finish::None, marked: 0, grid: [4, 4], radii: vec![0.5], sys, state }
 }

@@ -658,3 +658,10 @@ docs/performance.md.
   mixing, ΔT ≈ x kT²/L, road salt's eutectic, and why boiling shifts less (L_vap ≈ 7 L_fus).
   Bug found on the way: forcing a readout by setting the throttle's last time to 0 fails in a
   page younger than the throttle window; now −∞ (also on the crystal page).
+- [ ] New page `enthalpy` (original list: enthalpy vs energy vs heat; why the Gibbs free energy):
+  two gases heated alike, one under a locked lid, one under a free piston carrying a weight
+  (drag to change it). New scenario `enthalpy` and public API `DiscSim.set_piston_load`.
+  Natively c_V = 1.01, c_p = 1.95 (2D ideal: 1, 2). The lid has friction (its bounce is damped
+  and the energy returned to the gas as heat), or the undamped bounce stores heat and the numbers
+  drift. Notes: Q = ΔU at constant V, ΔH at constant p; −ΔG/T is the total entropy change at
+  constant T and p (the sneeze), so G going down is the second law.

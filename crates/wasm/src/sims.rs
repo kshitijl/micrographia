@@ -353,6 +353,19 @@ impl DiscSim {
         self.engine.set_piston_speed(u);
     }
 
+    /// A free piston's mass and the load pushing it down (ε/σ; the pressure times the width).
+    /// A huge mass (1e12) locks it in place; its velocity is set to zero either way.
+    pub fn set_piston_load(&mut self, mass: f64, force: f64) {
+        let mut sys = self.engine.sys.clone();
+        if let Some(p) = sys.piston.as_mut() {
+            if let md_core::PistonDrive::Free { .. } = p.drive {
+                p.drive = md_core::PistonDrive::Free { mass, force };
+                self.engine.update_system(sys);
+                self.engine.set_piston_speed(0.0);
+            }
+        }
+    }
+
     /// Resolves to `[height σ, velocity σ/τ, gas force on it ε/σ, work done on it by the gas ε]`.
     pub fn piston(&self) -> js_sys::Promise {
         let fut = self.engine.read_piston();

@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Enthalpy and Free Energy</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 16 16%22%3E%3Crect x=%223%22 y=%222%22 width=%2210%22 height=%223%22 fill=%22%239a4a1e%22/%3E%3Crect x=%223%22 y=%227%22 width=%2210%22 height=%227%22 fill=%22%234f7cc4%22/%3E%3C/svg%3E" />
+    <link rel="stylesheet" href="../../src/lib/style.css" />
+  </head>
+  <body>
+    <nav class="topbar"><div class="wrap"><a href="../../index.html">Micrographia</a></div></nav>
+    <main class="wrap">
+      <header class="question">
+        <div class="eyebrow">Enthalpy and the Gibbs free energy</div>
+        <h1>Why do chemists talk about enthalpy instead of energy? And what is so special about the Gibbs free energy?</h1>
+        <p class="lede">
+          Two identical boxes of gas get exactly the same heat. One has its lid locked; the other's lid is a
+          free piston carrying a weight, as an open beaker is held down by the atmosphere. The locked one gets
+          twice as hot. Where did the other half of the heat go?
+        </p>
+      </header>
+
+      <section class="lab">
+        <div class="left">
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px">
+            <div>
+              <div class="stage" id="stageV" style="aspect-ratio: 1 / 2.2">
+                <canvas id="canvasV" aria-label="A gas under a locked lid"></canvas>
+                <div class="overlay" id="overlayV">Starting the GPU…</div>
+              </div>
+              <div class="legend"><span><b>Lid locked</b>: constant volume</span></div>
+            </div>
+            <div>
+              <div class="stage" id="stageP" style="aspect-ratio: 1 / 2.2; cursor: ns-resize">
+                <canvas id="canvasP" aria-label="A gas under a free piston carrying a weight"></canvas>
+                <div class="overlay" id="overlayP">Starting the GPU…</div>
+              </div>
+              <div class="legend"><span><b>Lid free, weighted</b>: constant pressure. Drag up or down on it to change the weight.</span></div>
+            </div>
+          </div>
+        </div>
+        <aside class="panel">
+          <div class="buttons">
+            <button class="primary" id="run">Run both</button>
+            <button id="burst">Add a burst of heat to both</button>
+            <button id="reset">Start again</button>
+          </div>
+          <label class="row">Heater (both) <span id="powerv">off</span>
+            <input type="range" id="power" min="0" max="10" step="1" value="2" />
+          </label>
+          <label class="row">Weight on the free lid <span id="weightv">–</span>
+            <input type="range" id="weight" min="0.25" max="3" step="0.05" value="1" />
+          </label>
+          <div class="readouts">
+            <div class="readout"><div class="k">heat added to each (per molecule)</div><div class="v" id="q">–</div></div>
+            <div class="readout"><div class="k">temperature: locked, free</div><div class="v" id="t">–</div></div>
+            <div class="readout"><div class="k">free lid: rose by</div><div class="v" id="dh">–</div></div>
+            <div class="readout"><div class="k">free: ΔU, and lifting the weight F·Δh</div><div class="v" id="split">–</div></div>
+            <div class="readout"><div class="k">heat per degree, per molecule: locked (c<sub>V</sub>), free (c<sub>p</sub>)</div><div class="v" id="c">–</div></div>
+          </div>
+          <canvas class="plot tall" id="plot" aria-label="Temperature against heat added, for both boxes"></canvas>
+          <div class="legend"><span><i style="background: var(--plot-back)"></i>locked lid</span><span><i style="background: var(--accent)"></i>free lid</span></div>
+          <div class="status" id="status">
+            Run both. The heater adds the same heat to each, slowly (fast heating sets the free lid bouncing,
+            and its bounce takes heat that should be in the gas). Then make the weight heavier or lighter.
+          </div>
+        </aside>
+      </section>
+
+      <article class="notes">
+        <h2>Where the heat goes</h2>
+        <p>
+          In the locked box every bit of heat goes into the molecules' energy: Q = ΔU. In the free one the gas
+          expands as it warms, pushing the lid and its weight up, and that work, F·Δh = pΔV, also has to come
+          out of the heat. For a 2D ideal gas exactly half does: it takes 2k of heat per degree per molecule at
+          constant pressure, against 1k at constant volume (measured natively: 1.95 and 1.01). So the free one
+          warms half as much.
+        </p>
+        <p>
+          Chemistry happens in open beakers, at the atmosphere's constant pressure, so the heat a reaction
+          gives out or takes in is never just ΔU: the products push the atmosphere back (or let it in) on the
+          way. Rather than carry pΔV around in every calculation, chemists add it to the energy once and for
+          all: the enthalpy H = U + pV. At constant pressure the heat is exactly ΔH, so tables of "heats of
+          reaction" are tables of ΔH. At constant volume (a sealed bomb calorimeter) the heat is ΔU. "Heat" on
+          its own is not a property of anything: it is energy on its way in or out, and how much is needed
+          depends on what else the system does meanwhile.
+        </p>
+        <h2>Why the Gibbs free energy</h2>
+        <p>
+          What decides whether something happens by itself is the second law: the total entropy, of the system
+          and its surroundings, must rise. At constant temperature and pressure the surroundings' change is
+          simple: they give the system heat ΔH, at temperature T, so their entropy changes by −ΔH/T (the
+          sneeze: <a href="../boiling/index.html">phase transitions</a>, part 3). The total change is
+          ΔS − ΔH/T = −(ΔH − TΔS)/T = −ΔG/T. So "G goes down" is the second law for the whole world,
+          written using only the system's own quantities: the Gibbs free energy G = H − TS is the system's
+          bookkeeping for the surroundings' entropy. That is why it appears everywhere in chemistry and biology,
+          where nearly everything happens at fixed temperature and pressure: in reactions, in folding, in
+          boiling (the phase with the lowest G wins), in binding (ΔG of binding is measured, and predicted
+          on the <a href="../fep/index.html">FEP page</a>).
+        </p>
+        <p>
+          And the entropy theme: in G = H − TS the entropy is multiplied by T, so the hotter it is, the more
+          entropy decides, and the more a process can afford to take in heat (ΔH > 0) if it gains entropy.
+        </p>
+        <div class="caveat">
+          <h3>Caveats</h3>
+          <ul>
+            <li>A nearly ideal 2D gas of repulsive molecules; a 3D ideal gas has c<sub>V</sub> = 3/2 and c<sub>p</sub> = 5/2.</li>
+            <li>The free lid has no friction, so a sudden heat burst sets it bouncing, and the bounce stores
+              energy that comes back slowly; heat slowly to see the textbook numbers.</li>
+            <li>The heater adds heat in exactly counted amounts by speeding every molecule up by the same factor.</li>
+          </ul>
+        </div>
+      </article>
+    </main>
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>
