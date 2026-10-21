@@ -567,3 +567,14 @@ Still to do: a molecule-count control on the other pages.
   and size, WebGPU against CUDA, a native recorder for videos instead of a CUDA port, and the
   plan. For phase transitions: a GPU lattice gas, Gibbs-ensemble MC and Shan–Chen lattice
   Boltzmann.
+
+### Seventh round: done (to confirm)
+
+- [ ] Full speed (item 23): every simulation now has "Slow motion / Full speed" buttons under its
+  controls and a live steps/s and τ/s readout. Slow motion is the old loop (the page's steps per
+  frame, then its readout). At full speed the simulation runs underneath: two batches of steps
+  always queued on the GPU, each sized to ~10 ms of GPU work, the picture drawn every frame
+  straight from GPU memory, and the page's readouts (and the energy plot) sampled five times a
+  second, with the steps paused briefly for each so page actions never race them. Measured on the
+  pot (6,000 molecules): 3,400 → 8,000 steps/s; at 48,000, 2,000 → 4,000. At 6,000 that is the
+  GPU's per-dispatch limit (~10 dispatches a step at ~9 µs each), not the page's any more.

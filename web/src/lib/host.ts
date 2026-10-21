@@ -33,16 +33,36 @@ export interface HostConfig {
 }
 
 /**
- * Owns one DiscSim on a canvas: creation, the run loop (with backpressure), theme colours and
- * the "no WebGPU" message.
+ * Owns one DiscSim on a canvas: creation, the run loop, theme colours and the "no WebGPU"
+ * message.
+ *
+ * Two ways to run:
+ * - **Slow motion** (the default): each animation frame runs the page's `stepsPerFrame`, then
+ *   waits for the page's readout before the next frame.
+ * - **Full speed**: the simulation runs underneath as fast as the GPU allows. A pump keeps two
+ *   batches of steps in flight, each sized to about 10 ms of GPU work. Every animation frame
+ *   draws straight from the GPU buffers (no readback). A few times a second the pump pauses
+ *   briefly while the page reads out and acts (its `afterSteps`), so page logic never races the
+ *   steps.
  */
 export class SimHost {
   sim: DiscSim | null = null;
   running = false;
   /** Steps run since creation, in either direction. */
   elapsed = 0;
-  private busy = false;
+  /** Full speed (see the class comment) rather than slow motion. */
+  fullSpeed = false;
+  private frameBusy = false;
   private paused = false;
+  // Full speed: batches in flight, the batch size (steps), and the sampling pause.
+  private inflight = 0;
+  private batch = 200;
+  private sampling = false;
+  private lastSample = 0;
+  private lastDone = 0;
+  // Speed readout: steps counted over a window.
+  private rate = { t0: 0, steps0: 0 };
+  private speedLabel: HTMLElement | null = null;
   readonly ready: Promise<void>;
   /** The energy and entropy plots (unless the page turned them off). */
   energy: EnergyPanel | null = null;
@@ -58,7 +78,92 @@ export class SimHost {
         this.energy = new EnergyPanel(box, cfg.energy ?? {});
       }
     }
+    this.addSpeedControl();
     this.ready = this.init();
+  }
+
+  /** Whether anything is in flight (a frame's readout, batches, a sample). */
+  private get busy() {
+    return this.frameBusy || this.inflight > 0 || this.sampling;
+  }
+
+  /** "Slow motion / Full speed" buttons and a live speed readout, under the page's buttons. */
+  private addSpeedControl() {
+    const panel = this.cfg.canvas.closest(".lab")?.querySelector("aside.panel");
+    if (!panel) return;
+    const box = document.createElement("div");
+    box.className = "speedmode";
+    const slow = document.createElement("button");
+    const fast = document.createElement("button");
+    slow.textContent = "Slow motion";
+    fast.textContent = "Full speed";
+    const label = document.createElement("span");
+    label.className = "speedlabel";
+    const show = () => {
+      slow.classList.toggle("on", !this.fullSpeed);
+      fast.classList.toggle("on", this.fullSpeed);
+    };
+    slow.onclick = () => {
+      this.fullSpeed = false;
+      show();
+    };
+    fast.onclick = () => {
+      this.fullSpeed = true;
+      show();
+      this.pump();
+    };
+    show();
+    box.append(slow, fast, label);
+    this.speedLabel = label;
+    const buttons = panel.querySelector(".buttons");
+    if (buttons) buttons.after(box);
+    else panel.prepend(box);
+  }
+
+  /** Full speed: keep two batches in flight; size them to ~10 ms of GPU work each. */
+  private pump() {
+    const sim = this.sim;
+    while (sim && this.sim === sim && this.running && this.fullSpeed && !this.paused && !this.sampling && !this.frameBusy && this.inflight < 2) {
+      const k = Math.round(this.batch);
+      const t0 = performance.now();
+      sim.step(k);
+      this.elapsed += k;
+      this.inflight++;
+      (sim.sync() as Promise<void>).then(() => {
+        this.inflight--;
+        const now = performance.now();
+        // With two batches queued, the time between completions is the GPU's time for one.
+        const dt = now - Math.max(t0, this.lastDone);
+        this.lastDone = now;
+        if (dt < 7) this.batch = Math.min(200000, this.batch * 1.4);
+        else if (dt > 14) this.batch = Math.max(20, this.batch / 1.4);
+        this.pump();
+      });
+    }
+  }
+
+  /** Full speed: pause the pump, let the page read out and act, resume. */
+  private async sample(sim: DiscSim) {
+    this.sampling = true;
+    while (this.inflight > 0) await new Promise((r) => setTimeout(r, 1));
+    try {
+      if (this.sim === sim) {
+        await this.cfg.afterSteps?.(sim);
+        if (this.energy) await this.energy.sample(sim);
+      }
+    } finally {
+      this.sampling = false;
+      this.pump();
+    }
+  }
+
+  /** Steps per second and τ per second, over the last half second or so. */
+  private updateSpeedLabel(sim: DiscSim) {
+    const now = performance.now();
+    if (!this.speedLabel || now - this.rate.t0 < 500) return;
+    const rate = ((this.elapsed - this.rate.steps0) / (now - this.rate.t0)) * 1000;
+    this.rate = { t0: now, steps0: this.elapsed };
+    this.speedLabel.textContent = this.running ? `${Math.round(rate).toLocaleString()} steps/s · ${(rate * sim.dt()).toFixed(rate * sim.dt() < 10 ? 1 : 0)} τ/s` : "";
   }
 
   get canvas(): HTMLCanvasElement {
@@ -109,6 +214,7 @@ export class SimHost {
     this.sim = null;
     this.running = false;
     this.elapsed = 0;
+    this.rate = { t0: performance.now(), steps0: 0 };
     this.cfg.overlay.style.display = "grid";
     this.cfg.overlay.textContent = "Starting the GPU…";
     this.sizeCanvas();
@@ -160,6 +266,19 @@ export class SimHost {
     requestAnimationFrame(() => this.frame());
     const sim = this.sim;
     if (!sim || this.paused) return;
+    this.updateSpeedLabel(sim);
+    if (this.fullSpeed) {
+      if (this.running) {
+        this.pump();
+        const now = performance.now();
+        if (!this.sampling && now - this.lastSample > 200) {
+          this.lastSample = now;
+          void this.sample(sim);
+        }
+      }
+      sim.render();
+      return;
+    }
     if (this.running && !this.busy) {
       const k = Math.max(1, Math.round(this.cfg.stepsPerFrame()));
       sim.step(k);
@@ -170,8 +289,8 @@ export class SimHost {
       const now = performance.now();
       const energy = this.energy && now - this.lastEnergy > 150 ? ((this.lastEnergy = now), this.energy.sample(sim)) : null;
       const wait = Promise.all([after instanceof Promise ? after : (sim.sync() as Promise<void>), energy]);
-      this.busy = true;
-      wait.finally(() => (this.busy = false));
+      this.frameBusy = true;
+      wait.finally(() => (this.frameBusy = false));
     }
     sim.render();
   }

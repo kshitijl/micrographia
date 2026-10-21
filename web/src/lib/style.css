@@ -479,3 +479,25 @@ table.results th {
 .with-sides.two {
   grid-template-columns: minmax(0, 1fr) repeat(2, 64px);
 }
+
+/* Slow motion / full speed, added under every simulation's buttons by SimHost. */
+.speedmode {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin: 4px 0 8px;
+}
+.speedmode button {
+  font-size: 13px;
+  padding: 4px 10px;
+}
+.speedmode button.on {
+  background: var(--accent);
+  color: var(--accent-ink);
+  border-color: var(--accent);
+}
+.speedlabel {
+  font: 12px var(--mono);
+  color: var(--muted);
+}

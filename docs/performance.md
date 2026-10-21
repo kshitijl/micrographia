@@ -23,6 +23,13 @@ Before the rest of this plan:
    (drawing straight from GPU buffers needs no readback) and to read out. The UI offers both:
    slow motion, at a chosen τ per second, or full simulation speed. Then bigger systems and many
    more timesteps, to see real boiling and vapour.
+   *Done (`SimHost`, "Full speed"):* two batches in flight, each ~10 ms of GPU work; rendering
+   every frame from GPU buffers; readouts five times a second with a short pause of the pump.
+   The pot at 6,000 molecules went from 3,400 to 8,000 steps/s, which is now the launch limit
+   (§1); at 48,000, 2,000 → 4,000. Faster still at small N needs fewer dispatches per step
+   (fusing kernels). Pages whose `afterSteps` does something per call rather than per τ (a
+   heater dosing a fixed amount per readout) act less often per τ at full speed; heaters should be
+   written per τ, as the latent-heat flask's is.
 2. **3D in the GPU engine**, for the demos that need it (Stokes–Einstein Brownian motion, the 3D
    dissertation page, real melting and crystallisation), with no 2D performance regression:
    dimension as a compile-time choice in the shaders, not a runtime branch in the hot loops.
