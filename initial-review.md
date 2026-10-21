@@ -757,3 +757,7 @@ docs/performance.md.
   common divisor, then F/e; new readout), counting (atoms counted from a weighed sample; new readout), light
   (h from the photoelectrons' slope, k from the spectrum's peak by Wien, N = R/k; new readout). A strip chart
   shows them all against 6.022 × 10²³. Opalescence and the sky do not count yet.
+- [ ] Track B8, new page `lines`: Doppler-broadened lines from a gas of hydrogen (m 1) and oxygen (m 16)
+  atoms, as a spectroscope looking along x would show them, in lab units (kT 1 = 1,000 K): widths within 1–3%
+  of λ√(kT/mc²); a readout weighs the glowing atoms from the width (Buisson and Fabry: hydrogen glows as
+  atoms). Drag a box to look at part of the gas, and heat, cool or shove it towards you (a blueshift).

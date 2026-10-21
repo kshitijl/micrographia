@@ -50,6 +50,7 @@ M1 Pro (Metal) unless stated. Run everything with `cargo xtask all`.
 | `avogadro` (reactions as bonds made and broken) | Why do gases combine in whole-number volumes? | 300 two-atom molecules and 300 atoms hold the same lid at 105 and 103 σ (natively); light-started H₂ + Cl₂ chain: 1.87 → 1.87 volumes with 256 of 300 HCl; Dalton's H + Cl → HCl: 2.01 → 1.14 |
 | `relativity` (relativistic hard disks, JavaScript) | Can a gas get hotter without getting faster? Is hot tea heavier? | Energy conserved to 1e-15 per molecule; E within 1% of Jüttner at kT 0.05, 0.73, 2.4 with every speed below c (mean 0.91 c at kT 2.4); pushed, inertia per molecule 1.03 (cold) and 3.09 (hot) against (E + pA)/c² = 1.025 and 3.07 |
 | `perrin` (a table, no simulation) | Thirteen ways to count atoms: do they agree? | Values of N measured on the millikan page (e = 1.604 × 10⁻¹⁹ C, N = F/e = 6.0 × 10²³) and the counting page (6.1 × 10²³) appear in the table; also from sedimentation, brownian (RT/Dζ), viscosity (Loschmidt) and light (h from the photoelectrons, k from Wien: 6.0 × 10²³) |
+| `lines` | Why are a hot gas's spectral lines blurred? | At 1,000 K: H line 14.8 pm wide (Doppler 14.9), O 4.5 (4.4); the widths weigh the atoms at 1.01 u and 15.2 u; at 2,220 K: 21.5 and 6.6 pm (22.2, 6.6) |
 
 Plus `selftest`: the GPU primitive and engine checks, run under the browser's shader compiler.
 
