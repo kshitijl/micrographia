@@ -79,6 +79,58 @@
         </aside>
       </section>
 
+      <h2>2. Lattice Boltzmann: a liquid that flows</h2>
+      <section class="lab">
+        <div class="stage" id="stageB" style="aspect-ratio: 1 / 1">
+          <canvas id="canvasB" aria-label="A fluid of liquid and vapour that flows"></canvas>
+          <div class="overlay" id="overlayB">Starting the GPU…</div>
+        </div>
+        <aside class="panel">
+          <div class="buttons">
+            <button class="primary" id="runB">Run</button>
+            <button id="dropB">Drop of liquid</button>
+            <button id="bubbleB">Bubble</button>
+          </div>
+          <label class="row">Temperature <span id="tBv">0.80 T<sub>c</sub></span>
+            <input type="range" id="tB" min="0.65" max="0.98" step="0.01" value="0.8" />
+          </label>
+          <label class="row">Gravity <span id="gBv">off</span>
+            <input type="range" id="gB" min="0" max="0.00006" step="0.000002" value="0" />
+          </label>
+          <label class="row">Hot plate <span id="hotBv">off</span>
+            <input type="range" id="hotB" min="0" max="1.6" step="0.02" value="0" />
+          </label>
+          <label class="row">Steps per frame <span id="spfBv">10</span>
+            <input type="range" id="spfB" min="1" max="50" step="1" value="10" />
+          </label>
+          <label class="row">Colour <span></span>
+            <select id="colorB">
+              <option value="0" selected>liquid or vapour</option>
+              <option value="1">temperature</option>
+            </select>
+          </label>
+          <div class="buttons">
+            <span class="k" style="align-self: center">Start again:</span>
+            <button id="startBMix">a quench</button>
+            <button id="startBPool">a pool</button>
+            <button id="startBDrop">a drop</button>
+          </div>
+          <div class="readouts">
+            <div class="readout"><div class="k">liquid density</div><div class="v" id="rlB">–</div></div>
+            <div class="readout"><div class="k">vapour density</div><div class="v" id="rvB">–</div></div>
+            <div class="readout"><div class="k">share that is liquid</div><div class="v" id="fB">–</div></div>
+            <div class="readout"><div class="k">steps</div><div class="v" id="stepsB">–</div></div>
+          </div>
+          <canvas class="plot" id="plotB" aria-label="Share of the fluid that is liquid, over time"></canvas>
+          <div class="legend"><span><i style="background: var(--species-2)"></i>share of the fluid that is liquid, over time</span></div>
+          <div class="status" id="statusB">
+            A fluid that separates into liquid (blue) and vapour by itself, and flows: drops merge into
+            bigger ones, and with gravity bubbles rise and drops fall. Add drops or bubbles by clicking with
+            the buttons on; turn on gravity and the hot plate to boil a pool.
+          </div>
+        </aside>
+      </section>
+
       <article class="notes">
         <h2>What the lattice gas keeps, and what it throws away</h2>
         <p>
@@ -112,10 +164,33 @@
           Which wins depends on temperature, through the free energy F = E − TS: the hotter it is, the more
           the entropy counts, so the more molecules the vapour holds at coexistence.
         </p>
+        <h2>Lattice Boltzmann: what it keeps</h2>
+        <p>
+          Lattice Boltzmann keeps what the lattice gas throws away: momentum and flow. Each site carries the
+          amounts of fluid moving in nine directions (still, the four neighbours, the four diagonals). Each
+          step they all move one site and then relax towards the mix that a fluid at rest, or moving, would
+          have there. Averaged, that is exactly the Navier–Stokes equations of a viscous fluid. To make it
+          separate into liquid and vapour, Shan and Chen added an attraction between neighbouring sites;
+          here its strength is set from a real equation of state (Carnahan–Starling, a better van der Waals),
+          so the fluid has a temperature and a critical point. It then makes bubbles, drops, surface tension
+          (a small drop is rounder and has a higher pressure inside, as Laplace said) and coalescence by
+          itself, at a few hundred million site updates a second.
+        </p>
+        <p>
+          With the hot plate on, a temperature field rides along with the fluid: heat diffuses from the plate,
+          flows with the fluid, and is taken up where liquid expands into vapour, the latent heat. Above the
+          plate the liquid becomes superheated, bubbles nucleate and grow, and gravity lifts them away: nucleate
+          boiling. Measured natively, its liquid densities match what the Shan–Chen model predicts for this
+          equation of state to 0.2% (0.3325 against 0.3321 at 0.75 T<sub>c</sub>); its vapour is less accurate (0.0109
+          against 0.0086; 0.0291 against 0.0278 at 0.85 T<sub>c</sub>).
+        </p>
         <div class="caveat">
           <h3>Caveats</h3>
           <ul>
-            <li>No momentum: molecules diffuse rather than flow, so droplets grow only by molecules
+            <li>Lattice Boltzmann's units are the lattice's: the liquid here is only ten to thirty times
+              denser than its vapour (water's liquid is 1,600 times denser than its steam), interfaces are a
+              few sites thick, and small spurious currents circulate around drops.</li>
+            <li>Lattice gas, no momentum: molecules diffuse rather than flow, so droplets grow only by molecules
               wandering from one to another (and liquid falls under gravity only by hopping down). The next
               method, lattice Boltzmann, has flow.</li>
             <li>The hot plate holds the bottom rows at a different temperature, a local heat bath: the

@@ -31,7 +31,7 @@ M1 Pro (Metal) unless stated. Run everything with `cargo xtask all`.
 | `mask` | How can a mask stop particles smaller than its holes? | Particles 3–27× smaller than the gaps caught on >20% of passes (~40%); the largest ≥0.2 more often (0.76) |
 | `dna` | How does PCR copy DNA; why do strands melt? | 8-bead strands melt ≥0.12 kT/ε above 4-bead ones (0.94 vs 0.73); single beads <20% paired at every temperature |
 | `crystal` (3D) | What happens when a crystal melts; why does a cooled liquid wait? | Cold FCC crystal stays >85% crystalline (96%, kT 0.33); 1.6 ε per atom of heat leaves kT stalled below 0.7 (0.62) with the crystal melting (35% left) |
-| `coexistence` | Why do liquid and vapour coexist; what happens at the critical point? | Lattice gas (Kawasaki MC on the GPU): liquid and vapour densities within 0.008 of Onsager's at kT = 0.45 and 0.5 (0.976/0.024 vs 0.978/0.022; 0.958/0.042 vs 0.956/0.044) |
+| `coexistence` | Why do liquid and vapour coexist; what happens at the critical point? | Lattice gas (Kawasaki MC on the GPU): liquid and vapour densities within 0.008 of Onsager's at kT = 0.45 and 0.5 (0.976/0.024 vs 0.978/0.022; 0.958/0.042 vs 0.956/0.044). Lattice Boltzmann (Shan–Chen): a pool on a 1.1 T_c plate grows vapour under it within 4,000 steps (bottom 1.09 T_c, ρ 0.016 under liquid at 0.30) |
 
 Plus `selftest`: the GPU primitive and engine checks, run under the browser's shader compiler.
 

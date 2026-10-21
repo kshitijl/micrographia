@@ -16,3 +16,19 @@ test("the lattice gas's liquid and vapour densities match Onsager's", async ({ p
   }
   expect(errors).toEqual([]);
 });
+
+// Lattice Boltzmann: a pool on a hot plate boils. Seen in Chrome: a vapour bubble grows on the
+// plate, rises and bursts at the surface, then the next.
+test("a lattice Boltzmann pool on a hot plate boils", async ({ page }) => {
+  test.setTimeout(120_000);
+  await page.goto("pages/coexistence/index.html");
+  await page.evaluate(() => window.coexistenceTest!.ready);
+  await page.evaluate(() => window.coexistenceTest!.boil(1.1, 0.00002, 4000));
+  const c = await page.evaluate(() => window.coexistenceTest!.fluidColumn([1, 5, 50, 150]));
+  console.log(`boiling: T/T_c and density up the middle: ${c.t.map((t, k) => `${t.toFixed(2)}/${c.rho[k].toFixed(3)}`).join("  ")}`);
+  // The plate has heated the bottom past the critical temperature, and vapour has formed there,
+  // under the pool (whose liquid is ~0.3).
+  expect(c.t[0]).toBeGreaterThan(1.0);
+  expect(c.rho[1]).toBeLessThan(0.1);
+  expect(c.rho[2]).toBeGreaterThan(0.25);
+});

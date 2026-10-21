@@ -1,4 +1,4 @@
-import { GasSim } from "../../src/lib/wasm";
+import { FluidSim, GasSim } from "../../src/lib/wasm";
 import { $, cssVar, SimHost } from "../../src/lib/host";
 import { LinesPlot } from "../../src/lib/plot";
 
@@ -189,12 +189,37 @@ drawPhaseDiagram();
 
 declare global {
   interface Window {
-    coexistenceTest?: { ready: Promise<void>; measure(t: number, sweeps: number, side: number): Promise<{ liquid: number; vapour: number; exact: [number, number] | null }> };
+    coexistenceTest?: {
+      ready: Promise<void>;
+      measure(t: number, sweeps: number, side: number): Promise<{ liquid: number; vapour: number; exact: [number, number] | null }>;
+      /** The fluid's temperature (in T_c) and density up the middle column, at these rows. */
+      fluidColumn(rows: number[]): Promise<{ t: number[]; rho: number[] }>;
+      /** Start the fluid as a pool with gravity `g` and the hot plate at `hot` T_c, run `steps`. */
+      boil(hot: number, g: number, steps: number): Promise<void>;
+    };
   }
 }
 
 window.coexistenceTest = {
   ready: host.ready,
+  async boil(hot: number, g: number, steps: number) {
+    gB.value = String(g);
+    hotB.value = String(hot);
+    startB = 0;
+    await hostB.create();
+    await hostB.exclusive(async (sim) => {
+      sim.step(steps);
+      await sim.sync();
+      sim.render();
+    });
+  },
+  async fluidColumn(rows: number[]) {
+    return hostB.exclusive(async (sim) => {
+      const { rho, temp } = (await sim.fields()) as { rho: Float32Array; temp: Float32Array };
+      const [w, tc] = [sim.width(), sim.critical_temperature()];
+      return { t: rows.map((y) => temp[y * w + w / 2] / tc), rho: rows.map((y) => rho[y * w + w / 2]) };
+    });
+  },
   /** Start from a slab at kT = t on a `side`² lattice, run `sweeps`, and average the densities
    * over the last half. */
   async measure(t: number, sweeps: number, side: number) {
@@ -227,3 +252,127 @@ window.coexistenceTest = {
     });
   },
 };
+
+// ---- 2. Lattice Boltzmann (crates/lattice: Shan–Chen with a Carnahan–Starling equation of
+// state). Natively its liquid density matches the model's prediction to 0.2%. ----
+
+const tB = $<HTMLInputElement>("tB");
+const gB = $<HTMLInputElement>("gB");
+const hotB = $<HTMLInputElement>("hotB");
+const spfB = $<HTMLInputElement>("spfB");
+let startB = 1; // 0 a pool, 1 a quench, 2 a drop
+let toolB: "drop" | "bubble" | null = null;
+const plotB = new LinesPlot($<HTMLCanvasElement>("plotB"), { xLabel: "steps", yLabel: "liquid share", yMin: 0, ink: () => cssVar("--muted"), rule: () => cssVar("--rule") });
+const fLine: { x: number; y: number }[] = [];
+let lastReadB = 0;
+
+async function readoutB(sim: FluidSim) {
+  const { rho } = (await sim.fields()) as { rho: Float32Array };
+  const [rv, rl] = Array.from(sim.coexistence());
+  const mid = 0.5 * (rv + rl);
+  const w = sim.width();
+  let [ls, ln, vs, vn] = [0, 0, 0, 0];
+  // Fluid sites only (rows 1..h−2); "deep" liquid and vapour, away from interfaces.
+  for (let i = w; i < rho.length - w; i++) {
+    const r = rho[i];
+    if (r > mid) {
+      ln++;
+      if (r > 0.9 * rl) ls += r;
+    } else {
+      vn++;
+      if (r < 2 * rv) vs += r;
+    }
+  }
+  const deepL = Array.from(rho).filter((r) => r > 0.9 * rl).length;
+  const deepV = Array.from(rho.subarray(w, rho.length - w)).filter((r) => r < 2 * rv).length;
+  const share = ln / Math.max(1, ln + vn);
+  fLine.push({ x: sim.steps(), y: share });
+  if (fLine.length > 2000) fLine.splice(0, 1);
+  plotB.set([{ points: fLine, color: cssVar("--species-2") }]);
+  $("rlB").textContent = deepL ? `${(ls / deepL).toFixed(3)} (model ${rl.toFixed(3)})` : "–";
+  $("rvB").textContent = deepV ? `${(vs / deepV).toFixed(4)} (model ${rv.toFixed(4)})` : "–";
+  $("fB").textContent = `${Math.round(100 * share)}%`;
+  $("stepsB").textContent = sim.steps().toLocaleString();
+}
+
+const hostB = new SimHost<FluidSim>({
+  canvas: $<HTMLCanvasElement>("canvasB"),
+  overlay: $("overlayB"),
+  scenario: "fluid",
+  create: (c, name, o) => FluidSim.create(c, name, o),
+  options: () => ({ w: 256, h: 256, temperature: Number(tB.value), start: startB, fill: startB === 0 ? 0.35 : startB === 2 ? 0.3 : 1.0, gravity: Number(gB.value), seed: 1 }),
+  names: [],
+  label: "lattice Boltzmann",
+  colors: ["--species-2", "--muted", "--plot-back", "--highlight"],
+  stepsPerFrame: () => Number(spfB.value),
+  afterSteps: async (sim) => {
+    const now = performance.now();
+    if (now - lastReadB < 250) return;
+    lastReadB = now;
+    await readoutB(sim);
+  },
+  energy: false,
+  stepName: "steps",
+  onCreate: async (sim) => {
+    fLine.length = 0;
+    sim.color_mode(Number($<HTMLSelectElement>("colorB").value));
+    applyHotB(sim);
+    await readoutB(sim);
+  },
+});
+
+function applyHotB(sim: FluidSim) {
+  const f = Number(hotB.value);
+  sim.set_hot_plate(f, 0.5);
+  $("hotBv").innerHTML = f > 0 ? `${f.toFixed(2)} T<sub>c</sub> (the middle half of the floor)` : "off";
+}
+
+$("runB").onclick = () => {
+  hostB.running = !hostB.running;
+  $("runB").textContent = hostB.running ? "Pause" : "Run";
+};
+const restartB = (s: number) => {
+  startB = s;
+  const run = hostB.running;
+  void hostB.create().then(() => (hostB.running = run));
+};
+$("startBMix").onclick = () => restartB(1);
+$("startBPool").onclick = () => {
+  if (Number(gB.value) === 0) {
+    gB.value = "0.00002";
+    showGB();
+  }
+  restartB(0);
+};
+$("startBDrop").onclick = () => restartB(2);
+tB.oninput = () => {
+  $("tBv").innerHTML = `${Number(tB.value).toFixed(2)} T<sub>c</sub>`;
+  hostB.sim?.set_temperature(Number(tB.value));
+};
+const showGB = () => ($("gBv").textContent = Number(gB.value) === 0 ? "off" : `${(Number(gB.value) * 1e6).toFixed(0)} × 10⁻⁶`);
+gB.oninput = () => {
+  showGB();
+  hostB.sim?.set_gravity(Number(gB.value));
+};
+hotB.oninput = () => hostB.sim && applyHotB(hostB.sim);
+spfB.oninput = () => ($("spfBv").textContent = spfB.value);
+$<HTMLSelectElement>("colorB").onchange = () => hostB.sim?.color_mode(Number($<HTMLSelectElement>("colorB").value));
+showGB();
+const setToolB = (t: typeof toolB) => {
+  toolB = toolB === t ? null : t;
+  $("dropB").classList.toggle("on", toolB === "drop");
+  $("bubbleB").classList.toggle("on", toolB === "bubble");
+  hostB.canvas.style.cursor = toolB ? "crosshair" : "";
+};
+$("dropB").onclick = () => setToolB("drop");
+$("bubbleB").onclick = () => setToolB("bubble");
+hostB.canvas.addEventListener("pointerdown", (e) => {
+  const sim = hostB.sim;
+  if (!sim || !toolB) return;
+  const r = hostB.canvas.getBoundingClientRect();
+  const [x0, y0, x1, y1] = Array.from(sim.view());
+  const x = x0 + ((e.clientX - r.left) / r.width) * (x1 - x0);
+  const y = y1 - ((e.clientY - r.top) / r.height) * (y1 - y0);
+  sim.paint(x, y, 0.06 * sim.width(), toolB === "drop");
+  if (!hostB.running) sim.render();
+});

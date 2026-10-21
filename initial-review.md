@@ -598,3 +598,11 @@ Still to do: a molecule-count control on the other pages.
   a hot plate, a dropper and a sponge to add or take molecules by hand, a quench / slab / pool
   start, the measured densities on Onsager's curve, and energy. Lattice Boltzmann and Gibbs
   ensemble next.
+- [ ] Part 2 of 3: Shan–Chen lattice Boltzmann on the GPU (`lattice::lbm`): D2Q9, the
+  Shan–Chen attraction set from the Carnahan–Starling equation of state at each site's
+  temperature (Yuan–Schaefer), exact-difference forcing, gravity, and a temperature field that
+  flows with the fluid, diffuses from a hot plate and is taken up where liquid expands (Gong–Cheng),
+  so a pool on a hot plate boils: bubbles grow on the plate, rise and burst. Natively the liquid
+  density matches the model's coexistence prediction to 0.2%, the vapour to 5–25%. ~17,000
+  steps/s on 256² in Chrome. Page `coexistence` part 2: temperature, gravity, hot plate, drops and
+  bubbles placed by hand, colour by density or temperature, quench / pool / drop starts.
