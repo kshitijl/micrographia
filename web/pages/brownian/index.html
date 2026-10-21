@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Brownian Motion</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 16 16%22%3E%3Cpolyline points=%222,12 5,6 7,10 10,3 13,9%22 stroke=%22%23c9503c%22 stroke-width=%221.5%22 fill=%22none%22/%3E%3C/svg%3E" />
+    <link rel="stylesheet" href="../../src/lib/style.css" />
+  </head>
+  <body>
+    <nav class="topbar"><div class="wrap"><a href="../../index.html">Micrographia</a></div></nav>
+    <main class="wrap">
+      <header class="question">
+        <div class="eyebrow">Einstein, 1905: Brownian motion</div>
+        <h1>Why do pollen grains jiggle in water? And how did that jiggling count atoms?</h1>
+        <p class="lede">
+          A grain five molecules across, in a liquid, in 3D. Nothing pushes it but the molecules around it, a
+          few hundred hitting it at once from every side, never quite balanced. Follow it under the microscope;
+          then throw it and feel the liquid hold it back. Einstein's 1905 insight was that the jiggle and the
+          drag are the same collisions, so together they reveal the temperature, and from it how many molecules
+          make up a gram.
+        </p>
+      </header>
+
+      <section class="lab">
+        <div class="left">
+          <div class="stage" id="stage" style="aspect-ratio: 1 / 1; cursor: grab">
+            <canvas id="canvas" aria-label="A large grain among liquid molecules, in 3D; drag to turn"></canvas>
+            <div class="overlay" id="overlay">Starting the GPU…</div>
+          </div>
+          <canvas id="scope" style="width: 100%; aspect-ratio: 1 / 1; margin-top: 10px; border-radius: 10px" aria-label="The microscope: the grain's path seen from above"></canvas>
+          <div class="legend"><span>The microscope: the grain's path seen from above, a dot every Δt, as Perrin drew them.</span></div>
+        </div>
+        <aside class="panel">
+          <div class="buttons">
+            <button class="primary" id="run">Run</button>
+            <button id="throw">Throw the grain</button>
+            <button id="clear">Clear the path</button>
+          </div>
+          <label class="row">Microscope: a dot every <span id="dtv">1 τ</span>
+            <input type="range" id="dt" min="0" max="5" step="1" value="2" />
+          </label>
+          <label class="row"><span><input type="checkbox" id="liquid" /> show the whole liquid</span><span></span></label>
+          <div class="readouts">
+            <div class="readout"><div class="k">spreading: D from ⟨r²⟩ = 6Dt (over 20 τ)</div><div class="v" id="d">–</div></div>
+            <div class="readout"><div class="k">friction ζ (from the throws)</div><div class="v" id="zeta">–</div></div>
+            <div class="readout"><div class="k">Einstein: kT = D × ζ</div><div class="v" id="kt">–</div></div>
+            <div class="readout"><div class="k">the thermometer: kT</div><div class="v" id="tm">–</div></div>
+          </div>
+          <canvas class="plot" id="msd" aria-label="Mean squared displacement against time"></canvas>
+          <div class="legend"><span><i style="background: var(--accent)"></i>⟨r²⟩ against the time between looks: a straight line, slope 6D</span></div>
+          <canvas class="plot" id="decay" aria-label="The thrown grain's speed against time"></canvas>
+          <div class="legend"><span><i style="background: var(--species-3)"></i>a thrown grain's speed (average of your throws), as a share of the throw</span></div>
+          <div class="status" id="status">
+            Press Run (full speed helps: the grain wanders slowly). Throw it a few times to measure the friction:
+            each throw starts it at 1 σ/τ in a random direction and follows how the liquid slows it.
+          </div>
+        </aside>
+      </section>
+
+      <article class="notes">
+        <h2>The jiggle</h2>
+        <p>
+          The grain is struck all the time from every side, and the blows almost cancel; what is left is a small,
+          random, ever-changing push, and the grain wanders. Look more often and the path is no smoother: each
+          straight segment, seen with a finer Δt, becomes a zigzag as tangled as the whole ("a polygonal contour
+          relatively just as complicated as the whole figure", Perrin wrote). That is why early observers who
+          timed the grains' "speed" got nonsense: there is no speed to measure, only a spreading. The grain's
+          distance from where it started grows as the square root of time: ⟨r²⟩ = 6Dt in 3D, with D the
+          diffusion coefficient.
+        </p>
+        <h2>The drag</h2>
+        <p>
+          Throw the grain and the liquid stops it: the same molecules that jiggle it, now hitting its front more
+          often than its back. The friction ζ is how hard the liquid resists motion (force per unit speed). Here it
+          is read from the throws: ζ = m / ∫ v(t)/v₀ dt, the grain's mass over how far a throw carries it, measured
+          in time. (The speed falls fast at first, then lingers: the liquid the grain set moving pushes it along a
+          while; that lingering counts.)
+        </p>
+        <h2>Einstein's relation, and the number of atoms</h2>
+        <p>
+          Einstein showed in 1905 that D = kT/ζ: the spreading and the drag are two faces of the same collisions,
+          and their product is the temperature, kT = Dζ. Measured here: the readout compares it with the
+          thermometer. For a sphere in water ζ = 6πηa (Stokes), so watching a grain of known radius a in water of
+          known viscosity η gives k = Dζ/T; and since the gas constant R = N k was known from gases, N = R/k:
+          Avogadro's number. Jean Perrin did exactly this from 1908, tracking grains of gamboge and mastic, and got
+          N ≈ 6–7 × 10²³, matching a dozen other methods; it won him the 1926 Nobel prize and ended the argument
+          over whether atoms are real.
+        </p>
+        <div class="caveat">
+          <h3>Caveats</h3>
+          <ul>
+            <li>The grain's D creeps up the longer you watch (0.010 over 5 τ, 0.017 over 20 τ, 0.022 over 80 τ):
+              the liquid's own swirls carry it, the hydrodynamic "long-time tail", and the periodic box shapes
+              them. The relation holds when D and ζ are measured over the same window (here, 20 τ for D and the
+              first 4 τ of the throws, where the throws' speed has died away; measured natively: D 0.0169, ζ 59,
+              Dζ = 1.0).</li>
+            <li>A grain only five molecules across: Perrin's were thousands of times bigger, and the liquid was a
+              continuum to them.</li>
+            <li>No heat bath: the whole simulation conserves its energy.</li>
+          </ul>
+        </div>
+      </article>
+    </main>
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>

@@ -695,3 +695,13 @@ docs/performance.md.
   against a fixed energy cost). Sprinkle salt in by clicking, stir with the spoon. New scenario
   `solubility`. Bug found on the way: the first version moved leftover water onto occupied rows,
   and the start exploded (everything "dissolved" even at ε = 6).
+- [ ] Track A2 / B11, new page `brownian` (3D): a grain 5 σ across in a WCA liquid; the microscope
+  view of its path at a chosen Δt; ⟨r²⟩ against time; throw it to measure the friction ζ = m / ∫v/v₀ dt;
+  Einstein's kT = Dζ against the thermometer (natively 0.0169 × 59 = 1.0 in a 16k box; a smaller box
+  gives 0.73, the periodic images' drag on D). New scenario `brownian3`, `BallSim.set_species_velocity`.
+- [ ] Engine: neighbour lists now keep each species pair within its own cutoff + skin, not the
+  largest cutoff's: the Brownian grain run went from ~1,280 s to 387 s natively, trajectories
+  bit-identical; helps every page with big and small particles (heavy, saline, dissolving).
+- [ ] Track B10, new page `sedimentation`: Perrin's grains settling under gravity into an
+  exponential haze; log-scale height histogram with the fit; kT = mgH against the thermometer; N
+  in Perrin's units; stir, gravity, warm and cool. New scenario `perrin`.

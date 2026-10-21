@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Perrin's Grains</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 16 16%22%3E%3Ccircle cx=%224%22 cy=%2213%22 r=%222%22 fill=%22%23c9a33c%22/%3E%3Ccircle cx=%229%22 cy=%2213%22 r=%222%22 fill=%22%23c9a33c%22/%3E%3Ccircle cx=%227%22 cy=%228%22 r=%222%22 fill=%22%23c9a33c%22/%3E%3Ccircle cx=%2212%22 cy=%223%22 r=%222%22 fill=%22%23c9a33c%22/%3E%3C/svg%3E" />
+    <link rel="stylesheet" href="../../src/lib/style.css" />
+  </head>
+  <body>
+    <nav class="topbar"><div class="wrap"><a href="../../index.html">Micrographia</a></div></nav>
+    <main class="wrap">
+      <header class="question">
+        <div class="eyebrow">The evidence for atoms: Perrin, 1908</div>
+        <h1>How did counting grains at different heights in a drop of water weigh a molecule?</h1>
+        <p class="lede">
+          Grains far too big to see molecules in, but small enough to jiggle, sink under gravity. They do not
+          all pile on the floor: the jiggling holds them up, and they settle into a thinning haze, like a tiny
+          atmosphere. Jean Perrin counted such grains, height by height, under a microscope. From how fast their
+          number falls with height he got the mass of a hydrogen atom.
+        </p>
+      </header>
+
+      <section class="lab">
+        <div class="left">
+          <div class="with-sides">
+            <div class="stage" id="stage" style="aspect-ratio: 8 / 3">
+              <canvas id="canvas" aria-label="Big grains among small molecules under gravity"></canvas>
+              <div class="overlay" id="overlay">Starting the GPU…</div>
+            </div>
+            <canvas class="side" id="hist" aria-label="How many grains at each height (log scale)"></canvas>
+          </div>
+          <div class="legend"><span>Right: grains at each height, on a log scale (each tick ×e): a straight line is an exponential. The dashed line is the fit.</span></div>
+        </div>
+        <aside class="panel">
+          <div class="buttons">
+            <button class="primary" id="run">Run</button>
+            <button id="spoon">Stir with a spoon</button>
+            <button id="clear">Restart the count</button>
+          </div>
+          <label class="row">Gravity <span id="gv">×1</span>
+            <input type="range" id="g" min="0.25" max="3" step="0.05" value="1" />
+          </label>
+          <div class="buttons">
+            <button id="heat">Warm it (+10% energy)</button>
+            <button id="cool">Cool it (−10%)</button>
+          </div>
+          <div class="readouts">
+            <div class="readout"><div class="k">height over which the grains thin by e</div><div class="v" id="hs">–</div></div>
+            <div class="readout"><div class="k">kT = m g H (from the grains)</div><div class="v" id="kt">–</div></div>
+            <div class="readout"><div class="k">kT from a thermometer (the molecules' energy)</div><div class="v" id="tm">–</div></div>
+            <div class="readout"><div class="k">Perrin's count: N = RT / (m g H)</div><div class="v" id="nav">–</div></div>
+          </div>
+          <div class="status" id="status">
+            Press Run (full speed helps). The grains start spread evenly and settle into a haze thinning upwards;
+            the count averages their heights over time. Stir them up, change gravity, warm or cool the gas, and
+            watch the haze rise or fall.
+          </div>
+        </aside>
+      </section>
+
+      <article class="notes">
+        <h2>The tiny atmosphere</h2>
+        <p>
+          Each grain is jostled by the molecules around it, and in equilibrium it carries the same average energy
+          as they do, ½kT per direction of motion (<a href="../heavy/index.html">heavy and light molecules</a>):
+          a grain is just a very big molecule. So the grains obey the same law as the air: their number thins
+          with height as e<sup>−mgh/kT</sup> (<a href="../atmosphere/index.html">the atmosphere</a>). The height over which
+          it thins by a factor e is H = kT/(mg). The air's H is about 8 km; for grains a billion billion times
+          heavier than an air molecule it is a fraction of a millimetre, small enough to see under a microscope.
+        </p>
+        <h2>Weighing a molecule</h2>
+        <p>
+          Perrin knew the grains' mass m (from their size and density, measured separately) and g, and he measured
+          H by counting. That gives kT = mgH. And he knew R, the gas constant, from the gas laws, per mole of gas:
+          R = N k. So N = RT/(mgH): Avogadro's number, from counting grains. Perrin found 6.8 × 10²³ (the modern
+          value is 6.02 × 10²³), from grains of gamboge resin about 0.4 µm across.
+        </p>
+        <p>
+          Here the same arithmetic is done in Perrin's units: the grains are given his gamboge's mass, and the box
+          is scaled so that its grains' haze is as tall as his. The readout is what he would have got from this
+          count. (The simulation knows its own N; the point is that the count recovers it.)
+        </p>
+        <h2>Entropy against gravity</h2>
+        <p>
+          Gravity alone would put every grain on the floor; the grains' entropy (all the ways they can be spread
+          through the height) holds them up. The balance is the haze. Warm the gas and the entropy wins more: the
+          haze rises, H growing in proportion to T.
+        </p>
+        <div class="caveat">
+          <h3>Caveats</h3>
+          <ul>
+            <li>2D, and the liquid is a thin gas of small molecules, so buoyancy (which Perrin, in water, had to
+              subtract: he used m minus the mass of water displaced) is only about 1% here and is ignored.</li>
+            <li>The grains are only three molecules across; near the floor they crowd each other, so the fit uses
+              the heights above the bottom 6 σ.</li>
+            <li>No heat bath: the energy is conserved (gravity's potential energy included); warming or cooling
+              adds or removes a counted amount.</li>
+          </ul>
+        </div>
+      </article>
+    </main>
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>

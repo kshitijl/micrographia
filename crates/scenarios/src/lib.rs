@@ -82,7 +82,7 @@ pub struct Scenario {
     pub radii: Vec<f64>,
 }
 
-pub const NAMES: &[&str] = &["cream", "corner", "boltzmann", "heavy", "oilwater", "heatflow", "osmosis", "compress", "rubber", "atmosphere", "carnot", "boiling", "lipids", "balloon", "smell", "binding", "fep", "cell", "buffer", "mask", "dna", "demon", "ensemble", "osmosis_free", "osmometer", "flask", "emulsion", "enthalpy", "humid", "solubility"];
+pub const NAMES: &[&str] = &["cream", "corner", "boltzmann", "heavy", "oilwater", "heatflow", "osmosis", "compress", "rubber", "atmosphere", "carnot", "boiling", "lipids", "balloon", "smell", "binding", "fep", "cell", "buffer", "mask", "dna", "demon", "ensemble", "osmosis_free", "osmometer", "flask", "emulsion", "enthalpy", "humid", "solubility", "perrin"];
 
 pub fn build(name: &str, o: &Options) -> Result<Scenario, String> {
     let sc = build_unchecked(name, o)?;
@@ -130,6 +130,7 @@ fn build_unchecked(name: &str, o: &Options) -> Result<Scenario, String> {
         "enthalpy" => Ok(enthalpy(o)),
         "humid" => Ok(humid(o)),
         "solubility" => Ok(solubility(o)),
+        "perrin" => Ok(perrin(o)),
         _ => Err(format!("unknown scenario {name}")),
     }
 }
@@ -1716,4 +1717,53 @@ pub fn solubility(o: &Options) -> Scenario {
         }
     }
     Scenario { warmup: 0, finish: Finish::None, marked: 1, grid: grid_for(n, b, 64.0), radii: vec![0.5, 0.5, 0.5], sys, state }
+}
+
+/// Perrin's sedimentation experiment: `grains` big heavy grains (species 1, diameter `size` σ,
+/// mass `mass`) among a thin gas of small molecules (species 0), under gravity strong enough to
+/// give the grains a scale height of `height` σ (the molecules' is `mass` times taller). Walls on
+/// the floor and ceiling; periodic sideways. The grains start spread evenly; they settle into
+/// the exponential profile, n(h) ∝ e^(−m g h / kT). Options: width, box (height, σ), n, grains,
+/// size, mass, height, temperature, seed.
+pub fn perrin(o: &Options) -> Scenario {
+    let (w, h) = (o.get("width", 80.0), o.get("box", 60.0));
+    let n = o.get("n", 300.0) as usize;
+    let k = o.get("grains", 40.0) as usize;
+    let size = o.get("size", 3.0);
+    let mass = o.get("mass", 30.0);
+    let t = o.get("temperature", 1.0);
+    let g = t / (mass * o.get("height", 12.0));
+    let seed = o.get("seed", 1.0) as u64;
+    let wca = |sigma: f64| Pair { eps: 1.0, sigma, rc: sigma * 2f64.powf(1.0 / 6.0) };
+    let sys = System::new([fixed::to_fixed(w), fixed::to_fixed(h)], init::DT, wca(1.0), vec![1.0, mass])
+        .with_pair(0, 1, wca(0.5 * (size + 1.0)))
+        .with_pair(1, 1, wca(size))
+        .with_walls(1, Wall::Soft, Wall::Soft)
+        .with_gravity([0.0, -g]);
+    // Grains on a loose grid, molecules at random in the gaps.
+    let mut pos: Vec<[f64; 2]> = vec![];
+    let cols = (k as f64 * w / h).sqrt().ceil() as usize;
+    let rows = k.div_ceil(cols);
+    for q in 0..k {
+        pos.push([(q % cols) as f64 * w / cols as f64 + 0.5 * w / cols as f64, 0.5 * size + 1.0 + (q / cols) as f64 * (h - size - 2.0) / rows as f64 + 0.25 * (h - size - 2.0) / rows as f64]);
+    }
+    let mut draw = 0u32;
+    while pos.len() < k + n && draw < 1000 * (k + n) as u32 {
+        let x = gpu_prims::threefry::uniform(seed, 61, 2 * draw) * w;
+        let y = 1.2 + gpu_prims::threefry::uniform(seed, 61, 2 * draw + 1) * (h - 2.4);
+        draw += 1;
+        let clear = pos.iter().enumerate().all(|(i, p)| {
+            let r = if i < k { 0.5 * (size + 1.0) * 1.1 } else { 1.1 };
+            let mut dx = (p[0] - x).abs();
+            dx = dx.min(w - dx);
+            dx * dx + (p[1] - y).powi(2) > r * r
+        });
+        if clear {
+            pos.push([x, y]);
+        }
+    }
+    let species: Vec<u32> = (0..pos.len()).map(|i| (i < k) as u32).collect();
+    let vel = init::maxwell(&sys, &species, t, seed + 2);
+    let state = State { pos: pos.iter().map(|p| [fixed::to_fixed(p[0]), fixed::to_fixed(p[1])]).collect(), vel, species };
+    Scenario { warmup: 0, finish: Finish::None, marked: 1, grid: [1, 30], radii: vec![0.5, 0.5 * size], sys, state }
 }
