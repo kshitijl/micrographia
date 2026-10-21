@@ -82,7 +82,7 @@ pub struct Scenario {
     pub radii: Vec<f64>,
 }
 
-pub const NAMES: &[&str] = &["cream", "corner", "boltzmann", "heavy", "oilwater", "heatflow", "osmosis", "compress", "rubber", "atmosphere", "carnot", "boiling", "lipids", "balloon", "smell", "binding", "fep", "cell", "buffer", "mask", "dna", "demon", "ensemble", "osmosis_free", "osmometer", "flask", "emulsion", "enthalpy", "humid", "solubility", "perrin", "avogadro", "heatcap", "cloud", "depletion", "sweat", "soda"];
+pub const NAMES: &[&str] = &["cream", "corner", "boltzmann", "heavy", "oilwater", "heatflow", "osmosis", "compress", "rubber", "atmosphere", "carnot", "boiling", "lipids", "balloon", "smell", "binding", "fep", "cell", "buffer", "mask", "dna", "demon", "ensemble", "osmosis_free", "osmometer", "flask", "emulsion", "enthalpy", "humid", "solubility", "perrin", "avogadro", "heatcap", "cloud", "depletion", "sweat", "soda", "cavity"];
 
 pub fn build(name: &str, o: &Options) -> Result<Scenario, String> {
     let sc = build_unchecked(name, o)?;
@@ -137,6 +137,7 @@ fn build_unchecked(name: &str, o: &Options) -> Result<Scenario, String> {
         "depletion" => Ok(depletion(o)),
         "sweat" => Ok(sweat(o)),
         "soda" => Ok(soda(o)),
+        "cavity" => Ok(cavity(o)),
         _ => Err(format!("unknown scenario {name}")),
     }
 }
@@ -2074,4 +2075,59 @@ pub fn soda(o: &Options) -> Scenario {
         state.species.push(1);
     }
     Scenario { warmup: 0, finish: Finish::None, marked: 0, grid: [1, 50], radii: vec![0.5; 3], sys, state }
+}
+
+/// Cavitation: a slab of LJ liquid (species 0) held between two walls made of rows of pinned
+/// beads that the liquid wets (LJ, depth `wet`): the floor (species 2) and a lid (species 3) that
+/// a page pulls up with set_species_velocity, stretching the liquid until it tears. Periodic
+/// sideways; hard planes above and below the bead rows; constant energy. Options: width, gap
+/// (between the bead rows, σ), density (of the liquid), wet, temperature, room (σ above the lid),
+/// seed.
+pub fn cavity(o: &Options) -> Scenario {
+    let w = o.get("width", 60.0);
+    let gap = o.get("gap", 30.0);
+    let room = o.get("room", 30.0);
+    let t = o.get("temperature", 0.45);
+    let seed = o.get("seed", 1.0) as u64;
+    let (y_floor, y_lid) = (1.0, 1.0 + gap);
+    let h = y_lid + room;
+    let wet = Pair { eps: o.get("wet", 1.0), sigma: 1.0, rc: 2.5 };
+    let mut sys = System::new([fixed::to_fixed(w), fixed::to_fixed(h)], init::DT, Pair::lj(2.5), vec![1.0, 1.0, 1.0, 1.0])
+        .with_walls(1, Wall::Hard, Wall::Hard)
+        .with_pinned(2)
+        .with_pinned(3);
+    for a in [2, 3] {
+        sys = sys.with_pair(0, a, wet);
+        for b in 1..4 {
+            sys = sys.with_pair(a, b, Pair::none());
+        }
+    }
+    let beads = (w / 1.0).round() as usize;
+    let mut pos: Vec<[f64; 2]> = vec![];
+    let mut species = vec![];
+    for (y, s) in [(y_floor, 2u32), (y_lid, 3u32)] {
+        for k in 0..beads {
+            pos.push([(k as f64 + 0.5) * w / beads as f64, y]);
+            species.push(s);
+        }
+    }
+    // The liquid on a jittered triangular-ish lattice between the rows, at `density`.
+    let (y0, y1) = (y_floor + 1.0, y_lid - 1.0);
+    let n = (o.get("density", 0.7) * w * (gap - 1.0)) as usize;
+    let cols = (n as f64 * w / (y1 - y0)).sqrt().round() as usize;
+    let rows = n.div_ceil(cols);
+    for k in 0..n {
+        let (i, j) = (k % cols, k / cols);
+        let jit = |q: u32| 0.1 * (gpu_prims::threefry::uniform(seed, 131, 2 * k as u32 + q) - 0.5);
+        pos.push([((i as f64 + 0.5 + 0.5 * (j % 2) as f64) * w / cols as f64 + jit(0)).rem_euclid(w), y0 + (j as f64 + 0.5) * (y1 - y0) / rows as f64 + jit(1)]);
+        species.push(0);
+    }
+    let mut vel = init::maxwell(&sys, &species, t, seed + 1);
+    for (v, &s) in vel.iter_mut().zip(&species) {
+        if s != 0 {
+            *v = [0, 0];
+        }
+    }
+    let state = State { pos: pos.iter().map(|p| [fixed::to_fixed(p[0]), fixed::to_fixed(p[1])]).collect(), vel, species };
+    Scenario { warmup: 0, finish: Finish::None, marked: 0, grid: [4, 4], radii: vec![0.5; 4], sys, state }
 }

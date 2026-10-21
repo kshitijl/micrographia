@@ -795,3 +795,14 @@ docs/performance.md.
   it attracts (CO₂) under a headspace, in a heat bath; a live temperature slider moves gas out of the drink
   when warmed and back when cooled (crowding ratio 5.2 cold, 2.5 warm); "Open the bottle" vents headspace CO₂
   as air and the drink fizzes out. New scenario `soda`.
+- [ ] Brainstorm items attempted and deferred (experiments kept, `#[ignore]`d):
+  - cavitation (`cavity` scenario: liquid between wetting bead walls, the lid pulled up): the liquid pulls
+    back (tension peaks at ~0.15–0.19 ε/σ² at 3% stretch) and tears a few σ under the lid, which keeps a
+    wet film; but 2D LJ's liquid range (kT ≈ 0.41–0.46) is too narrow for a strong, clean effect;
+  - Maxwell's demon (Smoluchowski's trapdoor, `demon` scenario): at equal temperatures the two sides differ
+    by 7% (the door's own area, it seems, not pumping), against 4% the other way with a cold door: the
+    page needs the free areas measured before it can say which is pumping.
+  Remaining brainstorm questions not yet started: Brazil nuts (needs inelastic collisions), nucleation and
+  cloud seeding, boiling nucleation, water's density maximum, water splitting and pH, a catalyst, heat
+  pumps, road salt, smog and inversions, rain shadow, the hot-air balloon, protein folding (HP lattice),
+  haemoglobin and CO, soap and viruses, drying droplets, insulin and heat, drug binding.
