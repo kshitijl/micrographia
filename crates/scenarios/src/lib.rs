@@ -557,7 +557,8 @@ pub fn carnot(o: &Options) -> Scenario {
 /// A pool of Lennard-Jones liquid (rc 2.5) with its vapour above, held at a temperature by a
 /// bulk bath, or heated from below by a hot plate (`plate`, a heat-bath floor) or a hot layer
 /// (`layer`, a bath in the bottom 3 σ), with an insulating lid; weak gravity keeps the liquid at the bottom (the vapour's scale height is
-/// far taller than the box). Options: n, width, height (σ), temperature, plate, layer, seed.
+/// far taller than the box). The vapour starts near saturation (`prefill`, default 1). Options: n,
+/// width, height (σ), temperature, plate, layer, prefill, seed.
 pub fn boiling(o: &Options) -> Scenario {
     let n = o.get("n", 6000.0) as usize;
     let (w, h) = (o.get("width", 200.0), o.get("height", 160.0));
@@ -579,7 +580,34 @@ pub fn boiling(o: &Options) -> Scenario {
     // The liquid starts as a slab at density 0.75 on the floor.
     let depth = n as f64 / (0.75 * w);
     let pool = System::new([fixed::to_fixed(w), fixed::to_fixed(depth + 2.0)], init::DT, Pair::lj(2.5), vec![1.0]).with_walls(1, Wall::Soft, Wall::Soft);
-    let state = init::fluid(&pool, n, t, o.get("seed", 1.0) as u64);
+    let seed = o.get("seed", 1.0) as u64;
+    let mut state = init::fluid(&pool, n, t, seed);
+    // The vapour starts near saturation (option `prefill`, default on): evaporation in 2D is so
+    // slow that a vapour space started empty is still filling after 1,000 τ (research §18.8).
+    // Saturated vapour density from the Gibbs ensemble and MD (crates/mc/tests/gibbs.rs), as a
+    // Clausius–Clapeyron fit: 0.023 at kT 0.40, 0.058 at 0.44.
+    if o.get("prefill", 1.0) > 0.0 {
+        let rho_v = 0.023 * (-4.07 * (1.0 / t.clamp(0.3, 0.47) - 1.0 / 0.40)).exp();
+        let (y0, y1) = (depth + 3.0, h - 2.0);
+        let count = (rho_v * w * (y1 - y0)).round() as usize;
+        let mut placed: Vec<[f64; 2]> = vec![];
+        let mut k = 0u32;
+        while placed.len() < count && k < 100 * count as u32 + 100 {
+            let x = gpu_prims::threefry::uniform(seed, 31, 2 * k) * w;
+            let y = y0 + gpu_prims::threefry::uniform(seed, 31, 2 * k + 1) * (y1 - y0);
+            k += 1;
+            if placed.iter().any(|q| (q[0] - x).powi(2) + (q[1] - y).powi(2) < 1.44) {
+                continue;
+            }
+            placed.push([x, y]);
+        }
+        let vel = init::maxwell(&sys, &vec![0; placed.len()], t, seed + 7);
+        for (q, v) in placed.iter().zip(vel) {
+            state.pos.push([fixed::to_fixed(q[0]), fixed::to_fixed(q[1])]);
+            state.vel.push(v);
+            state.species.push(0);
+        }
+    }
     Scenario { warmup: o.get("warmup", 10000.0) as usize, finish: Finish::None, marked: 0, grid: [1, 80], radii: vec![0.5], sys, state }
 }
 

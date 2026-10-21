@@ -359,13 +359,14 @@ window.boilingTest = {
   ready: host.ready,
   async measure(t: number, eq: number, n: number) {
     await host.ready;
-    // The vapour-pressure measurement uses the bulk heat bath (the page starts on the hot plate).
-    if (plate()) {
-      $<HTMLSelectElement>("heat").value = "bath";
-      await host.create();
-    }
+    // The vapour-pressure measurement uses the bulk heat bath (the page starts on the hot plate),
+    // and a pot started at this temperature, so its vapour starts near saturation (evaporation
+    // and condensation are too slow to change it much in a test's time; that the pre-filled
+    // density is the equilibrium one is checked natively, crates/md/tests/coexistence.rs).
+    $<HTMLSelectElement>("heat").value = "bath";
+    tIn.value = String(t);
+    await host.create();
     return host.exclusive(async (sim) => {
-      tIn.value = String(t);
       sim.set_thermostat(t, 0.5);
       for (let k = 0; k < eq / 1000; k++) sim.step(1000);
       clear();

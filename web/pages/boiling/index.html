@@ -85,7 +85,7 @@
             <div class="readout"><div class="k">latent heat (from the slope)</div><div class="v" id="lat">–</div></div>
           </div>
           <canvas class="plot tall" id="plot" aria-label="Log of vapour pressure against inverse temperature"></canvas>
-          <div class="status" id="status">Press Run. After changing the temperature, give the vapour about 100 τ to settle before recording.</div>
+          <div class="status" id="status">Press Run. The pot starts with its vapour near saturation. After you change the temperature, the vapour takes a long time to catch up (in 2D a molecule escapes, or lands, only rarely: hundreds of τ): run at full speed and record once the vapour pressure stops drifting.</div>
         </aside>
       </section>
 
@@ -241,6 +241,12 @@
               small, and the vapour is very dilute.</li>
             <li>The vapour pressure is taken as vapour density × kT (the vapour is nearly ideal): counting
               the vapour molecules is far less noisy than timing their rare hits on the ceiling.</li>
+            <li>Evaporation here is slow: a pot started with an empty vapour space was still filling after
+              1,000 τ, ten times longer than this page once assumed, and its early readings were about ten
+              times too low. So the pot now starts with its vapour near saturation, at the density the
+              Gibbs-ensemble method finds for the same molecules (see
+              <a href="../coexistence/index.html">liquid meets vapour</a>), which a molecular-dynamics run
+              then holds steady.</li>
             <li>A weak gravity holds the liquid at the bottom; a heat bath keeps the temperature, or
               (choose the hot plate) the floor heats the liquid from below through an insulating box,
               which heats it until everything reaches the plate's temperature. Record points only once

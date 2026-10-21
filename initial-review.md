@@ -611,9 +611,11 @@ Still to do: a molecule-count control on the other pages.
   ten times too low, because evaporation in 2D is slow and the vapour had not filled up: started
   empty, a slab's vapour was still rising after 1,000 τ; pre-filled at the Gibbs-ensemble value
   (0.024 at kT 0.40), it stayed there. The page's Clausius–Clapeyron slope was still sensible
-  (the filling rate scales like the vapour pressure), but its absolute pressures were low. To
-  fix on the phase-transitions page (start the vapour near saturation, or wait far longer); noted
-  in research §18.8.
+  (the filling rate scales like the vapour pressure), but its absolute pressures were low. Fixed:
+  the pot now starts with its vapour near saturation (a Clausius–Clapeyron fit through the
+  Gibbs-ensemble and MD values), and the page says that after a temperature change the vapour
+  takes hundreds of τ to catch up. p(0.40) is now 9.3 × 10⁻³ (was 6.8 × 10⁻⁴); noted in research
+  §18.8.
 - [ ] Part 3 of 3: Gibbs-ensemble Monte Carlo (new crate `mc`), the same 2D LJ as the MD pages,
   on the CPU as WebAssembly: its transfers and volume moves are sequential at the sizes it needs,
   so a GPU would be slower (written down in `mc`'s docs). At kT 0.40 it gives vapour 0.024 and
