@@ -14,12 +14,15 @@ pub struct RParams {
     pub min_radius: f32,
     pub highlight: u32,
     pub speed_scale: f32,
-    pub _pad: f32,
+    /// Nonzero: colour by the running average of each molecule's speed (see `smooth_heat`).
+    pub smoothed: f32,
     pub radii: [f32; 4],
     pub colors: [[f32; 4]; 4],
     pub highlight_color: [f32; 4],
     pub cool_color: [f32; 4],
     pub hot_color: [f32; 4],
+    /// Middle of the speed ramp; unused while its alpha is zero.
+    pub mid_color: [f32; 4],
 }
 
 pub const NO_HIGHLIGHT: u32 = u32::MAX;
@@ -43,6 +46,10 @@ pub struct Renderer {
     n: u32,
     /// The region the page asked to see; the drawn view is widened to the canvas's shape.
     requested_view: Option<([f32; 2], [f32; 2])>,
+    heat_params: wgpu::Buffer,
+    smooth: gpu_prims::util::Dispatch,
+    /// The running average has not been started (the next update replaces it).
+    heat_fresh: bool,
 }
 
 impl Renderer {
@@ -101,13 +108,16 @@ impl Renderer {
             min_radius: 0.0,
             highlight: NO_HIGHLIGHT,
             speed_scale: 0.0,
-            _pad: 0.0,
+            smoothed: 0.0,
             radii: r,
             colors: [[0.36, 0.22, 0.14, 1.0], [0.96, 0.90, 0.78, 1.0], [0.3, 0.5, 0.8, 1.0], [0.8, 0.3, 0.3, 1.0]],
             highlight_color: [0.9, 0.2, 0.2, 1.0],
             cool_color: [0.25, 0.45, 0.9, 1.0],
             hot_color: [0.95, 0.3, 0.2, 1.0],
+            mid_color: [0.0; 4],
         };
+        // The running average of each molecule's squared speed, by id (see heat.wgsl).
+        let heat = gpu_prims::util::storage(gpu, "heat", engine.n() as u64 * 4);
         let params_buf = gpu.device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("render params"),
             contents: bytemuck::bytes_of(&params),
@@ -120,9 +130,23 @@ impl Renderer {
                 wgpu::BindGroupEntry { binding: 2, resource: engine.buf.species.as_entire_binding() },
                 wgpu::BindGroupEntry { binding: 3, resource: engine.buf.ids.as_entire_binding() },
                 wgpu::BindGroupEntry { binding: 5, resource: engine.buf.vel.as_entire_binding() },
+                wgpu::BindGroupEntry { binding: 6, resource: heat.as_entire_binding() },
             ];
             gpu.device.create_bind_group(&wgpu::BindGroupDescriptor { label: None, layout: &p.get_bind_group_layout(0), entries: &entries })
         };
+        let heat_params = gpu.device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("heat params"),
+            size: 16,
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
+        let heat_module = gpu_prims::util::shader(gpu, "heat", include_str!("../shaders/heat.wgsl"));
+        let smooth = gpu_prims::util::Dispatch::new_at(
+            gpu,
+            &gpu_prims::util::pipeline(gpu, &heat_module, "smooth_heat"),
+            &[(0, &heat_params), (3, &engine.buf.ids), (5, &engine.buf.vel), (6, &heat)],
+            gpu_prims::util::groups(engine.n(), 256),
+        );
         let disc_group = group_for(&discs);
         let highlight_group = group_for(&highlight);
         let mut me = Self {
@@ -140,9 +164,27 @@ impl Renderer {
             background: wgpu::Color { r: 0.1, g: 0.08, b: 0.06, a: 1.0 },
             n: engine.n(),
             requested_view: None,
+            heat_params,
+            smooth,
+            heat_fresh: true,
         };
         me.update_min_radius();
         me
+    }
+
+    /// Fold the current velocities into the running average of each molecule's squared speed,
+    /// after `elapsed` time units, averaging over about `window` time units.
+    pub fn smooth_heat(&mut self, elapsed: f64, window: f64) {
+        let alpha = if self.heat_fresh { 1.0 } else { 1.0 - (-elapsed / window).exp() } as f32;
+        self.heat_fresh = false;
+        let p: [u32; 4] = [self.n, alpha.to_bits(), 0, 0];
+        self.gpu.queue.write_buffer(&self.heat_params, 0, bytemuck::cast_slice(&p));
+        gpu_prims::util::run(&self.gpu, &[&self.smooth]);
+    }
+
+    /// Start the running average afresh at the next update.
+    pub fn reset_heat(&mut self) {
+        self.heat_fresh = true;
     }
 
     pub fn resize(&mut self, width: u32, height: u32) {

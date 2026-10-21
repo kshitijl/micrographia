@@ -128,7 +128,11 @@ impl ForceMode {
     pub fn verlet_with_skin(sys: &System, n: usize, skin: f64) -> Self {
         let density = n as f64 / sys.area();
         let r = sys.rc_max() + skin;
-        let mut cap = (2.0 * std::f64::consts::PI * r * r * density).ceil() as u32 + 8;
+        // Room for twice the mean number of neighbours, but never less than a dense liquid's (ρσ²
+        // up to ~1.2): a box that is mostly empty (a liquid pool under its vapour, a droplet in a
+        // flask) has a low average density but a liquid as dense as any. Sizing from the average
+        // overflowed the lists there, silently dropping neighbours (kT went from 0.4 to ~3000).
+        let mut cap = (std::f64::consts::PI * r * r * (2.0 * density).max(1.2)).ceil() as u32 + 8;
         // Keep the list within one storage binding (128 MiB by default).
         let max_cap = ((128u64 << 20) / (4 * n.max(1) as u64)) as u32;
         cap = cap.min(max_cap);

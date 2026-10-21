@@ -32,6 +32,8 @@ pub struct DiscSim {
     observer: Observer,
     renderer: Renderer,
     initial: State,
+    /// Averaging time (τ) for `smooth_speed_colors`.
+    smooth_window: f64,
 }
 
 #[wasm_bindgen]
@@ -54,11 +56,14 @@ impl DiscSim {
         }
         let observer = Observer::new(&engine, sc.grid, sc.marked);
         let renderer = Renderer::new(&gpu, surface.expect("surface"), &engine, &sc.radii, w, h);
-        Ok(DiscSim { engine, observer, renderer, initial: state })
+        Ok(DiscSim { engine, observer, renderer, initial: state, smooth_window: 0.0 })
     }
 
     pub fn step(&mut self, k: u32) {
         self.engine.step(k as usize);
+        if self.renderer.params.smoothed > 0.0 {
+            self.renderer.smooth_heat(k as f64 * self.engine.sys.dt, self.smooth_window);
+        }
     }
 
     /// Resolves when the GPU has finished all work submitted so far.
@@ -442,10 +447,24 @@ impl DiscSim {
         self.renderer.params.speed_scale = if v_max > 0.0 { (1.0 / (v_max * self.engine.sys.dt * md_core::ONE as f64)) as f32 } else { 0.0 };
     }
 
-    /// Cool and hot colours for `color_by_speed` (8 floats, RGBA each).
+    /// Colour by each molecule's speed averaged over the last ~`window` τ (0: the instantaneous
+    /// speed). The average is of the squared speed, so the colour follows recent kinetic energy:
+    /// heat spreading through a liquid shows as a moving front rather than speckle.
+    pub fn smooth_speed_colors(&mut self, window: f64) {
+        self.smooth_window = window;
+        self.renderer.params.smoothed = if window > 0.0 { 1.0 } else { 0.0 };
+        self.renderer.reset_heat();
+        if window > 0.0 {
+            self.renderer.smooth_heat(0.0, window);
+        }
+    }
+
+    /// Colours for `color_by_speed`, RGBA each: cool and hot (8 floats), or cool, hot and a middle
+    /// colour for a three-stop ramp (12 floats).
     pub fn set_speed_colors(&mut self, c: Vec<f32>) {
         self.renderer.params.cool_color.copy_from_slice(&c[0..4]);
         self.renderer.params.hot_color.copy_from_slice(&c[4..8]);
+        self.renderer.params.mid_color = if c.len() >= 12 { [c[8], c[9], c[10], c[11]] } else { [0.0; 4] };
     }
 
     /// Overlay rectangles, 8 floats each: x0, y0, x1, y1 (σ), r, g, b, a.

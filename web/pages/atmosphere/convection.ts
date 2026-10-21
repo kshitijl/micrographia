@@ -14,7 +14,7 @@
 // up).
 import { $, cssVar } from "../../src/lib/host";
 import { cssColor } from "../../src/lib/theme";
-import { side, warmth } from "./profiles";
+import { side, warmth } from "../../src/lib/profiles";
 
 const NX = 128;
 const NZ = 64; // intervals; rows j = 0..NZ

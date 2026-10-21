@@ -10,12 +10,15 @@ struct RParams {
     highlight: u32,
     // If nonzero, colour by speed: t = |v_int| · speed_scale from cool_color to hot_color.
     speed_scale: f32,
-    _pad: f32,
+    // If nonzero (with speed_scale), colour by the running average of the speed (heat.wgsl).
+    smoothed: f32,
     radii: vec4<f32>,
     colors: array<vec4<f32>, 4>,
     highlight_color: vec4<f32>,
     cool_color: vec4<f32>,
     hot_color: vec4<f32>,
+    // A middle colour for the speed ramp (cool → mid → hot), used when its alpha is nonzero.
+    mid_color: vec4<f32>,
 }
 
 @group(0) @binding(0) var<uniform> R: RParams;
@@ -23,6 +26,7 @@ struct RParams {
 @group(0) @binding(2) var<storage, read> species: array<u32>;
 @group(0) @binding(3) var<storage, read> ids: array<u32>;
 @group(0) @binding(5) var<storage, read> vel: array<vec2<i32>>;
+@group(0) @binding(6) var<storage, read> heat: array<f32>;
 
 fn to_clip(p: vec2<f32>) -> vec2<f32> {
     return (p - R.view_lo) / (R.view_hi - R.view_lo) * 2.0 - 1.0;
@@ -59,7 +63,13 @@ fn vs(@builtin(vertex_index) vi: u32, @builtin(instance_index) ii: u32) -> VOut 
     var color = R.colors[s];
     if (R.speed_scale > 0.0) {
         let v = vec2<f32>(vel[ii]);
-        color = mix(R.cool_color, R.hot_color, clamp(length(v) * R.speed_scale, 0.0, 1.0));
+        let speed = select(length(v), sqrt(heat[ids[ii]]), R.smoothed > 0.0);
+        let t = clamp(speed * R.speed_scale, 0.0, 1.0);
+        if (R.mid_color.a > 0.0) {
+            color = select(mix(R.mid_color, R.hot_color, 2.0 * t - 1.0), mix(R.cool_color, R.mid_color, 2.0 * t), t < 0.5);
+        } else {
+            color = mix(R.cool_color, R.hot_color, t);
+        }
     }
     var out: VOut;
     if (highlight_only) {

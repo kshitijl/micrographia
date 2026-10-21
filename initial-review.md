@@ -410,6 +410,17 @@ Open questions (third round):
    temperature.
 13. A control for the number of particles, on every page really, but at least `atmosphere` and
    `boiling`, to find a count that looks good and still runs fast.
+14. `boiling` (pressure cooker): see the hot plate when it's on, and colour molecules by speed or
+   energy to track energy flows visually.
+15. `boiling`: show both raw per-molecule speed and a smoothed one; make the hot plate the default;
+   a vertical temperature indicator next to the box, like the atmosphere page.
+16. `boiling`: a new panel under it about latent heat: add heat in increments; it stays liquid,
+   then at some point it all goes to vapour.
+17. `boiling`: at 24k molecules it all starts red, perhaps from overlapping starting positions
+   and an energy blow-up.
+18. Besides the 1905 Einstein track, an "evidence for atoms" track (the Brownian motion paper in
+   both). Read the 2006 paper and Perrin's *Atoms* in `books/`; write up each 1905 paper (what the
+   page and simulation should be) and propose a page for each line of evidence in *Atoms*.
 
 ### Fourth round: done (to confirm)
 

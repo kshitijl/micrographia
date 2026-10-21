@@ -1,4 +1,4 @@
-import { $, cssVar } from "../../src/lib/host";
+import { $, cssVar } from "./host";
 
 /** One vertical profile beside a column: a bar per height slice (bottom of the canvas = floor),
  * from `lo` (left edge) to `hi` (right edge), with optional dashed comparison values and the

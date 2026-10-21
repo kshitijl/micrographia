@@ -80,7 +80,7 @@ pub struct Scenario {
     pub radii: Vec<f64>,
 }
 
-pub const NAMES: &[&str] = &["cream", "corner", "boltzmann", "heavy", "oilwater", "heatflow", "osmosis", "compress", "rubber", "atmosphere", "carnot", "boiling", "lipids", "balloon", "smell", "binding", "fep", "cell", "buffer", "mask", "dna", "demon", "ensemble", "osmosis_free", "osmometer"];
+pub const NAMES: &[&str] = &["cream", "corner", "boltzmann", "heavy", "oilwater", "heatflow", "osmosis", "compress", "rubber", "atmosphere", "carnot", "boiling", "lipids", "balloon", "smell", "binding", "fep", "cell", "buffer", "mask", "dna", "demon", "ensemble", "osmosis_free", "osmometer", "flask"];
 
 pub fn build(name: &str, o: &Options) -> Result<Scenario, String> {
     let sc = build_unchecked(name, o)?;
@@ -123,6 +123,7 @@ fn build_unchecked(name: &str, o: &Options) -> Result<Scenario, String> {
         "ensemble" => Ok(ensemble(o)),
         "osmosis_free" => Ok(osmosis_free(o)),
         "osmometer" => Ok(osmometer(o)),
+        "flask" => Ok(flask(o)),
         _ => Err(format!("unknown scenario {name}")),
     }
 }
@@ -911,6 +912,38 @@ pub fn cell(o: &Options) -> Scenario {
     let state = State { pos: pos.iter().map(|p| [fixed::to_fixed(p[0]), fixed::to_fixed(p[1])]).collect(), vel, species };
     // Membrane beads are drawn larger than their size so the cell boundary reads as a line.
     Scenario { warmup: 0, finish: Finish::None, marked: 1, grid: [8, 8], radii: vec![0.25, 0.5, 0.85], sys, state }
+}
+
+/// A droplet of Lennard-Jones liquid (rc 2.5) in a sealed square box with hard walls and no
+/// gravity, for heating in steps: it warms, then evaporates (taking in latent heat), then the
+/// vapour warms. Constant energy between the page's heat additions. Options: n, size (box side,
+/// σ; the default leaves room for all of it to evaporate below the critical point), temperature,
+/// density (of the droplet), seed.
+pub fn flask(o: &Options) -> Scenario {
+    let n = o.get("n", 1000.0) as usize;
+    let side = o.get("size", (n as f64 / 0.006).sqrt());
+    let t = o.get("temperature", 0.36);
+    let sys = System::new([fixed::to_fixed(side), fixed::to_fixed(side)], init::DT, Pair::lj(2.5), vec![1.0])
+        .with_walls(0, Wall::Hard, Wall::Hard)
+        .with_walls(1, Wall::Hard, Wall::Hard);
+    // A round droplet in the middle, on a square lattice at the liquid's density.
+    let a = (1.0 / o.get("density", 0.7)).sqrt();
+    let r = (n as f64 * a * a / std::f64::consts::PI).sqrt() + a;
+    let c = side / 2.0;
+    let k = (r / a).ceil() as i64;
+    let mut sites: Vec<[f64; 2]> = vec![];
+    for j in -k..=k {
+        for i in -k..=k {
+            let p = [c + i as f64 * a, c + j as f64 * a];
+            sites.push(p);
+        }
+    }
+    sites.sort_by(|p, q| ((p[0] - c).hypot(p[1] - c)).total_cmp(&(q[0] - c).hypot(q[1] - c)));
+    sites.truncate(n);
+    let species = vec![0u32; n];
+    let vel = init::maxwell(&sys, &species, t, o.get("seed", 1.0) as u64);
+    let state = State { pos: sites.iter().map(|p| [fixed::to_fixed(p[0]), fixed::to_fixed(p[1])]).collect(), vel, species };
+    Scenario { warmup: 0, finish: Finish::None, marked: 0, grid: [8, 8], radii: vec![0.5], sys, state }
 }
 
 #[cfg(test)]

@@ -1,6 +1,6 @@
 import { $, cssVar, SimHost } from "../../src/lib/host";
 import { LinesPlot } from "../../src/lib/plot";
-import { side, warmth } from "./profiles";
+import { side, warmth } from "../../src/lib/profiles";
 import "./convection";
 import { cssColor, onThemeChange } from "../../src/lib/theme";
 import type { DiscSim } from "../../src/lib/wasm";
