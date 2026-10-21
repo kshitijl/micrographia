@@ -9,6 +9,23 @@ engine. See `README.md`, `docs/status.md` and `docs/architecture.md`.
 - Commit often: after each change that works (a page fixed, a feature added, a test passing), not
   in big batches at the end. Commit locally; do not push unless asked.
 - Page review feedback goes into `initial-review.md` as it is given, with what was done about it.
+- Everything important the user says (decisions, ideas, verdicts, replies to the agent's
+  proposals) is checked in: verbatim and dated in `docs/decisions.md`, appended as it is said,
+  with outcomes in the relevant doc (`docs/direction.md` for direction and backlog). The repo is
+  the record, not an agent's memory outside it; nothing here is private.
+
+## Direction (2026-10-21; details in docs/direction.md §9–10)
+
+- The ~50 pages so far are prototypes. Next: review them, polish 2–5 into great pages, and deploy
+  them one by one, each with a video explainer (`cargo xtask record`).
+- Guiding questions: "How do we know atoms exist?" (the Perrin table, connected through Einstein
+  1905 to osmosis). Free energy as a theme throughout: it is the entropy of the whole universe, and
+  entropic effects grow with temperature.
+- Rahman is meant to be published: a modern, permissively licensed MD simulator, tested, on any
+  GPU and in the browser, with FEP, reversibility and exact reproducibility. Benchmark it against
+  other MD packages before deciding on more performance work. A JavaScript playground is planned.
+- MD is the heart of the site (atoms jiggling is the easiest sell), but use the right method for
+  each question. Theorist units, not SI.
 
 ## Code
 

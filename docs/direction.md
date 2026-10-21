@@ -2,7 +2,8 @@
 
 Written 2026-10-21, at the end of a long session that ran overnight: three new tracks of pages, a
 CPU SIMD engine and a video recorder. Section 9 records the user's replies and decisions, and
-overrides sections 1–8 where they disagree; section 10 is the resulting backlog. It records what was done, what we learnt, and what should
+overrides sections 1–8 where they disagree; section 10 is the resulting backlog. The user's
+replies are quoted verbatim in docs/decisions.md. It records what was done, what we learnt, and what should
 change. It is opinionated on purpose: the user asked what is stupid, what is pointless, and what
 we are not noticing.
 
