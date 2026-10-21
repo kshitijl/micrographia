@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Blue Sky, Milky Fluid</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 16 16%22%3E%3Ccircle cx=%228%22 cy=%228%22 r=%227%22 fill=%22%236fa8dc%22/%3E%3C/svg%3E" />
+    <link rel="stylesheet" href="../../src/lib/style.css" />
+  </head>
+  <body>
+    <nav class="topbar"><div class="wrap"><a href="../../index.html">Micrographia</a></div></nav>
+    <main class="wrap">
+      <header class="question">
+        <div class="eyebrow">The evidence for atoms: fluctuations and light</div>
+        <h1>Why is the sky blue? And why does a fluid turn milky at its critical point?</h1>
+        <p class="lede">
+          A perfectly even medium would scatter no light at all: every bit of it would be cancelled by another.
+          Light is scattered by unevenness, and a gas made of molecules is never even: by chance, some patches
+          hold a few more molecules than others. How much, and on what scale, decides the colour of the sky and
+          the milkiness of a fluid near its critical point. Here is a fluid of molecules on a grid, and the light
+          it would scatter.
+        </p>
+      </header>
+
+      <section class="lab">
+        <div class="left">
+          <div class="stage" id="stage" style="aspect-ratio: 1 / 1">
+            <canvas id="canvas" aria-label="A lattice fluid, molecules shown as dots"></canvas>
+            <div class="overlay" id="overlay">Starting the GPU…</div>
+          </div>
+        </div>
+        <aside class="panel">
+          <div class="buttons">
+            <button class="primary" id="run">Run</button>
+            <button id="reset">Start again</button>
+          </div>
+          <label class="row">Temperature kT <span id="tv">1.500</span>
+            <input type="range" id="t" min="0.57" max="5" step="0.005" value="1.5" />
+          </label>
+          <div class="status" style="margin-top: -4px">critical point: kT<sub>c</sub> = 0.567 (at half full, as here)</div>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 12px 0">
+            <div><div class="k">colour of the scattered light</div><div id="swatch" style="height: 54px; border-radius: 8px; border: 1px solid var(--rule)"></div></div>
+            <div><div class="k">brightness, against an ideal gas</div><div class="v" id="bright" style="font: 600 20px var(--mono)">–</div></div>
+          </div>
+          <div class="readouts">
+            <div class="readout"><div class="k">unevenness at the "blue" scale, S(k)</div><div class="v" id="sb">–</div></div>
+            <div class="readout"><div class="k">unevenness at the "red" scale</div><div class="v" id="sr">–</div></div>
+          </div>
+          <canvas class="plot" id="sk" aria-label="Unevenness S(k) against wavelength"></canvas>
+          <div class="legend"><span><i style="background: var(--accent)"></i>S(k): how uneven the fluid is at each wavelength (1: like an ideal gas)</span></div>
+          <div class="status" id="status">
+            Press Run. Very hot (kT ≳ 3), the molecules are spread nearly at random: the unevenness is small and the same
+            at every scale, and the scattered light is blue. Cooler, neighbours start to clump a little. Cool it towards the critical point: patches of crowding and
+            emptiness grow, as big as the light's wavelength, and the scattered light gets bright and white.
+          </div>
+        </aside>
+      </section>
+
+      <article class="notes">
+        <h2>Why blue</h2>
+        <p>
+          A molecule shaken by light re-radiates it, more strongly the faster it is shaken: the scattered intensity
+          goes as 1/λ⁴, so blue light (λ ≈ 450 nm) is scattered about six times more than red (700 nm). But that is
+          only half the story. In a perfectly even medium the waves scattered from different places cancel, and none
+          comes out sideways: that is why clear glass and pure water look clear. What survives is the scattering
+          from unevenness: the amount is proportional to the mean square excess of molecules in a patch the size of
+          the wavelength, S(k). In a gas the molecules are scattered at random, so a patch holding N molecules
+          on average holds N ± √N, and S is 1 at every scale. So the sky is blue: the 1/λ⁴ of each molecule, times the
+          random-number unevenness of air.
+        </p>
+        <h2>Counting molecules from the sky</h2>
+        <p>
+          The √N matters: the fewer and bigger the molecules, the more uneven the air for the same density, and the
+          brighter the sky. Rayleigh (1899) and Einstein and Smoluchowski (1910) turned this into a formula, and
+          comparing the sky's brightness with the sun's gives the number of molecules per cubic centimetre of air:
+          Perrin's table lists about 6 × 10²³ per mole from it, in agreement with his Brownian grains.
+        </p>
+        <h2>Why milky at the critical point</h2>
+        <p>
+          Near the critical point a fluid can hardly decide between liquid and vapour, and patches of each come and
+          go on every scale up to a "correlation length" that grows without limit as T approaches T<sub>c</sub>. The
+          unevenness S(k) at long wavelengths becomes huge, at visible wavelengths too: the fluid scatters light
+          thousands of times more than a gas, and, because the patches are as big as the light's wavelength, it
+          scatters all colours about equally. So it turns milky white: critical opalescence, which Andrews saw in
+          carbon dioxide in 1869. The measured brightness readout compares the scattering with an ideal gas's at
+          the same density.
+        </p>
+        <div class="caveat">
+          <h3>Caveats</h3>
+          <ul>
+            <li>A 2D lattice gas (the Ising model), not air or carbon dioxide, and its "wavelengths" are scaled to
+              the lattice: blue is a wave 43 sites long, red 65, keeping visible light's ratio (1.5), so that the
+              patches near the critical point can match them. Real light's wavelengths are hundreds of molecules
+              long.</li>
+            <li>The colour shown is the scattered light for white light coming in: intensity in each colour ∝ k⁴ S(k).</li>
+            <li>Monte Carlo moves (Kawasaki): a heat bath at the set temperature; the molecules' number is fixed at
+              half the sites, the critical density. Molecules only hop to neighbouring sites, so the long-wavelength
+              patches take longest to form, and near the critical point much longer still (critical slowing
+              down): give it time after each change, at full speed.</li>
+          </ul>
+        </div>
+      </article>
+    </main>
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>

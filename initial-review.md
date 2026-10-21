@@ -709,3 +709,8 @@ docs/performance.md.
   quanta, no GPU): heat flows until temperatures match, Boltzmann's distribution emerges, S = k ln Ω
   read out exactly, and the heat capacity measured as you heat one block alone, against Einstein's
   curve (freezing out when cold).
+- [ ] Tracks B12–B14, new page `opalescence`: the lattice gas at the critical density and the light
+  it would scatter (k⁴ S(k) at "blue", "green" and "red" wavelengths scaled to the lattice, as a
+  colour swatch and a brightness against an ideal gas). Very hot: S ≈ 1.2, blue; near T_c: S at
+  the red scale 178, white, 55 times brighter. New API `GasSim.sites()`. Notes: why the sky is blue,
+  counting molecules from its brightness, critical opalescence.

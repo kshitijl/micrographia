@@ -217,6 +217,15 @@ impl GasSim {
         })
     }
 
+    /// Resolves to a Uint8Array of every site (1: a molecule), row-major from the bottom row.
+    pub fn sites(&self) -> js_sys::Promise {
+        let fut = self.gas.read_occ();
+        future_to_promise(async move {
+            let occ: Vec<u8> = fut.await.into_iter().map(|x| x as u8).collect();
+            Ok(js_sys::Uint8Array::from(&occ[..]).into())
+        })
+    }
+
     /// Resolves to a Uint32Array: molecules in each 6 × 6 block, row-major from the bottom,
     /// `width / 6` blocks per row.
     pub fn blocks(&self) -> js_sys::Promise {
