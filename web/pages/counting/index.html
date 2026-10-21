@@ -87,6 +87,14 @@
             <li>A made-up isotope with a short half-life, so that the decay shows in minutes; radium's is 1,600 years.</li>
           </ul>
         </div>
+        <section class="about-sim" id="about-sim">
+          <h2>About this simulation</h2>
+          <ul>
+            <li>Method: not molecules but a Monte Carlo of independent atoms: in each sixtieth of a second, the number that decay is drawn from the Poisson distribution with mean (atoms left) × λ × Δt, and a tenth of them light the screen.</li>
+            <li>Energy: each decay releases its α particle's energy, which leaves the system; no ensemble, as decay is not an equilibrium.</li>
+            <li>Size: the number of atoms you put in; time step 1/60 s.</li>
+          </ul>
+        </section>
       </article>
     </main>
     <script type="module" src="./main.ts"></script>

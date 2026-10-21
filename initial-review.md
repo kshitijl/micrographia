@@ -727,3 +727,11 @@ docs/performance.md.
   curve, and the half-life from all the flashes (maximum likelihood: 61.7 s for a set 60 s; a fit of
   ln(counts) read 68–70 s, biased by dropping the empty late intervals); sample size, half-life and
   counting interval as sliders.
+- [ ] Track A3, new page `light`: the light in a hot box as its modes (Monte Carlo, Metropolis at the walls'
+  temperature): in lumps hν it follows Planck's law (within 1.2% near the peak at 3,000 K) and glows orange
+  (colour from the CIE curves); made classical, every mode gets kT and the box blazes violet (the
+  ultraviolet catastrophe), its energy off the chart. Photoelectric effect: grains of light on sodium
+  (W = 2.3 eV) free none at 650 nm however bright, and at 300 nm free electrons of at most hν − W = 1.83 eV
+  whatever the brightness (4× brighter: 3.9× the electrons); the wave theory frees them at any colour after
+  a delay, faster when brighter. Also: About sections added to counting, einstein-solid and millikan, which
+  had none (about.spec only looks at pages that exist when it runs).

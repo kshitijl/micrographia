@@ -40,6 +40,13 @@ M1 Pro (Metal) unless stated. Run everything with `cargo xtask all`.
 | `sedimentation` | How did Perrin weigh a molecule? | Grains settle into a haze with scale height 13.6 σ (12 expected), so kT from the grains is 1.13 against the thermometer's 1.03 |
 | `crystal` (3D) | What happens when a crystal melts; why does a cooled liquid wait? | Cold FCC crystal stays >85% crystalline (96%, kT 0.33); 1.6 ε per atom of heat leaves kT stalled below 0.7 (0.62) with the crystal melting (35% left) |
 | `coexistence` | Why do liquid and vapour coexist; what happens at the critical point? | Lattice gas (Kawasaki MC on the GPU): liquid and vapour densities within 0.008 of Onsager's at kT = 0.45 and 0.5 (0.976/0.024 vs 0.978/0.022; 0.958/0.042 vs 0.956/0.044). Lattice Boltzmann (Shan–Chen): a pool on a 1.1 T_c plate grows vapour under it within 4,000 steps (bottom 1.09 T_c, ρ 0.016 under liquid at 0.30). Gibbs ensemble: vapour 0.026 and liquid 0.737 at kT 0.40 against MD's 0.023 and 0.742 |
+| `brownian` (3D) | Why does a dust grain jiggle; how big is its friction? (Einstein's relation) | A grain 5 σ across in a WCA liquid: D from its wandering times ζ from throwing it gives Dζ = 0.77 (kT = 1; finite-size effect of the small box) |
+| `einstein-solid` (Monte Carlo of quanta) | What is entropy, counted; why does heat capacity freeze out? | Two blocks reach kT/ε within 10%; ln(count) against quanta slope within 15% of −ε/kT |
+| `opalescence` (lattice gas) | Why is the sky blue and a critical fluid milky? | S(k) near 1 (1.2) for a hot gas; 178 at long wavelengths near T_c |
+| `viscosity` | Why does a gas's viscosity not depend on its density? | Shear-wave decay: η 0.265 (density 0.02) and 0.311 (0.08) |
+| `millikan` (Langevin model) | How do we know charge comes in lumps? | 30 drops' charges all within 0.25 e of a whole number |
+| `counting` (Monte Carlo) | How did anyone count atoms one at a time? | Counts per interval: mean 2.2, variance 2.1 (Poisson); half-life 61.7 s by maximum likelihood (set 60 s) |
+| `light` (Monte Carlo of modes, and a model) | Why does a hot stove glow red; is light made of grains? | Quantum modes within 1.2% of Planck near the peak at 3,000 K and orange; classical ones kT each (violet 1.04 kT) and blue; photoelectrons none at 650 nm ×10, at most hν − W = 1.83 eV at 300 nm whatever the brightness |
 
 Plus `selftest`: the GPU primitive and engine checks, run under the browser's shader compiler.
 

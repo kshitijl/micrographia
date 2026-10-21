@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Grains of Light</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 16 16%22%3E%3Ccircle cx=%228%22 cy=%228%22 r=%226%22 fill=%22%23ffb347%22/%3E%3C/svg%3E" />
+    <link rel="stylesheet" href="../../src/lib/style.css" />
+  </head>
+  <body>
+    <nav class="topbar"><div class="wrap"><a href="../../index.html">Micrographia</a></div></nav>
+    <main class="wrap">
+      <header class="question">
+        <div class="eyebrow">Einstein, 1905: light quanta (and Planck, 1900)</div>
+        <h1>Why does a hot stove glow red and not blue? And is light made of grains?</h1>
+        <p class="lede">
+          Heat a box and it fills with light. Classical physics says the light should share the heat equally among
+          all its ways of vibrating, and since there are endlessly more short-wavelength ways than long ones, a hot
+          stove should blaze ultraviolet. It glows red. Planck fixed it in 1900 by letting light's energy come only in
+          lumps hν; Einstein, in 1905, said the lumps are real: light is made of grains.
+        </p>
+      </header>
+
+      <h2>1. Light in a hot box</h2>
+      <section class="lab">
+        <div class="left">
+          <div id="glow" style="height: 120px; border-radius: 10px; border: 1px solid var(--rule)"></div>
+          <div class="legend"><span>The colour of the glow at this temperature (Planck's spectrum, seen by eye)</span></div>
+          <canvas class="plot tall" id="spectrum" aria-label="Energy of the light in the box at each frequency"></canvas>
+          <div class="legend"><span><i style="background: var(--accent)"></i>the light in the box (Monte Carlo of its modes)</span><span><i style="background: var(--muted)"></i>Planck's law</span><span><i style="background: var(--highlight)"></i>classical (Rayleigh–Jeans): kT in every mode</span></div>
+        </div>
+        <aside class="panel">
+          <div class="buttons">
+            <button class="primary" id="run">Run</button>
+            <button id="mode">Make light classical</button>
+          </div>
+          <label class="row">Temperature <span id="tv">3,000 K</span>
+            <input type="range" id="t" min="800" max="8000" step="100" value="3000" />
+          </label>
+          <div class="readouts">
+            <div class="readout"><div class="k">energy in the light, compared with Planck's law</div><div class="v" id="nq">–</div></div>
+            <div class="readout"><div class="k">peak of the spectrum</div><div class="v" id="peak">–</div></div>
+            <div class="readout"><div class="k">energy per mode at the peak, and in violet (in kT)</div><div class="v" id="per">–</div></div>
+          </div>
+          <div class="status" id="status">
+            Each of thousands of ways the light can vibrate in the box (its modes, one for each frequency and direction)
+            trades energy with the hot walls at random, a quantum hν at a time. Press Run and watch the spectrum fill in.
+            Then make the light classical (any amount of energy allowed) and watch it run away to the violet.
+          </div>
+        </aside>
+      </section>
+
+      <h2>2. Light knocking out electrons</h2>
+      <section class="lab">
+        <div class="left">
+          <canvas id="metal" style="width: 100%; aspect-ratio: 2 / 1; border-radius: 10px" aria-label="Light falling on a metal, knocking out electrons"></canvas>
+          <div class="legend"><span>Light falls on a metal (bottom); each electron knocked out flies up at its speed.</span></div>
+          <canvas class="plot" id="ke" aria-label="The fastest electrons' energy against the light's frequency"></canvas>
+          <div class="legend"><span><i style="background: var(--accent)"></i>the fastest electrons' energy, at each colour you try</span><span><i style="background: var(--muted)"></i>Einstein: hν − W</span></div>
+        </div>
+        <aside class="panel">
+          <div class="buttons">
+            <button class="primary" id="run2">Run</button>
+            <button id="theory">Wave theory</button>
+          </div>
+          <label class="row">Colour (wavelength) <span id="lv">400 nm</span>
+            <input type="range" id="lambda" min="200" max="700" step="5" value="400" />
+          </label>
+          <label class="row">Brightness <span id="bv">×1</span>
+            <input type="range" id="bright" min="0.1" max="10" step="0.1" value="1" />
+          </label>
+          <div class="readouts">
+            <div class="readout"><div class="k">electrons per second</div><div class="v" id="rate">–</div></div>
+            <div class="readout"><div class="k">the fastest electrons' energy</div><div class="v" id="kemax">–</div></div>
+          </div>
+          <div class="status" id="status2">
+            The metal is sodium (it takes W = 2.3 eV to free an electron). Try red light, however bright; then violet,
+            however dim. Then switch to the wave theory, in which light's energy pours continuously onto every electron.
+          </div>
+        </aside>
+      </section>
+
+      <article class="notes">
+        <h2>The ultraviolet catastrophe</h2>
+        <p>
+          In a box, light can vibrate in a set of standing waves, its modes, and the number of modes with frequencies near ν
+          grows as ν²: there are far more ways to fit short waves than long ones. Classical physics gives every mode the same
+          average energy, kT (equipartition), so the energy at frequency ν would grow as ν² without end: a hot stove would glow
+          violet, then ultraviolet, with infinite total energy. That is the red line, and it is what the "classical" button
+          gives.
+        </p>
+        <h2>Planck's lumps</h2>
+        <p>
+          Planck supposed (1900) that light of frequency ν exchanges energy with matter only in lumps hν. A mode whose lump is
+          much bigger than kT is then almost never excited: the walls rarely have that much to spare, e<sup>−hν/kT</sup>. The high modes
+          freeze out, as the cold diamond's vibrations do in the <a href="../einstein-solid/index.html">Einstein solid</a>, and
+          the spectrum rises, peaks and falls: Planck's law. Its peak moves with temperature (Wien's law, λ<sub>peak</sub> ≈
+          2.9 mm·K / T): a stove at 1,000 K glows dull red at the very edge of the visible, the sun's surface at 5,800 K white.
+        </p>
+        <h2>Einstein's grains, and the photoelectric effect</h2>
+        <p>
+          Einstein went further in 1905: he showed that the entropy of dim high-frequency light depends on its volume exactly as a
+          gas's does, as if it were made of independent particles of energy hν each, and drew the consequence. A grain of light
+          hitting a metal gives all its energy to one electron, which escapes with hν − W if hν is more than the work W needed to
+          free it, and not at all otherwise, however many grains arrive. So: below a threshold frequency no electrons, however
+          bright; above it, electrons at once, however dim; brighter light means more electrons, not faster ones; and the fastest
+          electrons' energy rises in a straight line with frequency, of slope h. Millikan, who set out to disprove it, confirmed
+          every point by 1916. The wave theory predicts the opposite at every point: any colour works if bright enough, after a
+          delay while the energy builds up, and brighter means faster.
+        </p>
+        <div class="caveat">
+          <h3>Caveats</h3>
+          <ul>
+            <li>Part 1 is not molecules: a Monte Carlo of the box's light modes (frequencies up to the ultraviolet, with ν² as
+              many modes per frequency as in a real box), each gaining or losing a quantum hν at a time with the Metropolis rule at
+              the walls' temperature: a heat bath. The classical button lets each mode's energy change continuously instead.</li>
+            <li>The glow's colour is Planck's spectrum weighted by rough sensitivities of the eye's three kinds of cone.</li>
+            <li>Part 2 is a model: grains arriving at random at a rate set by the brightness, each freeing an electron with
+              hν − W less a random share lost on the way out (so hν − W is the most); the wave theory's electrons absorb energy
+              continuously.</li>
+          </ul>
+        </div>
+        <section class="about-sim" id="about-sim">
+          <h2>About this simulation</h2>
+          <ul>
+            <li>Method: Monte Carlo of the light's modes: 80 frequency bins up to 1.2 × 10¹⁵ Hz with 300 sample modes each (standing for the ν² modes per frequency of a real box); each mode is offered a gain or loss of one quantum hν (or, when classical, any amount up to kT) and takes it by the Metropolis rule. The photoelectric part is a model: grains arriving at random, or a wave pouring energy steadily onto 120 surface electrons.</li>
+            <li>Ensemble: canonical: the box's walls are a heat bath at the temperature you set, which the modes trade energy with.</li>
+            <li>Size: 24,000 modes; one sweep (every mode offered a change once) per frame. Time step of the photoelectric part: one frame.</li>
+          </ul>
+        </section>
+      </article>
+    </main>
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>

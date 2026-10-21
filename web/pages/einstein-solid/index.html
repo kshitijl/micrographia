@@ -84,6 +84,14 @@
             <li>One direction of vibration per atom (a 1D oscillator), so the classical value is 1k per atom.</li>
           </ul>
         </div>
+        <section class="about-sim" id="about-sim">
+          <h2>About this simulation</h2>
+          <ul>
+            <li>Method: Monte Carlo of quanta: two blocks of 30 × 30 Einstein oscillators, each holding a whole number of quanta ε; a step moves one quantum from a random atom to another (across the contact when the blocks touch).</li>
+            <li>Ensemble: microcanonical: the total number of quanta, so the energy, is fixed except when you add heat; every arrangement of the quanta is equally likely in the long run.</li>
+            <li>Size: 900 atoms a block; 40,000 hops per frame.</li>
+          </ul>
+        </section>
       </article>
     </main>
     <script type="module" src="./main.ts"></script>

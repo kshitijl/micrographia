@@ -87,6 +87,14 @@
             <li>The drop's charge is drawn at random (1 to 8 e); an X-ray burst changes it by one or two e, either way.</li>
           </ul>
         </div>
+        <section class="about-sim" id="about-sim">
+          <h2>About this simulation</h2>
+          <ul>
+            <li>Method: Langevin (Brownian) dynamics of one oil drop: each step moves it by the forces (gravity, buoyancy, the field) over its Stokes friction 6πηa, times Δt, plus a random step √(2D Δt), with D = kT / 6πηa.</li>
+            <li>Ensemble: the air is a heat bath at 20 °C (the random kicks and the friction balance at kT); the drop itself has no inertia at these sizes.</li>
+            <li>Size: one drop in real units (oil 920 kg/m³, air viscosity 1.82 × 10⁻⁵ Pa s, plates 8 mm apart); time step 2 ms.</li>
+          </ul>
+        </section>
       </article>
     </main>
     <script type="module" src="./main.ts"></script>
