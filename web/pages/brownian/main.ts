@@ -106,9 +106,8 @@ function show(sim: BallSim, pos: Float32Array) {
   sim.color_by_values(v);
 }
 
-async function readout(sim: BallSim) {
-  const { pos } = (await sim.all_positions()) as { pos: Float32Array };
-  const q = [pos[3 * GRAIN], pos[3 * GRAIN + 1], pos[3 * GRAIN + 2]];
+/** Add the grain's position to its path (unwrapped). */
+function track(sim: BallSim, q: number[]) {
   if (last) for (let a = 0; a < 3; a++) {
     let d = q[a] - last[a];
     d -= box[a] * Math.round(d / box[a]);
@@ -117,6 +116,11 @@ async function readout(sim: BallSim) {
   last = q;
   path.push([sim.steps() * sim.dt(), ...acc]);
   if (path.length > 20000) path.splice(0, 1);
+}
+
+async function readout(sim: BallSim) {
+  const { pos } = (await sim.all_positions()) as { pos: Float32Array };
+  track(sim, [pos[3 * GRAIN], pos[3 * GRAIN + 1], pos[3 * GRAIN + 2]]);
   show(sim, pos);
   drawScope();
   const lags = [1, 2, 5, 10, 20, 40];
@@ -233,9 +237,10 @@ window.brownianTest = {
   /** Follow the grain for `steps` (a look every 100 steps), throw it `throwsN` times; D, ζ, Dζ. */
   async measure(steps: number, throwsN: number) {
     return host.exclusive(async (sim) => {
+      // Only the grain's position at each look (the page's full readout is slower).
       for (let k = 0; k < steps / 100; k++) {
         sim.step(100);
-        await readout(sim);
+        track(sim, Array.from((await sim.positions_of(new Uint32Array([GRAIN]))) as Float64Array));
       }
       const d = msdAt(LAG) / (6 * LAG);
       for (let k = 0; k < throwsN; k++) {

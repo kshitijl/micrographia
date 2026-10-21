@@ -705,3 +705,7 @@ docs/performance.md.
 - [ ] Track B10, new page `sedimentation`: Perrin's grains settling under gravity into an
   exponential haze; log-scale height histogram with the fit; kT = mgH against the thermometer; N
   in Perrin's units; stir, gravity, warm and cool. New scenario `perrin`.
+- [ ] Track B18, new page `einstein-solid`: two blocks of Einstein oscillators (Monte Carlo of
+  quanta, no GPU): heat flows until temperatures match, Boltzmann's distribution emerges, S = k ln Ω
+  read out exactly, and the heat capacity measured as you heat one block alone, against Einstein's
+  curve (freezing out when cold).

@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>The Einstein Solid</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 16 16%22%3E%3Crect x=%222%22 y=%222%22 width=%225%22 height=%225%22 fill=%22%234f7cc4%22/%3E%3Crect x=%229%22 y=%229%22 width=%225%22 height=%225%22 fill=%22%23c9503c%22/%3E%3C/svg%3E" />
+    <link rel="stylesheet" href="../../src/lib/style.css" />
+  </head>
+  <body>
+    <nav class="topbar"><div class="wrap"><a href="../../index.html">Micrographia</a></div></nav>
+    <main class="wrap">
+      <header class="question">
+        <div class="eyebrow">Einstein, 1907: the quantum solid</div>
+        <h1>Why does a cold diamond need almost no heat to warm it? And how does energy spread itself out?</h1>
+        <p class="lede">
+          Two blocks of a solid, each a grid of atoms vibrating in place. In Einstein's picture each atom's
+          vibration holds energy only in whole lumps, quanta of size ε. The quanta hop at random from atom to
+          atom, every arrangement as likely as any other. That is all; watch what comes out.
+        </p>
+      </header>
+
+      <section class="lab">
+        <div class="left">
+          <canvas id="grid" style="width: 100%; aspect-ratio: 2 / 1; border-radius: 10px" aria-label="Two blocks of oscillators, each coloured by how many quanta it holds"></canvas>
+          <div class="legend"><span>Left block and right block: each square an atom, darker the more quanta it holds. Click a block to add heat to it; the bar between them is the contact.</span></div>
+          <canvas class="plot" id="dist" aria-label="How many atoms hold 0, 1, 2, ... quanta, on a log scale"></canvas>
+          <div class="legend"><span><i style="background: var(--species-2)"></i>left</span><span><i style="background: var(--species-3)"></i>right</span><span>atoms holding n quanta (log scale): a straight line is Boltzmann's e<sup>−nε/kT</sup></span></div>
+        </div>
+        <aside class="panel">
+          <div class="buttons">
+            <button class="primary" id="run">Run</button>
+            <button id="contact">Separate the blocks</button>
+            <button id="reset">Start again</button>
+          </div>
+          <label class="row">Heat per click <span id="dqv">200 quanta</span>
+            <input type="range" id="dq" min="20" max="2000" step="20" value="200" />
+          </label>
+          <div class="readouts">
+            <div class="readout"><div class="k">quanta: left, right</div><div class="v" id="q">–</div></div>
+            <div class="readout"><div class="k">temperature kT/ε: left, right</div><div class="v" id="t">–</div></div>
+            <div class="readout"><div class="k">entropy S/k = ln Ω: left, right, total</div><div class="v" id="s">–</div></div>
+            <div class="readout"><div class="k">heat capacity per atom, at the left's kT (in k)</div><div class="v" id="c">–</div></div>
+          </div>
+          <canvas class="plot tall" id="cv" aria-label="Heat capacity against temperature"></canvas>
+          <div class="legend"><span><i style="background: var(--muted)"></i>Einstein's curve</span><span><i style="background: var(--accent)"></i>measured on the left block as you heat it</span><span>classical value (Dulong–Petit): 1 k per atom here (3 k in 3D)</span></div>
+          <div class="status" id="status">
+            Press Run, then click on the left block a few times to heat it. The heat spreads into the right block
+            until both have the same temperature. Separate the blocks and heat one alone to measure its heat
+            capacity as it warms.
+          </div>
+        </aside>
+      </section>
+
+      <article class="notes">
+        <h2>Energy spreads because there are more ways for it to be spread</h2>
+        <p>
+          Nothing pushes the quanta anywhere: each hop goes to a random atom. Yet heat flows from the full block to
+          the empty one, and the atoms' quanta settle into Boltzmann's distribution, many atoms with none, fewer with
+          one, fewer still with two, each step down by the same factor e<sup>−ε/kT</sup>. Both happen because those are the
+          arrangements there are most of. The number of ways to share q quanta among N atoms is
+          Ω = (q + N − 1)! / (q! (N − 1)!); S = k ln Ω is the entropy (the readout). Spreading energy across both
+          blocks has astronomically more ways than keeping it in one, so that is what you see. The temperature is
+          how fast the entropy rises as energy is added, 1/T = dS/dE: the block whose entropy rises faster per
+          quantum is the colder one, and it takes quanta until the rates are equal.
+        </p>
+        <h2>Why the cold solid hardly needs heat</h2>
+        <p>
+          Classically every atom holds kT of vibrational energy per direction, whatever T: the heat capacity is a
+          constant, 3k per atom in 3D (the Dulong–Petit law, which most solids obey at room temperature). But when kT
+          is much smaller than a quantum ε, almost every atom holds none, and adding a little heat excites hardly any:
+          the heat capacity falls towards zero, as e<sup>−ε/kT</sup>. Einstein's 1907 paper explained in this way why diamond,
+          whose stiff bonds make its quanta big, has a heat capacity far below Dulong and Petit's at room temperature
+          and almost none when cold: one of the first predictions of quantum theory outside light.
+        </p>
+        <div class="caveat">
+          <h3>Caveats</h3>
+          <ul>
+            <li>Not molecular dynamics: a Monte Carlo of quanta, the counting behind Einstein's model. Each step
+              picks two atoms at random and moves a quantum from the first to the second, if it has one: this
+              visits every arrangement equally often, as the second law assumes.</li>
+            <li>Einstein's model gives every atom the same frequency; real solids have a spread (Debye's model),
+              which makes the heat capacity fall as T³ rather than exponentially at the lowest temperatures.</li>
+            <li>One direction of vibration per atom (a 1D oscillator), so the classical value is 1k per atom.</li>
+          </ul>
+        </div>
+      </article>
+    </main>
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>
