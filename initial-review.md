@@ -684,3 +684,8 @@ docs/performance.md.
   condensation with latent heating, virtual-temperature buoyancy, rain-out, and large-scale drying.
   After 3 hours of sun the clouds' bases sit at 1.63 ± 0.25 km against a predicted lifting
   condensation level of 1.41 km (drawn as a dashed line); notes on why they are flat.
+- [ ] New page `kidney` (original list: concentrating urine): the countercurrent multiplier as the
+  textbook stepwise model (not molecules), drawn as the hairpin and the collecting duct coloured by
+  saltiness, with flow; pump strength, ADH, loop length and medullary blood flow as sliders, and
+  the pumps' work. Default: urine 1,211 mOsm/L (tip 1,312); no ADH: 100; weaker pumps or a
+  shorter loop: less.

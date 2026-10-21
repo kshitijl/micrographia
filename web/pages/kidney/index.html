@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>The Kidney's Multiplier</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 16 16%22%3E%3Cpath d=%22M5 2 v10 a2 2 0 0 0 4 0 v-10%22 stroke=%22%23c9503c%22 stroke-width=%222%22 fill=%22none%22/%3E%3C/svg%3E" />
+    <link rel="stylesheet" href="../../src/lib/style.css" />
+  </head>
+  <body>
+    <nav class="topbar"><div class="wrap"><a href="../../index.html">Micrographia</a></div></nav>
+    <main class="wrap">
+      <header class="question">
+        <div class="eyebrow">Osmosis at work</div>
+        <h1>How do kidneys make urine four times saltier than blood?</h1>
+        <p class="lede">
+          Water only ever moves by osmosis, from less salty to more salty, and no cell membrane can pump it.
+          Yet a kidney sends out urine at up to 1,200 milliosmoles per litre, four times blood's 300. The trick
+          is a hairpin: a tube that goes down into the kidney and comes back up beside itself, with salt pumped
+          across between the two arms. Each pump manages only a small step; the hairpin multiplies them.
+        </p>
+      </header>
+
+      <section class="lab">
+        <div class="stage" id="stage" style="aspect-ratio: 1 / 1; background: var(--stage-bg)">
+          <canvas id="canvas" style="width: 100%; height: 100%" aria-label="The loop of Henle and the collecting duct, coloured by how salty the fluid is"></canvas>
+        </div>
+        <aside class="panel">
+          <div class="buttons">
+            <button class="primary" id="run">Run</button>
+            <button id="reset">Start again (all at 300)</button>
+          </div>
+          <label class="row">Salt pumps (the most each can push across) <span id="pumpv">200 mOsm</span>
+            <input type="range" id="pump" min="0" max="300" step="10" value="200" />
+          </label>
+          <label class="row">ADH (lets the collecting duct leak water) <span id="adhv">high</span>
+            <input type="range" id="adh" min="0" max="1" step="0.05" value="1" />
+          </label>
+          <label class="row">Length of the loop <span id="lenv">a human's</span>
+            <input type="range" id="len" min="4" max="24" step="1" value="8" />
+          </label>
+          <label class="row">Blood flow through the medulla (washes salt away) <span id="washv">low</span>
+            <input type="range" id="wash" min="0" max="0.2" step="0.01" value="0.02" />
+          </label>
+          <div class="readouts">
+            <div class="readout"><div class="k">urine</div><div class="v" id="urine">–</div></div>
+            <div class="readout"><div class="k">at the tip of the loop</div><div class="v" id="tip">–</div></div>
+            <div class="readout"><div class="k">blood</div><div class="v">300 mOsm/L</div></div>
+            <div class="readout"><div class="k">leaving the loop (dilute)</div><div class="v" id="out">–</div></div>
+            <div class="readout"><div class="k">work done by the pumps (per litre of urine)</div><div class="v" id="work">–</div></div>
+          </div>
+          <canvas class="plot" id="plot" aria-label="Saltiness against depth in each tube"></canvas>
+          <div class="legend"><span><i style="background: var(--species-2)"></i>going down</span><span><i style="background: var(--species-3)"></i>coming up</span><span><i style="background: var(--muted)"></i>the tissue around them</span><span><i style="background: var(--accent)"></i>collecting duct</span></div>
+          <div class="status" id="status">
+            Press Run and watch the saltiness build up from the top down: at first all is at 300, the same as
+            blood. Then turn the pumps down, take away the ADH (as alcohol does), or make the loop longer.
+          </div>
+        </aside>
+      </section>
+
+      <article class="notes">
+        <h2>The hairpin</h2>
+        <p>
+          The loop of Henle runs down from the kidney's outer layer (the cortex) deep into the medulla, turns, and
+          runs back up beside itself. The ascending arm's wall pumps salt out into the tissue around it, using ATP,
+          but lets no water follow; each stretch of pump can make the tissue only about 200 mOsm saltier than the
+          fluid inside. The descending arm is the opposite: water can leave but salt cannot, so as its fluid flows
+          down past the salty tissue it loses water by osmosis and gets saltier, matching the tissue around it.
+        </p>
+        <p>
+          That saltier fluid turns the corner and comes up the ascending arm, where the pumps push salt out of it,
+          200 mOsm above what is inside: the tissue at that depth ends up saltier than before; so the next fluid
+          coming down loses more water there, arrives at the corner saltier still, and so on. Because the two arms
+          flow in opposite directions (countercurrent), a small step across, at every depth, adds up to a big
+          difference from top to bottom: the multiplier. Watch it build from all-300 at the start.
+        </p>
+        <h2>The urine</h2>
+        <p>
+          The urine itself is made in the collecting duct, which runs down through the same salty medulla. With
+          the hormone ADH (vasopressin) present, its wall has water channels (aquaporins), and water leaves it by
+          osmosis into the salty tissue, so the urine leaves as salty as the deepest tissue: concentrated, a little
+          water spent. Without ADH the duct is watertight and the urine stays dilute: what happens after a lot of
+          drinking, or with alcohol, which suppresses ADH.
+        </p>
+        <h2>Where the energy goes</h2>
+        <p>
+          Nothing here moves water with energy: all the water moves by osmosis, downhill. The energy is spent on
+          moving salt uphill, against its gradient; the order (low entropy) of the concentrated medulla is paid for
+          by ATP. A longer loop multiplies more, as long as the blood flowing through the medulla does not wash the
+          salt away as fast: desert rodents such as the kangaroo rat have very long loops and little medullary
+          blood flow, make urine at over 5,000 mOsm/L, and need almost no water to drink. (Try a long loop with
+          the blood flow turned right down.)
+        </p>
+        <div class="caveat">
+          <h3>Caveats</h3>
+          <ul>
+            <li>Not molecules: the textbook stepwise model of the multiplier, depth by depth (after Guyton's and
+              Koeppen and Stanton's diagrams): at each depth the pumps split the ascending fluid and the
+              descending fluid with its tissue about their mean, 200 mOsm apart, then the fluid moves on a
+              step. It tracks saltiness, not volumes; the ascending arm's last stretch, in the cortex, is
+              taken to bring its fluid to 200 below the cortex's 300.</li>
+            <li>The real inner medulla works partly differently: urea, recycled from the collecting duct, makes up
+              much of its saltiness, and the thin ascending arm there has no pumps.</li>
+            <li>The tissue's blood vessels (the vasa recta) also loop, which limits how much they wash away; the
+              slider sets how much they do.</li>
+          </ul>
+        </div>
+      </article>
+    </main>
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>
