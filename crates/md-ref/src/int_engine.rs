@@ -253,8 +253,8 @@ impl<F: Real> IntEngine<F> {
                         v = [self.sys.to_step_displacement(vx), self.sys.to_step_displacement(vy)];
                         // A fan's drift, added in integer units (as on the GPU).
                         v[0] = v[0].wrapping_add(self.sys.to_step_displacement(self.sys.thermostat.unwrap().drift));
-                        // Relative to the affine flow under a moving piston (see boundary.wgsl).
-                        if self.sys.piston.is_some() {
+                        // Relative to the affine flow under a driven piston (see boundary.wgsl).
+                        if matches!(self.sys.piston.map(|p| p.drive), Some(md_core::PistonDrive::Speed(_))) {
                             let f = (fixed::to_f64(x[1]) / fixed::to_f64(self.piston_w)).clamp(0.0, 1.0);
                             v[1] = v[1].wrapping_add((self.piston_v as f64 * f).round() as i32);
                         }

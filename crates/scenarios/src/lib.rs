@@ -82,7 +82,7 @@ pub struct Scenario {
     pub radii: Vec<f64>,
 }
 
-pub const NAMES: &[&str] = &["cream", "corner", "boltzmann", "heavy", "oilwater", "heatflow", "osmosis", "compress", "rubber", "atmosphere", "carnot", "boiling", "lipids", "balloon", "smell", "binding", "fep", "cell", "buffer", "mask", "dna", "demon", "ensemble", "osmosis_free", "osmometer", "flask", "emulsion", "enthalpy", "humid", "solubility", "perrin"];
+pub const NAMES: &[&str] = &["cream", "corner", "boltzmann", "heavy", "oilwater", "heatflow", "osmosis", "compress", "rubber", "atmosphere", "carnot", "boiling", "lipids", "balloon", "smell", "binding", "fep", "cell", "buffer", "mask", "dna", "demon", "ensemble", "osmosis_free", "osmometer", "flask", "emulsion", "enthalpy", "humid", "solubility", "perrin", "avogadro"];
 
 pub fn build(name: &str, o: &Options) -> Result<Scenario, String> {
     let sc = build_unchecked(name, o)?;
@@ -131,6 +131,7 @@ fn build_unchecked(name: &str, o: &Options) -> Result<Scenario, String> {
         "humid" => Ok(humid(o)),
         "solubility" => Ok(solubility(o)),
         "perrin" => Ok(perrin(o)),
+        "avogadro" => Ok(avogadro(o)),
         _ => Err(format!("unknown scenario {name}")),
     }
 }
@@ -1766,4 +1767,58 @@ pub fn perrin(o: &Options) -> Scenario {
     let vel = init::maxwell(&sys, &species, t, seed + 2);
     let state = State { pos: pos.iter().map(|p| [fixed::to_fixed(p[0]), fixed::to_fixed(p[1])]).collect(), vel, species };
     Scenario { warmup: 0, finish: Finish::None, marked: 1, grid: [1, 30], radii: vec![0.5, 0.5 * size], sys, state }
+}
+
+/// Gay-Lussac's volumes: two gases (species 0, "hydrogen", and 1, "chlorine", twice as heavy;
+/// species 2 and 3 are the same atoms, for a page to mark those in the product, HCl), mixed, under a free weighted piston (constant pressure), with heat-bath walls and floor
+/// holding the temperature. As Avogadro had it (`atoms` = 0), each molecule is two atoms joined by a bond
+/// (type 0: harmonic, rest length 1.12 σ, just beyond the atoms' WCA contact); as Dalton had it
+/// (`atoms` = 1), each is a single atom. Bond type 0 is declared either way, so that a page can
+/// make and break bonds as reactions (`add_bond`, `remove_bond`). Options: n (molecules of each
+/// gas), width, density (molecules per σ² at the start), temperature, atoms, seed.
+pub fn avogadro(o: &Options) -> Scenario {
+    let n = o.get("n", 150.0) as usize;
+    let w = o.get("width", 150.0);
+    let t = o.get("temperature", 1.0);
+    // Thin, so that both gases are nearly ideal (a two-atom molecule crowds its neighbours more
+    // than a single atom does: at 0.05 it fills 18% more room).
+    let rho = o.get("density", 0.02);
+    let atoms = o.get("atoms", 0.0) > 0.0;
+    let seed = o.get("seed", 1.0) as u64;
+    let h0 = (2 * n) as f64 / (rho * w);
+    // An ideal gas of 2n molecules, plus the WCA's small excess, balances the load.
+    let force = rho * t * (1.0 + 0.5 * std::f64::consts::PI * rho * if atoms { 0.75 } else { 1.5 }) * w;
+    const R0: f64 = 1.12;
+    let sys = System::new([fixed::to_fixed(w), fixed::to_fixed(1.5 * h0)], init::DT, Pair::wca(), vec![1.0, 2.0, 1.0, 2.0])
+        .with_walls(0, Wall::Thermal(t), Wall::Thermal(t))
+        .with_walls(1, Wall::Thermal(t), Wall::Hard)
+        .with_piston(md_core::PistonDrive::Free { mass: 5.0, force }, h0, 4.0);
+    // Molecules on a jittered grid, alternating hydrogen and chlorine; a diatomic one's two atoms
+    // either side of its grid point, at a random angle.
+    let cols = ((2 * n) as f64 * w / h0).sqrt().ceil() as usize;
+    let rows = (2 * n).div_ceil(cols);
+    let (dx, dy) = (w / cols as f64, (h0 - 1.0) / rows as f64);
+    let (mut pos, mut species, mut bonds) = (vec![], vec![], vec![]);
+    for m in 0..2 * n {
+        let u = |k: u32| gpu_prims::threefry::uniform(seed, 71, 3 * m as u32 + k);
+        let c = [(m % cols) as f64 * dx + 0.5 * dx + 0.2 * dx * (u(0) - 0.5), 0.5 + (m / cols) as f64 * dy + 0.5 * dy + 0.2 * dy * (u(1) - 0.5)];
+        let s = (m % 2) as u32;
+        if atoms {
+            pos.push(c);
+            species.push(s);
+        } else {
+            let a = 2.0 * std::f64::consts::PI * u(2);
+            let (ox, oy) = (0.5 * R0 * a.cos(), 0.5 * R0 * a.sin());
+            let i = pos.len() as u32;
+            pos.push([c[0] - ox, c[1] - oy]);
+            pos.push([c[0] + ox, c[1] + oy]);
+            species.extend([s, s]);
+            bonds.push([i, i + 1, 0]);
+        }
+    }
+    let sys = sys.with_bonds(vec![md_core::BondType::Harmonic { k: 100.0, r0: R0 }], bonds);
+    let vel = init::maxwell(&sys, &species, t, seed + 2);
+    let state = State { pos: pos.iter().map(|p| [fixed::to_fixed(p[0]), fixed::to_fixed(p[1])]).collect(), vel, species };
+    // Drawn a little larger than their contact size, so that they show in so big a box.
+    Scenario { warmup: 0, finish: Finish::None, marked: 0, grid: [4, 4], radii: vec![0.8; 4], sys, state }
 }

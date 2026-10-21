@@ -121,3 +121,28 @@ fn long_bonds_pull_correctly() {
         assert_eq!(kg[1][0], -kg[0][0], "Newton's third law at {d} σ");
     }
 }
+
+/// A bond made at run time pulls at once, in a system built with bond types but no bonds.
+#[test]
+fn added_bonds_pull() {
+    let p = gpu_prims::Prims::new(&pollster::block_on(gpu_prims::Gpu::new()).unwrap());
+    let sys = md_core::System::new([md_core::fixed::to_fixed(32.0); 2], md_core::init::DT, md_core::Pair::wca(), vec![1.0])
+        .with_bonds(vec![md_core::BondType::Harmonic { k: 20.0, r0: 1.0 }], vec![]);
+    let state = md_core::State {
+        pos: vec![[md_core::fixed::to_fixed(10.0), md_core::fixed::to_fixed(16.0)], [md_core::fixed::to_fixed(13.0), md_core::fixed::to_fixed(16.0)]],
+        vel: vec![[0, 0], [0, 0]],
+        species: vec![0, 0],
+    };
+    let run = |add: bool| {
+        let mut e = md::GpuEngine::new(&p, sys.clone(), &state);
+        if add {
+            assert!(e.add_bond(0, 1, 0));
+            assert!(!e.add_bond(1, 0, 0));
+        }
+        e.step(10);
+        let s = pollster::block_on(e.read_state());
+        s.vel[0][0]
+    };
+    assert_eq!(run(false), 0);
+    assert!(run(true) > 0);
+}

@@ -159,9 +159,10 @@ fn andersen(i: u32, v: vec2<i32>) -> vec2<i32> {
     let rad = sqrt(-2.0 * log(unit_open(r.y)));
     let a = 6.2831853 * unit_open(r2.x);
     var out = vec2<i32>(i32(round(sd * rad * cos(a))) + P.thermo_drift, i32(round(sd * rad * sin(a))));
-    // Under a moving piston the gas flows (affinely, v = u y / h); the bath redraws velocities
-    // relative to that flow, otherwise it would act as friction on it.
-    if (P.piston_mode != 0u) {
+    // Under a driven piston the gas flows (affinely, v = u y / h); the bath redraws velocities
+    // relative to that flow, otherwise it would act as friction on it. (Not under a free piston:
+    // its velocity is mostly thermal jiggle, not a flow, and adding it would heat the gas.)
+    if (P.piston_mode == 1u) {
         let vp = f32(bitcast<i32>(atomicLoad(&ctl[CTL_PISTON_VEL])));
         let h = coord_f32(piston_pos());
         out.y += i32(round(vp * clamp(coord_f32(pos[i].zw) / h, 0.0, 1.0)));

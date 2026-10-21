@@ -735,3 +735,12 @@ docs/performance.md.
   whatever the brightness (4× brighter: 3.9× the electrons); the wave theory frees them at any colour after
   a delay, faster when brighter. Also: About sections added to counting, einstein-solid and millikan, which
   had none (about.spec only looks at pages that exist when it runs).
+- [ ] Track B1, new page `avogadro`: hydrogen and chlorine under the same weighted lid with heat-bath walls,
+  as Avogadro's two-atom molecules (left) and Dalton's single atoms (right). Reactions are bonds made and
+  broken by the page (new engine API `add_bond`, with `remove_bond` and `set_species`): light (a lamp you hold
+  over the gas, or a flash) splits Cl₂; free atoms carry the chain (Cl + H₂ → HCl + H, H + Cl₂ → HCl + Cl)
+  and glow; each reaction's heat (scaled down) goes into the atoms, so the lid jumps, then settles as the
+  walls take the heat. Test: Avogadro's 1.87 → 1.87 volumes (256 of 300 HCl), Dalton's 2.01 → 1.14 (on its
+  way to 1). Engine: `add_bond`; bond kernels kept when a system declares bond types but has no bonds yet.
+  Bug found and fixed: the Andersen bath heated a gas under a free piston (it added the piston's jiggle as
+  if it were a flow); research.md §18.8.

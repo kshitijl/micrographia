@@ -47,6 +47,7 @@ M1 Pro (Metal) unless stated. Run everything with `cargo xtask all`.
 | `millikan` (Langevin model) | How do we know charge comes in lumps? | 30 drops' charges all within 0.25 e of a whole number |
 | `counting` (Monte Carlo) | How did anyone count atoms one at a time? | Counts per interval: mean 2.2, variance 2.1 (Poisson); half-life 61.7 s by maximum likelihood (set 60 s) |
 | `light` (Monte Carlo of modes, and a model) | Why does a hot stove glow red; is light made of grains? | Quantum modes within 1.2% of Planck near the peak at 3,000 K and orange; classical ones kT each (violet 1.04 kT) and blue; photoelectrons none at 650 nm ×10, at most hν − W = 1.83 eV at 300 nm whatever the brightness |
+| `avogadro` (reactions as bonds made and broken) | Why do gases combine in whole-number volumes? | 300 two-atom molecules and 300 atoms hold the same lid at 105 and 103 σ (natively); light-started H₂ + Cl₂ chain: 1.87 → 1.87 volumes with 256 of 300 HCl; Dalton's H + Cl → HCl: 2.01 → 1.14 |
 
 Plus `selftest`: the GPU primitive and engine checks, run under the browser's shader compiler.
 

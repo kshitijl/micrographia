@@ -648,7 +648,8 @@ impl GpuEngine {
         let b = &buf;
         let md = util::shader(gpu, "md", &crate::md_source());
         let pl = |e: &str| util::pipeline(gpu, &md, e);
-        let has_bonds = !sys.bonds.is_empty();
+        // Bond types with no bonds yet: bonds may be made at run time (add_bond).
+        let has_bonds = !sys.bonds.is_empty() || !sys.bond_types.is_empty();
         let invert = has_bonds.then(|| Dispatch::new_at(gpu, &pl("invert_ids"), &[(0, &b.params), (10, &b.ids), (14, &b.slot_of)], g));
         let reorder = Reorder::new(prims, b, &params, invert);
         let path = match mode {
@@ -979,11 +980,32 @@ impl GpuEngine {
             return false;
         }
         self.sys.bonds = std::sync::Arc::new(bonds);
+        self.write_partners(&[a, b]);
+        true
+    }
+
+    /// Upload the bond-partner rows of these particles (after their bonds changed).
+    fn write_partners(&self, ids: &[u32]) {
         let table = self.sys.partner_table(self.n() as usize);
         let row = std::mem::size_of_val(&table[0]) as u64;
-        for id in [a, b] {
+        for &id in ids {
             self.gpu().queue.write_buffer(&self.buf.partners, id as u64 * row, bytemuck::cast_slice(&table[id as usize..id as usize + 1]));
         }
+    }
+
+    /// Bond particles `a` and `b` (ids) with bond type `ty`, as in a reaction. The system must
+    /// have been built with bond types. Returns false (and does nothing) if they are already
+    /// bonded, or either already has MAX_BONDS bonds.
+    pub fn add_bond(&mut self, a: u32, b: u32, ty: u32) -> bool {
+        assert!(self.d_bonds.is_some() && (ty as usize) < self.sys.bond_types.len(), "add_bond needs a system built with that bond type");
+        let count = |id: u32| self.sys.bonds.iter().filter(|x| x[0] == id || x[1] == id).count();
+        if a == b || self.sys.bonds.iter().any(|x| (x[0] == a && x[1] == b) || (x[0] == b && x[1] == a)) || count(a) >= md_core::system::MAX_BONDS || count(b) >= md_core::system::MAX_BONDS {
+            return false;
+        }
+        let mut bonds = (*self.sys.bonds).clone();
+        bonds.push([a, b, ty]);
+        self.sys.bonds = std::sync::Arc::new(bonds);
+        self.write_partners(&[a, b]);
         true
     }
 

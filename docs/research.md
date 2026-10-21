@@ -1284,6 +1284,7 @@ claim below comes from memory rather than these pages, it is tagged [memory].
 | Rebuilding a simulation freed it under a running readout ("null pointer passed to rust") | the atmosphere page's Reset | `SimHost.create` serialised |
 | `set_view` takes corners; two pages passed a width and height | reading the wasm API | to add: a typed `View {lo, hi}` in TS (make illegal states unrepresentable) |
 | The fluid panel started paused, so Sunshine alone did nothing | the user | controls that change physics start the run ([AT] p. 125: "check that the monitored quantities are in fact evolving") |
+| Under a free piston the Andersen bath added the piston's velocity (scaled by height) to every redrawn velocity, meant for the affine flow under a driven piston; a free piston's velocity is thermal jiggle, so the gas ran at kT 1.4 for a set 1.0 | the avogadro scenario's piston riding at the top of its box | fixed (only a driven piston's flow, in both twins); the avogadro scenario uses heat-bath walls instead (§18.2). Also: friction on a lid without the matching random kicks makes it a cold wall (the gas under it 7% denser): damp a lid with an Ornstein–Uhlenbeck step |
 | Andersen bath slowed the U-tube several-fold | measurement, then [FS] §7.1.1.1 | no bulk Andersen bath on flow pages (§18.2) |
 | A denser start (0.76) nearly froze the 2D LJ liquid | U-tube test failure | stay clear of the 2D LJ melting line; check ρ(z) and mobility before measuring |
 | 2D convection built a mean wind | the user | damp large scales; caveat ([FA] §3.3) |

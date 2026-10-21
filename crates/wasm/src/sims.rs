@@ -461,6 +461,12 @@ impl DiscSim {
         self.engine.remove_bond(a, b)
     }
 
+    /// Bond particles `a` and `b` (ids) with bond type `ty`, as in a reaction (the scenario must
+    /// declare that bond type). Returns false if they are already bonded or either is full.
+    pub fn add_bond(&mut self, a: u32, b: u32, ty: u32) -> bool {
+        self.engine.add_bond(a, b, ty)
+    }
+
     /// How energy can enter or leave the system ("" if it is conserved).
     pub fn energy_note(&self) -> String {
         self.engine.sys.energy_note()

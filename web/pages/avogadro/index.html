@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Whole-Number Volumes</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 16 16%22%3E%3Ccircle cx=%225%22 cy=%228%22 r=%223%22 fill=%22%234f7cc4%22/%3E%3Ccircle cx=%2211%22 cy=%228%22 r=%223%22 fill=%22%237aa34a%22/%3E%3C/svg%3E" />
+    <link rel="stylesheet" href="../../src/lib/style.css" />
+  </head>
+  <body>
+    <nav class="topbar"><div class="wrap"><a href="../../index.html">Micrographia</a></div></nav>
+    <main class="wrap">
+      <header class="question">
+        <div class="eyebrow">Gay-Lussac, 1808; Avogadro, 1811</div>
+        <h1>Why do gases combine in whole-number volumes?</h1>
+        <p class="lede">
+          A litre of hydrogen and a litre of chlorine, lit by sunlight, explode into hydrogen chloride, and when it has cooled
+          back to room temperature and pressure there are exactly two litres of it. Not one, as Dalton's single atoms would
+          give, and not some untidy amount. Gay-Lussac found whole numbers like this for every gas reaction he tried.
+          Avogadro saw why: equal volumes of gases hold equal numbers of molecules, and a hydrogen molecule is two atoms.
+        </p>
+      </header>
+
+      <section class="lab">
+        <div class="left">
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px">
+            <div>
+              <div class="stage" id="stageA" style="aspect-ratio: 158 / 252; cursor: crosshair">
+                <canvas id="canvasA" aria-label="Hydrogen and chlorine as molecules of two atoms, under a weighted piston"></canvas>
+                <div class="overlay" id="overlayA">Starting the GPU…</div>
+              </div>
+              <div class="legend"><span><b>As Avogadro had it</b>: H₂ and Cl₂. Hold the mouse down on it to shine a lamp through it.</span></div>
+            </div>
+            <div>
+              <div class="stage" id="stageD" style="aspect-ratio: 158 / 252">
+                <canvas id="canvasD" aria-label="Hydrogen and chlorine as single atoms, under a weighted piston"></canvas>
+                <div class="overlay" id="overlayD">Starting the GPU…</div>
+              </div>
+              <div class="legend"><span><b>As Dalton had it</b>: single atoms, H and Cl.</span></div>
+            </div>
+          </div>
+          <div class="legend">
+            <span><i style="background: var(--trace-2)"></i>hydrogen</span><span><i style="background: var(--trace-3)"></i>chlorine</span><span><i style="background: var(--trace-4)"></i>H in HCl</span><span><i style="background: var(--trace-1)"></i>Cl in HCl</span><span><i style="background: var(--trace-back); outline: 1px solid var(--rule)"></i>free atoms, glowing (they carry the chain)</span>
+          </div>
+        </div>
+        <aside class="panel">
+          <div class="buttons">
+            <button class="primary" id="run">Run both</button>
+            <button id="flash">Flash a light</button>
+            <button id="reset">Start again</button>
+          </div>
+          <div class="readouts">
+            <div class="readout"><div class="k">Avogadro's: volume</div><div class="v" id="volA">–</div></div>
+            <div class="readout"><div class="k">made of</div><div class="v" id="mixA">–</div></div>
+            <div class="readout"><div class="k">Dalton's: volume</div><div class="v" id="volD">–</div></div>
+            <div class="readout"><div class="k">made of</div><div class="v" id="mixD">–</div></div>
+          </div>
+          <canvas class="plot tall" id="plot" aria-label="The two volumes against time"></canvas>
+          <div class="legend"><span><i style="background: var(--accent)"></i>Avogadro's molecules</span><span><i style="background: var(--plot-back)"></i>Dalton's atoms</span><span><i style="background: var(--rule)"></i>2 volumes, 1 volume</span></div>
+          <div class="status" id="status">
+            Each cylinder starts with 1 volume of hydrogen and 1 of chlorine, mixed, under the same weighted lid and between the
+            same room-temperature walls. In the dark nothing happens. Run, then flash a light (or hold the lamp over the left one):
+            the lid jumps as the mixture explodes, then settles as the walls take the heat away. Compare the volumes then.
+          </div>
+        </aside>
+      </section>
+
+      <article class="notes">
+        <h2>Equal volumes, equal numbers</h2>
+        <p>
+          A gas's pressure comes from its molecules hitting the walls, and at a given temperature each molecule, light or heavy,
+          one atom or two, hits with the same average push (see <a href="../heavy/index.html">the heavy molecule</a>). So under the
+          same lid at the same temperature, a volume holds a fixed number of molecules, whatever the gas: Avogadro's hypothesis
+          (1811). Measured here: 300 molecules of two atoms each hold the lid at 105 σ, 300 single atoms at 103 σ (the same, within
+          the lid's jiggle; the gas is thin enough that the bigger molecules hardly crowd each other, and real gases at room
+          conditions agree to a fraction of a percent).
+        </p>
+        <h2>So volumes count molecules</h2>
+        <p>
+          If volumes count molecules, then gases must combine in simple ratios of volume, because molecules combine in simple
+          ratios of number: one H with one Cl. Gay-Lussac's 1 + 1 → 2 says more: the product has as many molecules as the
+          two gases had together, so each hydrogen molecule and each chlorine molecule must split between two molecules of HCl.
+          They are two atoms each. Dalton, who took the simplest guess (single atoms: H + Cl → HCl), predicted 1 + 1 → 1 and
+          refused to believe Gay-Lussac's measurements. Steam is the same story: 2 volumes of hydrogen and 1 of oxygen give 2 of
+          steam, so oxygen splits in two as well, and water is H₂O, not Dalton's HO. It took until Cannizzaro, in 1860, for
+          chemists to accept it.
+        </p>
+        <h2>Why light sets it off</h2>
+        <p>
+          Hydrogen and chlorine sit together quietly in the dark: two molecules that meet do nothing. Light splits a chlorine
+          molecule (its bond is the weakest of the three) into two free atoms. A free chlorine atom takes a hydrogen atom from H₂
+          (HCl's bond is about as strong as H₂'s), leaving a free hydrogen atom, which takes a chlorine atom from Cl₂ (a much
+          stronger bond than Cl₂'s, so it releases a lot of heat), leaving a free chlorine atom again: a chain, thousands of
+          links long for each atom the light freed, until two free atoms meet and join. That is why the mixture explodes in
+          sunlight. Watch the glowing free atoms carry it.
+        </p>
+        <div class="caveat">
+          <h3>Caveats</h3>
+          <ul>
+            <li>The chemistry is a rule, not quantum mechanics: at each look (every 40 steps), atoms in contact react if the bond
+              energies (H–H 4.52 eV, H–Cl 4.47, Cl–Cl 2.48) allow it, by making and breaking bonds (springs) in the
+              simulation. Each atom can have one bond.</li>
+            <li>The heat each reaction releases is scaled down: 1 ε per eV, where really an eV is about 39 kT at room temperature.
+              The real explosion is far more violent.</li>
+            <li>Chlorine is drawn twice as heavy as hydrogen (really 35 times); masses do not change a gas's volume, which is
+              the point.</li>
+            <li>2D: volumes are areas. The lid is in contact with the room as well (a little friction, with the matching random jiggle), so that its bounce dies down.</li>
+          </ul>
+        </div>
+      </article>
+    </main>
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>
