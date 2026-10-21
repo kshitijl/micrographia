@@ -421,6 +421,7 @@ Open questions (third round):
 18. Besides the 1905 Einstein track, an "evidence for atoms" track (the Brownian motion paper in
    both). Read the 2006 paper and Perrin's *Atoms* in `books/`; write up each 1905 paper (what the
    page and simulation should be) and propose a page for each line of evidence in *Atoms*.
+19. `oilwater`: a panel underneath with another simulation, showing emulsification and/or soap.
 
 ### Fourth round: done (to confirm)
 
@@ -518,3 +519,9 @@ Still to do: a molecule-count control on the other pages.
   Perrin's *Atoms*, with section citations, his table of N, and a suggested order. Read: Perrin's
   *Atoms* (Chapters I–II in full, the opening of every section from §46 on) and Newburgh, Peidle
   and Rueckner (2006) in full.
+- [ ] `oilwater` part 2, soap: water, a quarter oil, and soap molecules (a water-loving head bonded
+  to two oil-loving tail beads), freshly shaken. Without soap the droplets merge (30 left after
+  800 τ, still falling); with plenty of soap they stay small (57) and 88% of the soap sits on a
+  boundary, heads in the water and tails in the oil. Soap amount menu, spoon, re-shake, and a
+  droplet-count plot that keeps the previous run for comparison. Notes on soap, emulsifiers
+  (mustard, egg yolk) and micelles. New scenario `emulsion`.

@@ -22,3 +22,15 @@ test("with gravity on, the lighter oil collects on top", async ({ page }) => {
   console.log(`oil/water: share of the oil in the top half with gravity: ${top.toFixed(2)}`);
   expect(top).toBeGreaterThan(0.6);
 });
+
+test("soap keeps a shaken emulsion as many small droplets; without it they merge", async ({ page }) => {
+  test.setTimeout(300_000);
+  await page.goto("pages/oilwater/index.html");
+  const none = await page.evaluate(() => window.oilTest!.soap(0, 160000));
+  const soapy = await page.evaluate(() => window.oilTest!.soap(0.2, 160000));
+  const last = (r: { drops: number }[]) => r[r.length - 1].drops;
+  console.log(`emulsion: droplets after 800 τ, no soap ${last(none)}, plenty of soap ${last(soapy)} (soap at a boundary ${Math.round(100 * soapy[soapy.length - 1].edge)}%)`);
+  // Measured: 30 against 57, with 88% of the soap at a boundary.
+  expect(last(soapy)).toBeGreaterThan(1.4 * last(none));
+  expect(soapy[soapy.length - 1].edge).toBeGreaterThan(0.6);
+});

@@ -80,7 +80,7 @@ pub struct Scenario {
     pub radii: Vec<f64>,
 }
 
-pub const NAMES: &[&str] = &["cream", "corner", "boltzmann", "heavy", "oilwater", "heatflow", "osmosis", "compress", "rubber", "atmosphere", "carnot", "boiling", "lipids", "balloon", "smell", "binding", "fep", "cell", "buffer", "mask", "dna", "demon", "ensemble", "osmosis_free", "osmometer", "flask"];
+pub const NAMES: &[&str] = &["cream", "corner", "boltzmann", "heavy", "oilwater", "heatflow", "osmosis", "compress", "rubber", "atmosphere", "carnot", "boiling", "lipids", "balloon", "smell", "binding", "fep", "cell", "buffer", "mask", "dna", "demon", "ensemble", "osmosis_free", "osmometer", "flask", "emulsion"];
 
 pub fn build(name: &str, o: &Options) -> Result<Scenario, String> {
     let sc = build_unchecked(name, o)?;
@@ -124,6 +124,7 @@ fn build_unchecked(name: &str, o: &Options) -> Result<Scenario, String> {
         "osmosis_free" => Ok(osmosis_free(o)),
         "osmometer" => Ok(osmometer(o)),
         "flask" => Ok(flask(o)),
+        "emulsion" => Ok(emulsion(o)),
         _ => Err(format!("unknown scenario {name}")),
     }
 }
@@ -954,6 +955,72 @@ pub fn flask(o: &Options) -> Scenario {
     let vel = init::maxwell(&sys, &species, t, o.get("seed", 1.0) as u64);
     let state = State { pos: sites.iter().map(|p| [fixed::to_fixed(p[0]), fixed::to_fixed(p[1])]).collect(), vel, species };
     Scenario { warmup: 0, finish: Finish::None, marked: 0, grid: [8, 8], radii: vec![0.5], sys, state }
+}
+
+/// Water (species 0), oil (1) and soap, freshly shaken together: each soap molecule is a
+/// water-loving head (2) bonded to two oil-loving tail beads (3), a straight trimer. All are LJ
+/// (rc 2.5) with ε = 1 between friends (water–water, water–head, oil–oil, oil–tail, tail–tail),
+/// ε = `cross` between water and oil, and `soap_cross` (0: purely repulsive) for the soap's
+/// dislikes (water–tail, oil–head, head–tail, head–head). Options: n (sites), soap (share of
+/// the sites in soap molecules), oil (share of the rest that is oil), density, temperature, cross, soap_cross, bath_rate (a gentle
+/// bath takes away the stirring heat), seed.
+pub fn emulsion(o: &Options) -> Scenario {
+    let n = o.get("n", 8000.0) as usize;
+    let t = o.get("temperature", 0.7);
+    let cross = o.get("cross", 0.3);
+    let lj = |eps: f64| Pair { eps, sigma: 1.0, rc: 2.5 };
+    let bl = init::box_for(n, o.get("density", 0.7), o.get("aspect", 4.0 / 3.0));
+    let mut sys = System::new(bl, init::DT, lj(1.0), vec![1.0; 4]).with_thermostat(t, o.get("bath_rate", 0.02));
+    // The soap's dislikes (head–oil, tail–water, head–tail, head–head) are `soap_cross`; at 0
+    // they are purely repulsive (WCA), which makes it a strong surfactant.
+    let soap_cross = o.get("soap_cross", 0.0);
+    let wca = Pair { eps: 1.0, sigma: 1.0, rc: 2f64.powf(1.0 / 6.0) };
+    let dislike = if soap_cross > 0.0 { lj(soap_cross) } else { wca };
+    sys = sys.with_pair(0, 1, lj(cross));
+    for (a, b, friends) in [(0, 2, true), (0, 3, false), (1, 2, false), (1, 3, true), (2, 2, false), (2, 3, false), (3, 3, true)] {
+        sys = sys.with_pair(a, b, if friends { lj(1.0) } else { dislike });
+    }
+    // A square lattice of sites; soap molecules take three neighbouring sites in a row.
+    let b = sys.box_f64();
+    let nx = (n as f64 * b[0] / b[1]).sqrt().round() as usize;
+    let ny = n.div_ceil(nx);
+    let (ax, ay) = (b[0] / nx as f64, b[1] / ny as f64);
+    let seed = o.get("seed", 1.0) as u64;
+    let soap = o.get("soap", 0.1);
+    let oil = o.get("oil", 0.5); // share of the other sites that are oil
+    let mut kind = vec![u8::MAX; nx * ny]; // 255 free
+    let mut bonds = Vec::new();
+    let mut order: Vec<usize> = vec![]; // site index per particle id
+    let mut draw = 0u32;
+    let target = (soap * (nx * ny) as f64 / 3.0) as usize;
+    let mut tries = 0;
+    while order.len() / 3 < target && tries < 100 * target + 100 {
+        tries += 1;
+        let u = |k: u32| gpu_prims::threefry::uniform(seed, 11, 2 * draw + k);
+        let (i, j) = ((u(0) * nx as f64) as usize, (u(1) * ny as f64) as usize);
+        draw += 1;
+        let sites = [j * nx + i, j * nx + (i + 1) % nx, j * nx + (i + 2) % nx];
+        if sites.iter().all(|&s| kind[s] == u8::MAX) {
+            let id = order.len() as u32;
+            for (k, &s) in sites.iter().enumerate() {
+                kind[s] = if k == 0 { 2 } else { 3 };
+                order.push(s);
+            }
+            bonds.extend([[id, id + 1, 0], [id + 1, id + 2, 0], [id, id + 2, 1]]);
+        }
+    }
+    for s in 0..nx * ny {
+        if kind[s] == u8::MAX {
+            kind[s] = (gpu_prims::threefry::uniform(seed, 12, s as u32) < oil) as u8;
+            order.push(s);
+        }
+    }
+    let pos: Vec<[i64; 2]> = order.iter().map(|&s| [fixed::to_fixed(((s % nx) as f64 + 0.5) * ax), fixed::to_fixed(((s / nx) as f64 + 0.5) * ay)]).collect();
+    let species: Vec<u32> = order.iter().map(|&s| kind[s] as u32).collect();
+    let sys = if bonds.is_empty() { sys } else { sys.with_bonds(vec![md_core::BondType::kremer_grest(), md_core::BondType::Harmonic { k: 10.0, r0: 2.0 * ax.min(1.1) }], bonds) };
+    let vel = init::maxwell(&sys, &species, t, seed);
+    let state = State { pos, vel, species };
+    Scenario { warmup: 0, finish: Finish::None, marked: 1, grid: grid_for(n, b, 16.0), radii: vec![0.5, 0.5, 0.55, 0.5], sys, state }
 }
 
 #[cfg(test)]
