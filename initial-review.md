@@ -623,3 +623,16 @@ Still to do: a molecule-count control on the other pages.
   liquid box fluctuates widely. Bigger boxes are worse (they hold a drop or a bubble). Page
   `coexistence` part 3: the two boxes drawn to scale as they trade area and molecules, density
   traces, and the coexistence curve against MD's; notes comparing the three methods.
+
+### Overnight plan (the user, 2026-10-21, before bed)
+
+"while I sleep continue working on items in the plan/backlog. after phase transitions, go ahead
+and implement pages for all the questions on my original list, the 1905 track, the perrin atoms
+track, and then the other ones we wrote down in the brainstorm session. then do CPU simd
+simulators that can run in the browser, then other performance stuff"
+
+Order: (1) finish the phase-transition items (particle counts on every page, soap dropped in by
+hand, interactive changes instead of resets); (2) pages for the remaining questions on the
+original list; (3) the 1905 track (docs/tracks.md A1–A5); (4) the evidence-for-atoms track
+(B1–B23); (5) the brainstorm ideas; (6) CPU SIMD engines in the browser; (7) the rest of
+docs/performance.md.
