@@ -718,3 +718,7 @@ docs/performance.md.
   0.08) stirred with a gentle shear wave; its decay gives η = ρ × rate / k²: 0.265 and 0.311 (dilute
   kinetic theory: 0.288), the same within the dense gas's Enskog correction; the velocity profile
   flattening live; mean free path and molecular size from η, Loschmidt's way.
+- [ ] Track B20, new page `millikan`: an oil drop between plates (Langevin dynamics in SI units, Brownian
+  jiggle included): switch the field to make it fall and rise through the reticle, X-ray it to change its
+  charge, take new drops; each fall-and-rise pair gives its radius (Stokes) and charge, into a histogram
+  that clusters at whole multiples of e (30 drops in the test: all within 0.25 e).

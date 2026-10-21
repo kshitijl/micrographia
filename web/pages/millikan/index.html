@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Millikan's Oil Drop</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 16 16%22%3E%3Ccircle cx=%228%22 cy=%228%22 r=%224%22 fill=%22%23f3e4c6%22 stroke=%22%23555%22/%3E%3C/svg%3E" />
+    <link rel="stylesheet" href="../../src/lib/style.css" />
+  </head>
+  <body>
+    <nav class="topbar"><div class="wrap"><a href="../../index.html">Micrographia</a></div></nav>
+    <main class="wrap">
+      <header class="question">
+        <div class="eyebrow">The evidence for atoms: the atom of electricity</div>
+        <h1>How do we know electric charge comes in lumps?</h1>
+        <p class="lede">
+          A tiny drop of oil, a micron across, floats in the air between two metal plates, seen through a
+          microscope. Gravity pulls it down; an electric field pushes on whatever charge it carries. Time its fall
+          with the field off and its rise with the field on, and you can work out its charge. Do it for many drops,
+          or knock a drop's charge with a burst of X-rays, and the charges you find are never just anything.
+        </p>
+      </header>
+
+      <section class="lab">
+        <div class="left">
+          <canvas id="scope" style="width: 100%; aspect-ratio: 4 / 3; border-radius: 10px; cursor: pointer" aria-label="The microscope view of the drop between the plates"></canvas>
+          <div class="legend"><span>The microscope view, 1 mm tall: the drop, the jiggle of Brownian motion, and the reticle lines 0.5 mm apart.</span></div>
+          <canvas class="plot tall" id="hist" aria-label="Histogram of the measured charges"></canvas>
+          <div class="legend"><span><i style="background: var(--accent)"></i>every charge you have measured, in units of 10⁻¹⁹ C</span></div>
+        </div>
+        <aside class="panel">
+          <div class="buttons">
+            <button class="primary" id="run">Run</button>
+            <button id="field">Field on (lift it)</button>
+            <button id="xray">X-ray burst (change its charge)</button>
+            <button id="newdrop">A new drop</button>
+          </div>
+          <label class="row">Voltage across the plates <span id="vv">5,000 V</span>
+            <input type="range" id="volts" min="1000" max="10000" step="100" value="5000" />
+          </label>
+          <div class="readouts">
+            <div class="readout"><div class="k">falling speed (field off)</div><div class="v" id="vf">–</div></div>
+            <div class="readout"><div class="k">rising speed (field on)</div><div class="v" id="vr">–</div></div>
+            <div class="readout"><div class="k">its radius, from the fall (Stokes)</div><div class="v" id="rad">–</div></div>
+            <div class="readout"><div class="k">its charge: 6πηa (v<sub>fall</sub> + v<sub>rise</sub>) / E</div><div class="v" id="q">–</div></div>
+          </div>
+          <div class="status" id="status">
+            Press Run. The drop falls; switch the field on before it reaches the bottom and it rises (if it carries
+            enough charge; raise the voltage if not). Each fall and rise between the reticle lines is timed. After
+            each pair the charge is worked out and added to the histogram. Then hit it with X-rays, or take a new
+            drop, and measure again.
+          </div>
+        </aside>
+      </section>
+
+      <article class="notes">
+        <h2>Timing a drop</h2>
+        <p>
+          A drop this small falls at a steady speed almost at once: the air's drag 6πηav balances its weight
+          (4/3)πa³ρg (Stokes' law), so the falling speed gives its radius a. With the field E on, the electric force qE
+          lifts it, and it rises at the speed where qE = weight + drag. Together: q = 6πηa (v<sub>fall</sub> + v<sub>rise</sub>) / E.
+          Millikan timed thousands of falls and rises, from 1909 to 1913, often of one drop for hours, as X-rays or
+          radioactivity knocked its charge up and down.
+        </p>
+        <h2>The lumps</h2>
+        <p>
+          Every charge he found was a whole multiple of one amount, 1.6 × 10⁻¹⁹ coulombs: the charge of one electron,
+          e. A drop's charge jumped only by whole e's, never by halves. Dividing the faraday (the charge carried by a
+          mole of singly-charged ions in electrolysis, 96,500 coulombs) by e gives Avogadro's number again,
+          6 × 10²³: another of Perrin's independent counts, this one from electricity.
+        </p>
+        <h2>The jiggle</h2>
+        <p>
+          The drop does not fall smoothly: it is small enough to be kicked about by air molecules, the same Brownian
+          motion as <a href="../brownian/index.html">pollen in water</a>. It blurs each timing a little, which is why
+          many timings were needed; Millikan noted it, and the jiggle itself was another way to measure the
+          Boltzmann constant.
+        </p>
+        <div class="caveat">
+          <h3>Caveats</h3>
+          <ul>
+            <li>Not molecules: one drop, moved by gravity, the field, Stokes drag and random Brownian kicks
+              (Langevin dynamics), in real units: oil of density 920 kg/m³ in air of viscosity 1.82 × 10⁻⁵ Pa s at
+              20 °C, plates 8 mm apart.</li>
+            <li>Millikan also corrected Stokes' law for drops so small that air is not quite a continuum (the
+              Cunningham correction); this simulation leaves it out, so its formula is exact here.</li>
+            <li>The drop's charge is drawn at random (1 to 8 e); an X-ray burst changes it by one or two e, either way.</li>
+          </ul>
+        </div>
+      </article>
+    </main>
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>
