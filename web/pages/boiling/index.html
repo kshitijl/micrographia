@@ -87,6 +87,60 @@
         </aside>
       </section>
 
+      <h2>2. Latent heat: heating a droplet in a sealed flask</h2>
+      <section class="lab">
+        <div class="stage" id="stageL" style="aspect-ratio: 1 / 1">
+          <canvas id="canvasL" aria-label="A droplet of liquid in a sealed box, with its vapour around it"></canvas>
+          <div class="overlay" id="overlayL">Starting the GPU…</div>
+        </div>
+        <aside class="panel">
+          <div class="buttons">
+            <button class="primary" id="runL">Run</button>
+            <button id="burstL">Add a burst of heat</button>
+            <button id="resetL">Reset</button>
+          </div>
+          <label class="row">Heater <span id="powerLv">off</span>
+            <input type="range" id="powerL" min="0" max="20" step="1" value="3" />
+          </label>
+          <label class="row">Speed <span id="speedLv">1000 steps/frame</span>
+            <input type="range" id="speedL" min="100" max="3000" step="100" value="1000" />
+          </label>
+          <label class="row">Molecules <span></span>
+            <select id="nmolL">
+              <option value="300">300</option>
+              <option value="500" selected>500</option>
+              <option value="1000">1,000</option>
+            </select>
+          </label>
+          <div class="readouts">
+            <div class="readout"><div class="k">heat added (per molecule)</div><div class="v" id="heatL">–</div></div>
+            <div class="readout"><div class="k">temperature kT</div><div class="v" id="tL">–</div></div>
+            <div class="readout"><div class="k">evaporated</div><div class="v" id="vapL">–</div></div>
+            <div class="readout"><div class="k">of the heat, gone into pulling apart</div><div class="v" id="apartL">–</div></div>
+          </div>
+          <canvas class="plot tall" id="plotTL" aria-label="Temperature against the heat added"></canvas>
+          <div class="legend"><span><i style="background: var(--accent)"></i>temperature against heat added</span></div>
+          <canvas class="plot tall" id="plotEL" aria-label="Where the heat went: into speed or into pulling molecules apart"></canvas>
+          <div class="legend"><span><i style="background: var(--highlight)"></i>into speed (warming)</span><span><i style="background: var(--plot-back)"></i>into pulling molecules apart</span><span><i style="background: var(--muted)"></i>heat added</span></div>
+          <div class="status" id="statusL">
+            A droplet of 500 molecules in a sealed box with no gravity, heated in exactly counted amounts
+            (the heater, or bursts). Watch where the heat goes: into speed (the temperature) or into
+            pulling molecules out of the liquid against their attraction (the latent heat). While the
+            droplet evaporates, more than half of every bit of heat goes into pulling apart, so the
+            temperature climbs slowly; once it is all vapour, every bit goes into speed.
+          </div>
+          <div class="status">
+            Evaporation is slow here: a molecule leaves the surface only now and then, and the vapour in 2D
+            is very thin. Heat faster than it can evaporate and the liquid overheats, climbing past its
+            critical point (kT ≈ 0.46, above which there is no liquid at all) before the droplet is gone.
+            For the flattest curve, set the heater to its lowest setting and the speed high, and give it
+            several minutes. In a sealed box the boiling point also rises as the vapour builds up (as in a
+            pressure cooker), so even then the shelf tilts; in an open pan, at constant pressure, it is
+            flat.
+          </div>
+        </aside>
+      </section>
+
       <article class="notes">
         <h2>Escaping and returning</h2>
         <p>

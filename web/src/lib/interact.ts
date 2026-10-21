@@ -184,7 +184,7 @@ export class EnergyPanel {
   private note: HTMLSpanElement;
 
   /** `work`, if given, returns the work done on the system so far (ε), e.g. by a piston. */
-  constructor(container: HTMLElement, private opts: { work?: (sim: DiscSim) => Promise<number> } = {}) {
+  constructor(container: HTMLElement, private opts: { work?: (sim: DiscSim) => Promise<number>; workLabel?: string } = {}) {
     const mk = (label: string, items: [string, string][]) => {
       const c = document.createElement("canvas");
       c.className = "plot";
@@ -200,7 +200,7 @@ export class EnergyPanel {
     this.note.className = "ensemble";
     container.appendChild(this.note);
     const items: [string, string][] = [["--accent", "total energy of the whole simulation"]];
-    if (opts.work) items.push(["--plot-back", "total minus the work done on it"]);
+    if (opts.work) items.push(["--plot-back", opts.workLabel ?? "total minus the work done on it"]);
     const e = mk("Total energy of the whole simulation over time", items);
     this.energyPlot = new LinesPlot(e.c, { xLabel: "time (τ)", yLabel: "total energy (ε)", ink: () => cssVar("--muted"), rule: () => cssVar("--rule") });
     this.entropyPlot = new LinesPlot(

@@ -216,9 +216,141 @@ function restart() {
 $("heat").onchange = restart;
 $("nmol").onchange = restart;
 
+// ---- 2. Latent heat: a droplet in a sealed flask, heated in steps. ----
+// The flask conserves energy except for the heat the page adds, which is exact: each addition
+// scales every velocity by s, adding K (s² − 1). The heat then ends up as kinetic energy (the
+// temperature) or as potential energy (molecules pulled out of the liquid, against their
+// attraction): the latent heat. Measured natively (crates/md/tests/flask.rs): ~3 ε per molecule
+// to evaporate it all; heated too fast, the liquid overheats because evaporation is slow.
+const powerL = $<HTMLInputElement>("powerL");
+const speedL = $<HTMLInputElement>("speedL");
+const SETTLE_L = 20; // τ
+let heatL = 0; // ε, in total
+let startL: { k: number; u: number } | null = null;
+let burstPending = 0;
+let lastSteps = 0;
+const tLine: { x: number; y: number }[] = [];
+const kLine: { x: number; y: number }[] = [];
+const uLine: { x: number; y: number }[] = [];
+const qLine: { x: number; y: number }[] = [];
+const plotTL = new LinesPlot($<HTMLCanvasElement>("plotTL"), { xLabel: "heat added per molecule (ε)", yLabel: "kT", ink: () => cssVar("--muted"), rule: () => cssVar("--rule") });
+const plotEL = new LinesPlot($<HTMLCanvasElement>("plotEL"), { xLabel: "heat added per molecule (ε)", yLabel: "change per molecule (ε)", yMin: 0, ink: () => cssVar("--muted"), rule: () => cssVar("--rule") });
+
+/** Fraction of molecules in the vapour: fewer than two neighbours within 1.5 σ. */
+function vapourFraction(pos: Float32Array) {
+  const n = pos.length / 2;
+  const cell = 1.5;
+  const grid = new Map<number, number[]>();
+  const key = (cx: number, cy: number) => cx * 100003 + cy;
+  for (let i = 0; i < n; i++) {
+    const k = key(Math.floor(pos[2 * i] / cell), Math.floor(pos[2 * i + 1] / cell));
+    if (!grid.has(k)) grid.set(k, []);
+    grid.get(k)!.push(i);
+  }
+  let vap = 0;
+  for (let i = 0; i < n; i++) {
+    const [x, y] = [pos[2 * i], pos[2 * i + 1]];
+    const [cx, cy] = [Math.floor(x / cell), Math.floor(y / cell)];
+    let nb = 0;
+    for (let dx = -1; dx <= 1; dx++)
+      for (let dy = -1; dy <= 1; dy++)
+        for (const j of grid.get(key(cx + dx, cy + dy)) ?? []) if (j !== i && (pos[2 * j] - x) ** 2 + (pos[2 * j + 1] - y) ** 2 < cell * cell) nb++;
+    if (nb < 2) vap++;
+  }
+  return vap / n;
+}
+
+async function readoutL(sim: DiscSim) {
+  const { ke } = (await sim.kinetic_energies()) as { ke: Float32Array };
+  const n = ke.length;
+  const k = ke.reduce((a, b) => a + b, 0);
+  const u = (await sim.potential_energy()) as number;
+  // The droplet starts on a lattice and relaxes for the first ~20 τ (releasing potential energy,
+  // and the forces only exist from the first step): the books and the heater start after that.
+  const steps = sim.steps();
+  const settled = steps * sim.dt() > SETTLE_L;
+  if (settled) startL ??= { k, u };
+  const dtRun = (steps - lastSteps) * sim.dt();
+  lastSteps = steps;
+  const dq = settled ? Number(powerL.value) * 1e-4 * n * Math.max(0, dtRun) + burstPending : 0;
+  if (settled) burstPending = 0;
+  if (dq > 0) {
+    const [w, h] = Array.from(sim.box_size());
+    const scale = Math.sqrt(1 + dq / k);
+    sim.kick_region(-1, -1, w + 1, h + 1, scale, 0, 0);
+    heatL += k * (scale * scale - 1);
+  }
+  const { pos } = (await sim.all_positions()) as { pos: Float32Array };
+  const vap = vapourFraction(pos);
+  const q = heatL / n;
+  if (!startL) {
+    $("tL").textContent = (k / n).toFixed(3);
+    $("vapL").textContent = `${Math.round(100 * vap)}%`;
+    $("heatL").textContent = "settling…";
+    return;
+  }
+  const [dk, du] = [(k - startL.k) / n, (u - startL.u) / n];
+  if (!tLine.length || q - tLine[tLine.length - 1].x > 0.005 || dq === 0) {
+    tLine.push({ x: q, y: k / n });
+    kLine.push({ x: q, y: dk });
+    uLine.push({ x: q, y: du });
+    qLine.push({ x: q, y: q });
+    if (tLine.length > 4000) [tLine, kLine, uLine, qLine].forEach((l) => l.splice(0, 1));
+  }
+  plotTL.set([{ points: tLine, color: cssVar("--accent") }]);
+  plotEL.set([
+    { points: kLine, color: cssVar("--highlight") },
+    { points: uLine, color: cssVar("--plot-back") },
+    { points: qLine, color: cssVar("--muted"), dashed: true },
+  ]);
+  $("heatL").textContent = `${q.toFixed(2)} ε`;
+  $("tL").textContent = (k / n).toFixed(3);
+  $("vapL").textContent = `${Math.round(100 * vap)}%`;
+  $("apartL").textContent = q > 0.01 ? `${Math.round((100 * du) / q)}%` : "–";
+}
+
+const hostL = new SimHost({
+  canvas: $<HTMLCanvasElement>("canvasL"),
+  overlay: $("overlayL"),
+  scenario: "flask",
+  options: () => ({ n: Number($<HTMLSelectElement>("nmolL").value), temperature: 0.36, seed: 3 }),
+  names: ["molecules"],
+  label: "latent heat",
+  colors: ["--species-2"],
+  stepsPerFrame: () => Number(speedL.value),
+  afterSteps: (sim) => readoutL(sim),
+  energy: { work: async () => heatL, workLabel: "total minus the heat you added" },
+  onCreate: async (sim) => {
+    heatL = 0;
+    startL = null;
+    burstPending = 0;
+    lastSteps = sim.steps();
+    [tLine, kLine, uLine, qLine].forEach((l) => (l.length = 0));
+    sim.set_speed_colors(new Float32Array([...cssColor("--species-2"), ...cssColor("--highlight"), ...cssColor("--cream")]));
+    sim.color_by_speed(V_MAX);
+    sim.smooth_speed_colors(2);
+    await readoutL(sim);
+  },
+});
+$("runL").onclick = () => {
+  hostL.running = !hostL.running;
+  $("runL").textContent = hostL.running ? "Pause" : "Run";
+};
+$("resetL").onclick = () => void hostL.create().then(() => ($("runL").textContent = "Run"));
+$("nmolL").onchange = () => void hostL.create().then(() => ($("runL").textContent = "Run"));
+$("burstL").onclick = () => {
+  burstPending += 0.1 * (hostL.sim?.n() ?? 0);
+  if (!hostL.running && hostL.sim) void hostL.exclusive((sim) => readoutL(sim)).then(() => hostL.sim?.render());
+};
+const showPower = () => ($("powerLv").textContent = Number(powerL.value) === 0 ? "off" : `${(Number(powerL.value) * 1e-4).toFixed(4)} ε per molecule per τ`);
+powerL.oninput = showPower;
+showPower();
+speedL.oninput = () => ($("speedLv").textContent = `${speedL.value} steps/frame`);
+
 declare global {
   interface Window {
     boilingTest?: { ready: Promise<void>; measure(t: number, eq: number, frames: number): Promise<{ p: number; liquid: number }>; record(): number };
+    latentTest?: { heat(frames: number, steps: number): Promise<{ q: number; t: number; vap: number; apart: number }[]> };
   }
 }
 
@@ -248,5 +380,23 @@ window.boilingTest = {
   record() {
     const f = fit();
     return f ? -f.slope : NaN;
+  },
+};
+
+window.latentTest = {
+  /** Run the flask `frames` frames of `steps` steps with the heater as set; report every 20th. */
+  async heat(frames: number, steps: number) {
+    await hostL.ready;
+    await hostL.create();
+    return hostL.exclusive(async (sim) => {
+      const out: { q: number; t: number; vap: number; apart: number }[] = [];
+      for (let f = 0; f < frames; f++) {
+        sim.step(steps);
+        await readoutL(sim);
+        if (f % 20 === 19)
+          out.push({ q: Number($("heatL").textContent!.split(" ")[0]), t: Number($("tL").textContent), vap: parseInt($("vapL").textContent!), apart: parseInt($("apartL").textContent!) });
+      }
+      return out;
+    });
   },
 };

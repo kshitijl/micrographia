@@ -29,7 +29,7 @@ export interface HostConfig {
    * The total-energy and entropy plots, added to the simulation's panel unless `false`. `work`
    * returns the work done on the system so far, if something (a piston) does work on it.
    */
-  energy?: false | { work?: (sim: DiscSim) => Promise<number> };
+  energy?: false | { work?: (sim: DiscSim) => Promise<number>; workLabel?: string };
 }
 
 /**

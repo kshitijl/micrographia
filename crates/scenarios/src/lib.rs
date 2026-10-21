@@ -930,7 +930,8 @@ pub fn cell(o: &Options) -> Scenario {
 /// density (of the droplet), seed.
 pub fn flask(o: &Options) -> Scenario {
     let n = o.get("n", 1000.0) as usize;
-    let side = o.get("size", (n as f64 / 0.006).sqrt());
+    // At 0.002 per σ² on average, all of it can evaporate below the critical point (~0.46).
+    let side = o.get("size", (n as f64 / 0.002).sqrt());
     let t = o.get("temperature", 0.36);
     let sys = System::new([fixed::to_fixed(side), fixed::to_fixed(side)], init::DT, Pair::lj(2.5), vec![1.0])
         .with_walls(0, Wall::Hard, Wall::Hard)
