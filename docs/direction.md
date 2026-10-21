@@ -1,7 +1,8 @@
 # Where Micrographia stands, and where it should go
 
 Written 2026-10-21, at the end of a long session that ran overnight: three new tracks of pages, a
-CPU SIMD engine and a video recorder. It records what was done, what we learnt, and what should
+CPU SIMD engine and a video recorder. Section 9 records the user's replies and decisions, and
+overrides sections 1–8 where they disagree; section 10 is the resulting backlog. It records what was done, what we learnt, and what should
 change. It is opinionated on purpose: the user asked what is stupid, what is pointless, and what
 we are not noticing.
 
@@ -263,3 +264,147 @@ we are not noticing.
   - `cloud`: the Bragg peak drawn as droplets.
 
 The problem is not quality. It is that nobody but the author has seen any of it.
+
+## 9. The user's responses and decisions (2026-10-21)
+
+The user read sections 1–8 and replied. Where this section disagrees with them, this section
+wins. Nothing here is private: it is all going on GitHub, with the reasoning and the ways of
+working, because this is textbook physics and simulation methods.
+
+### How to see the build so far
+
+- **The 50 pages are idea generation and prototyping.** The page-factory rut is fine for two days
+  of building. The point was to have many candidates to choose from.
+- **The plan:**
+  - review what has been built (the 93 open items in initial-review.md);
+  - pick 2–5 pages to polish and make great;
+  - deploy them one by one, the best first;
+  - record a video explainer for each, and publish it alongside.
+
+### Guiding questions
+
+- **"How do we know atoms exist?" is a guiding question for Micrographia,** with the Perrin
+  table at its heart. It is probably not the only one, but it is a great one.
+- **It connects to osmosis through Einstein's 1905 papers.** Osmosis was the user's first
+  interest in this material: van 't Hoff's osmotic pressure is the ideal-gas law for solutes, and
+  Einstein's Brownian-motion paper rests on exactly that analogy.
+- **Free energy as a theme throughout.**
+  - Free energy is mysterious to many people.
+  - Micrographia should show that it is really the entropy of the whole universe: energy released
+    in one small place creates more microstates for everything else.
+  - It should also show, repeatedly, the temperature dependence of entropic effects and forces.
+  - Free-energy methods belong to this theme too.
+  - The user worked in FEP and will make an explainer video on alchemical FEP. The current `fep`
+    page is not good and needs a lot of work.
+
+### Molecular dynamics, and other methods
+
+- **Don't force MD onto every question,** but MD stays the heart of the site. Atoms jiggling and
+  giving rise to emergent behaviour is the most intuitive picture and the easiest sell: everyone
+  has heard about atoms, and here they are.
+- **"How this simulation works" needs a rethink.**
+  - The paragraph at the bottom of each page is hard to read; at the least it should be a table.
+  - We will probably need an explainer page for each method (molecular dynamics, Monte Carlo,
+    lattice Boltzmann, lattice models, Langevin dynamics…), linked from each scenario page.
+- **Units: keep theorist units** ("k = G = e = 2π = 1"), not argon's SI units. Section 5's proposed
+  unit system is dropped.
+
+### Rahman as a published simulator
+
+The goal is a modern, fresh MD simulator, within reach at least for education and exploration,
+if not for production MD. It should be:
+- written in a modern systems language (Rust), with lots of tests;
+- able to run on a Mac or any other GPU, natively and in the browser;
+- under a very permissive licence (MIT or similar);
+- rich in features, among them FEP, reversibility, and exact reproducibility.
+
+University labs and PhD students could build on it. Others could fork it to make explainers like
+these.
+
+- **Performance matters for that,** so section 4's "stop GPU work" is premature.
+  - **Benchmark against other MD packages first,** on the GPU and on the CPU: build them on the
+    same machines and run the same systems.
+  - Candidates: LAMMPS, HOOMD-blue, OpenMM, GROMACS; jax-md and similar for the browser and
+    Python side.
+  - Then decide where Rahman is competitive and where it is worth pushing.
+- **A playground**, like Shadertoy:
+  - a page where people write a few lines of JavaScript against a small, friendly API (make a
+    box, add particles, set potentials, run, kick, plot), then simulate it and mess with it;
+  - JavaScript, because it is native to the browser.
+
+  This is also a good forcing function for the public API (section 3, item 6).
+
+### CPU or GPU
+
+- The question: does the CPU beat the GPU at small sizes? The measured answer:
+  - **Natively** (M1 Pro), at N = 1,000, they tie: the CPU's fast path runs 10.0k steps/s on one
+    core (LJ), the GPU 9.7k.
+  - **In Chrome**, the GPU wins at every size measured: 22.2k against 11.3k at N = 500, 2.1k
+    against 0.18k at 32,000.
+  - The earlier estimate that the CPU would win by ten times at small N was not borne out.
+- What could still change it:
+  - CPU threads;
+  - a better CPU kernel (Verlet lists, cluster tiles);
+  - devices with weak GPUs or costly dispatches (phones, unmeasured);
+  - and tiny systems (a few hundred particles), not yet measured.
+- **Choose the backend by device, not by a calibration run,** if devices behave alike: every
+  iPhone 15 performs about the same, as does every M2 MacBook Pro. A table of measured devices,
+  with a short calibration run only for unknown ones.
+- The same table sets each simulation's size per device (section 5, item 5).
+
+### Tests
+
+- A fast smoke tier is a good idea, but "nightly" needs thought: development happens on a laptop,
+  and there is no server.
+  - Options: the user's desktop as a runner (it has a GPU), or a scheduled job when the laptop is
+    idle.
+  - GitHub's hosted runners have no GPU, so the physics tier cannot run there.
+
+### Phones
+
+- Measure on real phones over the local network: serve from the laptop, and load it on the phone
+  through **Tailscale**.
+
+### Accepted, not now
+
+- "Ask the simulation" (an LLM explaining the page): not for now.
+- Class mode (a class's measurements gathered live): a good idea, not for now.
+
+## 10. Backlog (from section 9)
+
+1. **Review** the 93 open items in initial-review.md with the user, and pick 2–5 pages to polish.
+2. **Phones:** serve over Tailscale and measure every candidate page on a phone (speed, layout,
+   touch).
+3. **Tilt the phone to turn gravity** (`DeviceOrientation`), and shake it to heat (`DeviceMotion`),
+   on the pages that have gravity (atmosphere, sedimentation, boiling, sweat, humidity, Brownian).
+4. **Sound.**
+   - Decide which pages benefit: Geiger clicks for `counting` and `cloud`; pressure as pitch on
+     piston pages; wall hits as crackle; bubbles and boiling; a membrane's knocks for osmosis.
+   - Make the recorder able to write the simulation's sound into the video too, for the explainer
+     videos.
+5. **"How this simulation works":** a table instead of a paragraph, and an explainer page for each
+   method, linked from the scenario pages.
+6. **The Perrin quest**, "How do we know atoms exist?", as a guiding thread, connected through
+   Einstein 1905 to osmosis.
+7. **Free energy as a theme:**
+   - free energy as the entropy of the universe, energy released becoming microstates elsewhere;
+   - entropic effects growing with temperature;
+   - rebuild the `fep` page, alongside the user's video on alchemical FEP.
+8. **Benchmarks against other MD packages** (LAMMPS, HOOMD-blue, OpenMM, GROMACS; GPU and CPU), on
+   the same systems and machines. Then decide on further GPU and CPU performance work.
+9. **Backend and size by device:** a table of measured devices (phones, Macs), with calibration
+   only for unknown ones.
+10. **A JavaScript playground** for Rahman (Shadertoy-like): a small friendly API, a few lines to set
+    up a box and play with it. This also drives the public API (with GPU hooks for page rules).
+11. **Publishing Rahman:** permissive licence, documentation, examples built only on the public
+    API.
+12. **2D water** (the Mercedes–Benz model, hydrogen-bond network). First find its killer demo:
+    - something fast enough to happen in a browser;
+    - that needs the hydrogen-bond network;
+    - candidates: ice freezing and floating; oil and water (the hydrophobic effect as a bond
+      network forced to rearrange); the density maximum.
+13. **One lab:** tools that persist across experiments (burner, piston, salt shaker, membrane,
+    lamp, gauges).
+14. **Test tiers:** a smoke tier on every commit; decide where the physics tier runs (the desktop
+    as a GPU runner?); fix the suite's hang at exit.
+15. **Later, not now:** "ask the simulation"; class mode.

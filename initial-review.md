@@ -829,3 +829,16 @@ docs/performance.md.
   (`crates/render`, a sum type for its target: a canvas surface or an offscreen texture read back);
   `cargo xtask record <scenario> --size WxH --frames F --steps K [--speed v] [--view ...] [--colors ...]`
   writes an H.264 video through ffmpeg (60 frames of a 6,859-molecule pot at 640×480 in 2 s).
+
+## 2026-10-21: review and direction
+
+The user's decisions after the overnight build, and the backlog that follows from them, are in
+docs/direction.md, sections 9 and 10. In short:
+- the 50 pages are prototypes;
+- review them, and pick 2–5 to polish and deploy one by one, each with a video explainer;
+- "How do we know atoms exist?" is a guiding question (connected to osmosis through Einstein 1905);
+- free energy is a theme throughout;
+- benchmark Rahman against other MD packages before deciding on more performance work;
+- add a JavaScript playground;
+- try a 2D water model, once it has a killer demo;
+- keep theorist units.

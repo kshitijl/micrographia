@@ -213,7 +213,8 @@ all-or-none melting (which needs base stacking). Stiffer strands melt higher but
 The earlier list here (3D Rahman, phase transitions in 3D, the original questions, the 1905 and
 Perrin tracks) is done, apart from A1 and the trapdoor, which are deferred with reasons
 (initial-review.md; research.md §18.8). **docs/direction.md** (2026-10-21) reviews where the project
-stands and recommends a change of direction. In order:
+stands and recommends a change of direction; its sections 9 and 10 record the user's decisions and
+the backlog, which supersede the list below. In order:
 1. Review the 93 open items in initial-review.md; delete or merge the weakest pages.
 2. Deploy, and watch a few people use the pages.
 3. Phones: measure, adapt the particle count, touch, tilt for gravity.
