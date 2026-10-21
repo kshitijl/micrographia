@@ -495,3 +495,26 @@ Still to do (fourth round): `osmosis` classic U-tube panel; `saline` big-cell pa
   `docs/fluid-engine.md` §4, item 4.
 
 Still to do: a molecule-count control on the other pages.
+
+### Sixth round: done (to confirm)
+
+- [ ] `boiling`: heat with a hot plate (the floor is a heat bath; the default), a hot layer (a bath
+  in the bottom 3 σ, new engine option `with_bath_layer`), or a bath throughout. The plate glows by
+  its temperature, under a grey insulating lid. Colour molecules by energy averaged over ~2 τ (the
+  default, shows heat moving), by speed right now, or plainly (renderer: a three-stop ramp and a
+  per-molecule running average). Density and temperature profiles beside the pot, lined up with
+  the box. On the plate, the liquid does not wet the purely repulsive floor and can keep a thin
+  vapour gap; the layer heats the liquid directly. Both are offered.
+- [ ] The 24k "all red" start was an engine bug: Verlet neighbour lists were sized from the box's
+  average density; a pool under a big vapour space is much denser than average, the lists
+  overflowed silently and the energy blew up (kT ~3000). Now sized for at least a dense liquid;
+  regression test. (It probably also explains the 10× U-tube running warm.)
+- [ ] `boiling` part 2, latent heat: a droplet in a sealed flask heated in counted amounts (a heater
+  and bursts); temperature against heat added, and where the heat went (speed against pulling
+  molecules apart, 56–60% the latter while it evaporates). Evaporation in 2D is slow, so the
+  shelf tilts and fast heating overheats the liquid past its critical point; said on the page.
+- [ ] `docs/tracks.md`: the 1905 track (dissertation, Brownian motion, light quanta, relativity,
+  E = mc²) and an "evidence for atoms" track: a page proposed for each line of evidence in
+  Perrin's *Atoms*, with section citations, his table of N, and a suggested order. Read: Perrin's
+  *Atoms* (Chapters I–II in full, the opening of every section from §46 on) and Newburgh, Peidle
+  and Rueckner (2006) in full.

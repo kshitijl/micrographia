@@ -535,6 +535,8 @@ Jiqun Tu (NVIDIA) and Ellery Russell (Schrödinger, Desmond tech lead). S61156,
 - **Fluctuations** scale as 1/√N.
 
 ### "1905 track" [survey]
+(Superseded by the fuller proposals in [`tracks.md`](tracks.md): the 1905 track and an
+"evidence for atoms" track after Perrin's *Atoms*.)
 - **Brownian motion:** mean-squared displacement ⟨x²⟩ = 2Dt. D = kT/γ: the same collisions
   cause both the fluctuation and the friction. The Perrin barometric experiment yields Avogadro's
   number (Nobel Prize 1926). The Stokes–Einstein formula fails in 2D; use 3D with about 10⁵
