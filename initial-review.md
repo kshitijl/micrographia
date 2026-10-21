@@ -636,3 +636,13 @@ hand, interactive changes instead of resets); (2) pages for the remaining questi
 original list; (3) the 1905 track (docs/tracks.md A1–A5); (4) the evidence-for-atoms track
 (B1–B23); (5) the brainstorm ideas; (6) CPU SIMD engines in the browser; (7) the rest of
 docs/performance.md.
+- [ ] Item 4, more molecules: count selectors on carnot (default 3,200), compress (12,000),
+  balloon (4,000) and lipids (1,600 lipids). The balloon's box grows with it: at 4× the density
+  in the same box the leak stopped obeying Graham's law (ratio 1.7 against 2.7), because the
+  mean free path became shorter than the pores (effusion turned into flow). Pages that are small
+  on purpose keep their size: the fluctuation-theorem panel (backward heat flow needs small
+  systems), the corner page (2⁻ᴺ), the FEP replicas and the Gibbs boxes.
+- [ ] Item 27, soap by hand: the soap panel's amount menu is replaced by a soap dropper. Each click
+  switches on 40 soap molecules where it lands (they wait in the water as dormant three-bead
+  molecules that behave as water, because bonds cannot be made at run time; species can change).
+  New public API `DiscSim.bonds()`.

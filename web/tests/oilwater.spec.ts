@@ -34,3 +34,18 @@ test("soap keeps a shaken emulsion as many small droplets; without it they merge
   expect(last(soapy)).toBeGreaterThan(1.4 * last(none));
   expect(soapy[soapy.length - 1].edge).toBeGreaterThan(0.6);
 });
+
+// Dropping soap in by hand: each click switches on 40 dormant soap molecules where it lands.
+test("the soap dropper adds soap where you click", async ({ page }) => {
+  await page.goto("pages/oilwater/index.html");
+  await page.evaluate(() => window.oilTest!.ready);
+  await page.waitForTimeout(3000);
+  await page.locator("#dropS").click();
+  for (let k = 0; k < 3; k++) {
+    await page.locator("#canvasS").click({ position: { x: 100 + 80 * k, y: 120 } });
+    await page.waitForTimeout(400);
+  }
+  const text = await page.locator("#addedS").textContent();
+  console.log(`soap dropper: ${text}`);
+  expect(text).toContain("120 molecules");
+});

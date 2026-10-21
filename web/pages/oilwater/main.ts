@@ -73,7 +73,16 @@ temp.oninput = () => {
 // Measured natively (crates/md/tests/emulsion.rs, a quarter oil): without soap the droplets
 // (oily clusters of 10 or more) fall from ~63 to ~30 by 800 τ and keep merging; with plenty of
 // soap they settle at ~65–70 from 400 τ on.
-const soapSel = $<HTMLSelectElement>("soapS");
+/** The soap reserve: dormant soap molecules (three bonded beads, all water until switched on),
+ * as (head id) for each; and how many have been switched on. */
+let dormant: number[] = [];
+let added = 0;
+/** For tests: start with this share of soap already on (null: none, the page's start). */
+let testSoap: number | null = null;
+/** Soap molecules the scenario holds in reserve: up to 30% of the sites. */
+const RESERVE = 0.3;
+/** Soap molecules switched on per click. */
+const DOSE = 40;
 let dropsNow: { x: number; y: number }[] = [];
 let dropsPrev: { x: number; y: number }[] = [];
 let frameS = 0;
@@ -148,13 +157,20 @@ const hostS = new SimHost({
   canvas: $<HTMLCanvasElement>("canvasS"),
   overlay: $("overlayS"),
   scenario: "emulsion",
-  options: () => ({ n: 8000, soap: Number(soapSel.value), oil: 0.25, cross: 0.3, temperature: 0.7, bath_rate: 0.02, seed: 4 }),
+  options: () => (testSoap === null ? { n: 8000, soap: RESERVE, active: 0, oil: 0.25, cross: 0.3, temperature: 0.7, bath_rate: 0.02, seed: 4 } : { n: 8000, soap: testSoap, active: 1, oil: 0.25, cross: 0.3, temperature: 0.7, bath_rate: 0.02, seed: 4 }),
   names: ["water", "oil", "soap heads", "soap tails"],
   label: "soap",
   colors: ["--species-2", "--cream", "--highlight", "--good"],
   stepsPerFrame: () => 100,
   afterSteps: (sim) => readoutS(sim),
   onCreate: async (sim) => {
+    // Bond type 1 joins a soap molecule's head (id a) to its far tail bead (a + 2).
+    const b = sim.bonds();
+    dormant = [];
+    const sp = ((await sim.all_positions()) as { species: Uint32Array }).species;
+    for (let k = 0; k < b.length; k += 3) if (b[k + 2] === 1 && sp[b[k]] === 0) dormant.push(b[k]);
+    added = 0;
+    $("addedS").textContent = "none";
     if (dropsNow.length) dropsPrev = dropsNow;
     dropsNow = [];
     frameS = 0;
@@ -170,7 +186,41 @@ const reshake = () => {
   void hostS.create().then(() => (hostS.running = run));
 };
 $("shakeS").onclick = reshake;
-soapSel.onchange = reshake;
+
+// The soap dropper: a click switches on the dormant soap molecules nearest it (heads to species 2,
+// tails to 3), up to DOSE of them.
+let dropping = false;
+$("dropS").onclick = () => {
+  dropping = !dropping;
+  $("dropS").classList.toggle("on", dropping);
+  hostS.canvas.style.cursor = dropping ? "crosshair" : "";
+};
+hostS.canvas.addEventListener("pointerdown", async (e) => {
+  const sim = hostS.sim;
+  if (!dropping || !sim || !dormant.length) return;
+  const r = hostS.canvas.getBoundingClientRect();
+  const [x0, y0, x1, y1] = Array.from(sim.view());
+  const x = x0 + ((e.clientX - r.left) / r.width) * (x1 - x0);
+  const y = y1 - ((e.clientY - r.top) / r.height) * (y1 - y0);
+  const { pos } = (await sim.all_positions()) as { pos: Float32Array };
+  const [w, h] = Array.from(sim.box_size());
+  const d2 = (id: number) => {
+    let dx = Math.abs(pos[2 * id] - x);
+    let dy = Math.abs(pos[2 * id + 1] - y);
+    dx = Math.min(dx, w - dx);
+    dy = Math.min(dy, h - dy);
+    return dx * dx + dy * dy;
+  };
+  const near = dormant.map((id) => ({ id, d: d2(id) })).sort((a, b) => a.d - b.d).slice(0, DOSE).map((p) => p.id);
+  const set = new Set(near);
+  dormant = dormant.filter((id) => !set.has(id));
+  if (hostS.sim !== sim) return;
+  sim.set_species(new Uint32Array(near), 2);
+  sim.set_species(new Uint32Array(near.flatMap((id) => [id + 1, id + 2])), 3);
+  added += near.length;
+  $("addedS").textContent = `${added} molecules (${((300 * added) / sim.n()).toFixed(1)}% of the liquid)`;
+  if (!hostS.running) sim.render();
+});
 new Spoon(hostS, $<HTMLButtonElement>("spoonS"), { size: 10, taupersecond: () => (hostS.running ? 100 * 60 * 0.005 : 1) });
 
 declare global {
@@ -216,8 +266,9 @@ window.oilTest = {
   },
   async soap(soap: number, steps: number) {
     await hostS.ready;
-    soapSel.value = String(soap);
+    testSoap = soap;
     await hostS.create();
+    testSoap = null;
     return hostS.exclusive(async (sim) => {
       const out: { drops: number; edge: number }[] = [];
       for (let k = 0; k < steps / 20000; k++) {

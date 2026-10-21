@@ -426,6 +426,11 @@ impl DiscSim {
         self.engine.sys.describe(self.engine.n() as usize, &names)
     }
 
+    /// The bonds, three numbers each: the two particle ids and the bond type.
+    pub fn bonds(&self) -> Vec<u32> {
+        self.engine.sys.bonds.iter().flatten().copied().collect()
+    }
+
     /// Break the bond between particles `a` and `b` (ids) for good. Returns whether it existed.
     pub fn remove_bond(&mut self, a: u32, b: u32) -> bool {
         self.engine.remove_bond(a, b)

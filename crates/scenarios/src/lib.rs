@@ -1021,6 +1021,10 @@ pub fn emulsion(o: &Options) -> Scenario {
     let (ax, ay) = (b[0] / nx as f64, b[1] / ny as f64);
     let seed = o.get("seed", 1.0) as u64;
     let soap = o.get("soap", 0.1);
+    // Share of the soap molecules that start as soap; the rest start "dormant", as three bonded
+    // beads that are all water, for the page to switch on where the visitor drops soap (bonds
+    // cannot be made at run time, but species can change).
+    let active = o.get("active", 1.0);
     let oil = o.get("oil", 0.5); // share of the other sites that are oil
     let mut kind = vec![u8::MAX; nx * ny]; // 255 free
     let mut bonds = Vec::new();
@@ -1036,8 +1040,9 @@ pub fn emulsion(o: &Options) -> Scenario {
         let sites = [j * nx + i, j * nx + (i + 1) % nx, j * nx + (i + 2) % nx];
         if sites.iter().all(|&s| kind[s] == u8::MAX) {
             let id = order.len() as u32;
+            let on = ((order.len() / 3) as f64) < active * target as f64;
             for (k, &s) in sites.iter().enumerate() {
-                kind[s] = if k == 0 { 2 } else { 3 };
+                kind[s] = if !on { 0 } else if k == 0 { 2 } else { 3 };
                 order.push(s);
             }
             bonds.extend([[id, id + 1, 0], [id + 1, id + 2, 0], [id, id + 2, 1]]);

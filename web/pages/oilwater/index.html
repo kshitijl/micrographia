@@ -67,16 +67,12 @@
             <button id="shakeS">Shake it up again</button>
           </div>
           <div class="legend"><span><i style="background: var(--species-2)"></i>water</span><span><i style="background: var(--cream)"></i>oil</span><span><i style="background: var(--highlight)"></i>soap head (likes water)</span><span><i style="background: var(--good)"></i>soap tail (likes oil)</span></div>
-          <label class="row">Soap <span></span>
-            <select id="soapS">
-              <option value="0">none</option>
-              <option value="0.1">a little</option>
-              <option value="0.2" selected>plenty</option>
-              <option value="0.3">lots</option>
-            </select>
-          </label>
+          <div class="buttons">
+            <button id="dropS">Soap dropper</button>
+          </div>
           <div class="readouts">
             <div class="readout"><div class="k">oil droplets</div><div class="v" id="dropsS">–</div></div>
+            <div class="readout"><div class="k">soap added</div><div class="v" id="addedS">none</div></div>
             <div class="readout"><div class="k">soap at a boundary</div><div class="v" id="edgeS">–</div></div>
             <div class="readout"><div class="k">oil–water contacts per molecule</div><div class="v" id="contactS">–</div></div>
           </div>
@@ -84,10 +80,10 @@
           <div class="legend"><span><i style="background: var(--accent)"></i>this run</span><span><i style="background: var(--muted)"></i>the previous run</span></div>
           <div class="status" id="statusS">
             A quarter of the liquid is oil, freshly shaken into small droplets. Without soap they find each
-            other and merge, fewer and bigger. With soap the molecules line up along every oil–water
-            boundary, heads in the water and tails in the oil, and the droplets stay small. Run it with no
-            soap, then with plenty, and compare the curves. Stir with the spoon to break the droplets up
-            again.
+            other and merge, fewer and bigger. Pick up the soap dropper and click into the liquid: each
+            click lets in a few dozen soap molecules there. They spread, line up along the oil–water
+            boundaries, heads in the water and tails in the oil, and the droplets stop merging. Stir with the
+            spoon to break the droplets up, and compare a run with soap to the previous one without.
           </div>
         </aside>
       </section>
