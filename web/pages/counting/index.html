@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Counting Atoms One by One</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 16 16%22%3E%3Ccircle cx=%225%22 cy=%225%22 r=%221.5%22 fill=%22%2367d18f%22/%3E%3Ccircle cx=%2211%22 cy=%229%22 r=%221.5%22 fill=%22%2367d18f%22/%3E%3Ccircle cx=%226%22 cy=%2212%22 r=%221.5%22 fill=%22%2367d18f%22/%3E%3C/svg%3E" />
+    <link rel="stylesheet" href="../../src/lib/style.css" />
+  </head>
+  <body>
+    <nav class="topbar"><div class="wrap"><a href="../../index.html">Micrographia</a></div></nav>
+    <main class="wrap">
+      <header class="question">
+        <div class="eyebrow">The evidence for atoms: radioactivity</div>
+        <h1>How did anyone count atoms one at a time?</h1>
+        <p class="lede">
+          A radioactive atom gives no warning: at some moment, at random, its nucleus throws out an α particle, which
+          makes a tiny flash where it hits a zinc sulphide screen. In a dark room, with a magnifying glass, you can see
+          them, and count them: each flash is one atom. Rutherford and Geiger did this in 1908, and from counting flashes
+          and catching the helium the α particles became, the number of atoms in a gram.
+        </p>
+      </header>
+
+      <section class="lab">
+        <div class="left">
+          <canvas id="screen" style="width: 100%; aspect-ratio: 4 / 3; border-radius: 10px" aria-label="The scintillation screen, flashing where α particles hit it"></canvas>
+          <div class="legend"><span>The screen, seen through the magnifier: each flash is one atom decaying.</span></div>
+        </div>
+        <aside class="panel">
+          <div class="buttons">
+            <button class="primary" id="run">Run</button>
+            <button id="fresh">A fresh sample</button>
+          </div>
+          <label class="row">Atoms in the sample <span id="nv">20,000</span>
+            <input type="range" id="n" min="2000" max="200000" step="2000" value="20000" />
+          </label>
+          <label class="row">Half-life <span id="hv">60 s</span>
+            <input type="range" id="half" min="5" max="600" step="5" value="60" />
+          </label>
+          <label class="row">Counting interval <span id="iv">1 s</span>
+            <input type="range" id="interval" min="0.25" max="5" step="0.25" value="1" />
+          </label>
+          <div class="readouts">
+            <div class="readout"><div class="k">atoms left</div><div class="v" id="left">–</div></div>
+            <div class="readout"><div class="k">flashes counted</div><div class="v" id="count">–</div></div>
+            <div class="readout"><div class="k">average per interval, and its spread (√)</div><div class="v" id="mean">–</div></div>
+            <div class="readout"><div class="k">half-life measured from the counts</div><div class="v" id="hm">–</div></div>
+          </div>
+          <canvas class="plot" id="poisson" aria-label="How often each count per interval occurs, against Poisson's distribution"></canvas>
+          <div class="legend"><span><i style="background: var(--accent)"></i>counts per interval</span><span><i style="background: var(--muted)"></i>Poisson's prediction</span></div>
+          <canvas class="plot" id="decay" aria-label="Flashes per interval against time, on a log scale"></canvas>
+          <div class="legend"><span><i style="background: var(--species-2)"></i>flashes per interval against time (log scale): a straight line, the exponential decay</span></div>
+          <div class="status" id="status">
+            Press Run. A tenth of the decays send their α particle into the screen. The counts in equal intervals jump about
+            at random, but in a pattern: Poisson's. And as the atoms are used up, the flashes thin out, halving every half-life.
+          </div>
+        </aside>
+      </section>
+
+      <article class="notes">
+        <h2>Randomness with a pattern</h2>
+        <p>
+          Each atom has the same small chance of decaying in each second, whatever its neighbours do and however long it
+          has waited. So the number of flashes in an interval is random, but random in a definite way: if the average is
+          μ, the chance of k is μ<sup>k</sup>e<sup>−μ</sup>/k! (Poisson's distribution), and the spread around the average is √μ. Rutherford
+          and Geiger checked this in 1910 by counting flashes in thousands of eighth-of-a-minute intervals. That the
+          counts follow it is evidence that each flash is a separate, independent event: one atom.
+        </p>
+        <h2>The half-life</h2>
+        <p>
+          With the same chance per atom per second, a fixed fraction of whatever is left decays each second: the number
+          left, and the flash rate with it, falls exponentially, halving every half-life. The readout fits it from your counts.
+        </p>
+        <h2>Counting a gram</h2>
+        <p>
+          A gram of radium gives off about 3.4 × 10¹⁰ α particles a second (Rutherford and Geiger counted them, with a
+          screen and later with the first electrical counter, Geiger's). The α particles pick up electrons and become helium
+          atoms, and Rutherford and Royds showed in 1909 that they really are helium, by collecting it. Measuring the volume
+          of helium a known amount of radium makes in a year, and dividing it into the number of α particles counted, gives
+          the number of atoms in a volume of gas, and so N: Perrin's table lists about 6 × 10²³ from this, again.
+        </p>
+        <div class="caveat">
+          <h3>Caveats</h3>
+          <ul>
+            <li>Not molecular dynamics: each atom decays at random with the probability set by the half-life (a Monte Carlo of
+              independent atoms), and a fixed tenth of the decays light the screen.</li>
+            <li>A made-up isotope with a short half-life, so that the decay shows in minutes; radium's is 1,600 years.</li>
+          </ul>
+        </div>
+      </article>
+    </main>
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>

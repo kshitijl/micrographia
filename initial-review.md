@@ -722,3 +722,8 @@ docs/performance.md.
   jiggle included): switch the field to make it fall and rise through the reticle, X-ray it to change its
   charge, take new drops; each fall-and-rise pair gives its radius (Stokes) and charge, into a histogram
   that clusters at whole multiples of e (30 drops in the test: all within 0.25 e).
+- [ ] Track B21, new page `counting`: a radioactive sample (independent atoms, Monte Carlo) flashing on a
+  scintillation screen; counts per interval against Poisson (variance 2.1 for a mean of 2.2), the decay
+  curve, and the half-life from all the flashes (maximum likelihood: 61.7 s for a set 60 s; a fit of
+  ln(counts) read 68–70 s, biased by dropping the empty late intervals); sample size, half-life and
+  counting interval as sliders.
