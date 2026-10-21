@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Salt Dissolving</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 16 16%22%3E%3Crect x=%224%22 y=%224%22 width=%228%22 height=%228%22 fill=%22%23f3e4c6%22 stroke=%22%23555%22/%3E%3C/svg%3E" />
+    <link rel="stylesheet" href="../../src/lib/style.css" />
+  </head>
+  <body>
+    <nav class="topbar"><div class="wrap"><a href="../../index.html">Micrographia</a></div></nav>
+    <main class="wrap">
+      <header class="question">
+        <div class="eyebrow">Solubility</div>
+        <h1>Why does salt dissolve in water? And why does more dissolve when it is hot?</h1>
+        <p class="lede">
+          A crystal of salt, its two kinds of ion (red and gold) holding each other tightly, sits in water
+          (blue). The ions are attracted to the water too, but less than to each other: dissolving costs energy.
+          Yet one by one they leave the crystal and wander off, more of them the hotter the water. What pays?
+        </p>
+      </header>
+
+      <section class="lab">
+        <div class="stage" id="stage" style="aspect-ratio: 1 / 1">
+          <canvas id="canvas" aria-label="A salt crystal dissolving in water"></canvas>
+          <div class="overlay" id="overlay">Starting the GPU…</div>
+        </div>
+        <aside class="panel">
+          <div class="buttons">
+            <button class="primary" id="run">Run</button>
+            <button id="spoon">Stir with a spoon</button>
+            <button id="sprinkle">Sprinkle salt</button>
+            <button id="reset">Start again</button>
+          </div>
+          <label class="row">Temperature kT <span id="tv">0.90</span>
+            <input type="range" id="t" min="0.6" max="1.2" step="0.01" value="0.9" />
+          </label>
+          <div class="readouts">
+            <div class="readout"><div class="k">ions dissolved</div><div class="v" id="diss">–</div></div>
+            <div class="readout"><div class="k">ions still in a crystal or a pair</div><div class="v" id="xtal">–</div></div>
+            <div class="readout"><div class="k">concentration (dissolved ions per 100 water)</div><div class="v" id="conc">–</div></div>
+            <div class="readout"><div class="k">time</div><div class="v" id="time">–</div></div>
+          </div>
+          <canvas class="plot" id="plot" aria-label="Ions dissolved over time, this run and the previous"></canvas>
+          <div class="legend"><span><i style="background: var(--accent)"></i>this run</span><span><i style="background: var(--muted)"></i>the previous run</span></div>
+          <div class="status" id="status">
+            Press Run (at full speed: dissolving takes a few hundred τ). Then start again hotter or colder and
+            compare the curves: they level off at the solubility, higher when hotter. Sprinkle more salt in by
+            clicking with the salt on, and stir.
+          </div>
+        </aside>
+      </section>
+
+      <article class="notes">
+        <h2>Entropy pays</h2>
+        <p>
+          In the crystal each ion sits among opposite ions it attracts strongly; in the water it sits among water
+          molecules it attracts less. So dissolving costs energy (here, as for ordinary salt, the water cools a
+          little as salt dissolves: ΔH > 0). What it gains is entropy: an ion in the crystal has one place, an
+          ion in solution can be anywhere in the water. Free energy G = H − TS decides, and the balance stops
+          when the solution is so full that one more dissolved ion gains too little entropy to pay: saturation.
+          The concentration there is the solubility.
+        </p>
+        <h2>Why hotter dissolves more</h2>
+        <p>
+          The entropy gain is multiplied by T in G = H − TS, so the hotter it is, the more it counts against the
+          fixed energy cost, and the fuller the solution can get before it stops: solubility rises with
+          temperature. (This is van 't Hoff's rule: when dissolving takes in heat, warming pushes it further, as
+          Le Chatelier said.) Measured natively, after 2,000 τ: about 63 of the 256 ions dissolved at kT 0.7, 171 at
+          1.1. A salt whose dissolving gives out heat would do the opposite, and some do (cerium sulphate; and
+          gases: why warm soda goes flat).
+        </p>
+        <h2>Why salt changes the melting point so much more than the boiling point</h2>
+        <p>
+          See <a href="../freezing/index.html">salt and ice</a>: it is the same mixing entropy, set against the
+          latent heat, and water's latent heat of boiling is almost seven times its latent heat of melting.
+        </p>
+        <h2>Does salt in the water change how much sugar dissolves?</h2>
+        <p>
+          A little. Dissolved ions hold water molecules around them, and those water molecules are less free to
+          surround anything else, so a salty solution dissolves somewhat less of a neutral molecule like sugar
+          (or a gas): "salting out". But each solute's entropy of mixing is its own, so to a first approximation
+          they dissolve independently.
+        </p>
+        <div class="caveat">
+          <h3>Caveats</h3>
+          <ul>
+            <li>2D, and the ions are not charged: opposite ions attract by a strong short-range Lennard-Jones
+              force (ε = 3), like ions only repel, and water attracts both (ε = 1.3). Real ions attract water through
+              its dipole, and each other over long range.</li>
+            <li>The box is full of water (no vapour), dense enough to stay liquid over this whole temperature
+              range; a heat bath holds the temperature.</li>
+            <li>"Dissolved" means no opposite ion within 1.4 σ: ions in pairs count with the crystal.</li>
+          </ul>
+        </div>
+      </article>
+    </main>
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>

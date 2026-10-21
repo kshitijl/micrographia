@@ -82,7 +82,7 @@ pub struct Scenario {
     pub radii: Vec<f64>,
 }
 
-pub const NAMES: &[&str] = &["cream", "corner", "boltzmann", "heavy", "oilwater", "heatflow", "osmosis", "compress", "rubber", "atmosphere", "carnot", "boiling", "lipids", "balloon", "smell", "binding", "fep", "cell", "buffer", "mask", "dna", "demon", "ensemble", "osmosis_free", "osmometer", "flask", "emulsion", "enthalpy", "humid"];
+pub const NAMES: &[&str] = &["cream", "corner", "boltzmann", "heavy", "oilwater", "heatflow", "osmosis", "compress", "rubber", "atmosphere", "carnot", "boiling", "lipids", "balloon", "smell", "binding", "fep", "cell", "buffer", "mask", "dna", "demon", "ensemble", "osmosis_free", "osmometer", "flask", "emulsion", "enthalpy", "humid", "solubility"];
 
 pub fn build(name: &str, o: &Options) -> Result<Scenario, String> {
     let sc = build_unchecked(name, o)?;
@@ -129,6 +129,7 @@ fn build_unchecked(name: &str, o: &Options) -> Result<Scenario, String> {
         "emulsion" => Ok(emulsion(o)),
         "enthalpy" => Ok(enthalpy(o)),
         "humid" => Ok(humid(o)),
+        "solubility" => Ok(solubility(o)),
         _ => Err(format!("unknown scenario {name}")),
     }
 }
@@ -1679,4 +1680,40 @@ pub fn humid(o: &Options) -> Scenario {
         state.species.push(s);
     }
     Scenario { warmup: 0, finish: Finish::None, marked: 0, grid: [1, 50], radii: vec![0.5, 0.5], sys, state }
+}
+
+/// A salt crystal in water, in 2D: cations (species 1) and anions (species 2) on a checkerboard
+/// square crystal in the middle of a box filled with water (species 0, LJ), so there is no
+/// vapour. Opposite ions attract strongly (LJ, `salt`), like ions only repel (WCA), and water
+/// attracts both ions (`hydration`). A heat bath holds the temperature. Options: n (all
+/// molecules), ions (the crystal's side, in ions), density, salt, hydration, temperature, rate,
+/// seed.
+pub fn solubility(o: &Options) -> Scenario {
+    let n = o.get("n", 6000.0) as usize;
+    let side = o.get("ions", 16.0) as usize;
+    let t = o.get("temperature", 0.9);
+    let lj = |eps: f64| Pair { eps, sigma: 1.0, rc: 2.5 };
+    let bl = init::box_for(n, o.get("density", 0.75), 1.0);
+    let sys = System::new(bl, init::DT, lj(1.0), vec![1.0, 1.0, 1.0])
+        .with_pair(1, 2, lj(o.get("salt", 2.5)))
+        .with_pair(1, 1, Pair::wca())
+        .with_pair(2, 2, Pair::wca())
+        .with_pair(0, 1, lj(o.get("hydration", 1.3)))
+        .with_pair(0, 2, lj(o.get("hydration", 1.3)))
+        .with_thermostat(t, o.get("rate", 0.2));
+    let mut state = init::fluid(&sys, n, t, o.get("seed", 1.0) as u64);
+    // The crystal: the starting fluid is a square lattice, so the molecules in a square of
+    // `ions` × `ions` sites in the middle become ions, alternating like a chessboard.
+    let b = sys.box_f64();
+    let nx = (n as f64 * b[0] / b[1]).sqrt().ceil() as usize;
+    let ny = n.div_ceil(nx);
+    let (ax, ay) = (b[0] / nx as f64, b[1] / ny as f64);
+    let (cx, cy) = (nx / 2 - side / 2, ny / 2 - side / 2);
+    for i in 0..n {
+        let (ix, iy) = ((fixed::to_f64(state.pos[i][0]) / ax) as usize, (fixed::to_f64(state.pos[i][1]) / ay) as usize);
+        if (cx..cx + side).contains(&ix) && (cy..cy + side).contains(&iy) {
+            state.species[i] = 1 + ((ix + iy) % 2) as u32;
+        }
+    }
+    Scenario { warmup: 0, finish: Finish::None, marked: 1, grid: grid_for(n, b, 64.0), radii: vec![0.5, 0.5, 0.5], sys, state }
 }

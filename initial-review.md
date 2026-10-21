@@ -689,3 +689,9 @@ docs/performance.md.
   saltiness, with flow; pump strength, ADH, loop length and medullary blood flow as sliders, and
   the pumps' work. Default: urine 1,211 mOsm/L (tip 1,312); no ADH: 100; weaker pumps or a
   shorter loop: less.
+- [ ] New page `dissolving` (original list: why salt dissolves; solubility and temperature;
+  salt and sugar): a 2D crystal of two kinds of ion (strongly attracted to each other, less to
+  water) in a box full of water, held at a temperature; it dissolves more when hotter (entropy
+  against a fixed energy cost). Sprinkle salt in by clicking, stir with the spoon. New scenario
+  `solubility`. Bug found on the way: the first version moved leftover water onto occupied rows,
+  and the start exploded (everything "dissolved" even at ε = 6).
