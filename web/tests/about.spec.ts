@@ -10,8 +10,10 @@ for (const p of pages) {
     const about = page.locator("section.about-sim").first();
     await about.waitFor({ timeout: 30_000 });
     const text = await about.innerText();
-    expect(text).toContain("molecular dynamics in 2D");
-    expect(text).toMatch(/Ensemble|Heat bath|heat-bath/);
+    // The method (molecular dynamics in 2D or 3D, Monte Carlo, lattice Boltzmann, a model), and
+    // what holds or changes the energy.
+    expect(text).toMatch(/Method: /);
+    expect(text).toMatch(/Ensemble|ensemble|Heat bath|heat-bath|Energy:/);
     if (p === "heavy" || p === "arrhenius") console.log(`== ${p}\n${text}`);
   });
 }
