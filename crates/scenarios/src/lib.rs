@@ -82,7 +82,7 @@ pub struct Scenario {
     pub radii: Vec<f64>,
 }
 
-pub const NAMES: &[&str] = &["cream", "corner", "boltzmann", "heavy", "oilwater", "heatflow", "osmosis", "compress", "rubber", "atmosphere", "carnot", "boiling", "lipids", "balloon", "smell", "binding", "fep", "cell", "buffer", "mask", "dna", "demon", "ensemble", "osmosis_free", "osmometer", "flask", "emulsion", "enthalpy", "humid", "solubility", "perrin", "avogadro"];
+pub const NAMES: &[&str] = &["cream", "corner", "boltzmann", "heavy", "oilwater", "heatflow", "osmosis", "compress", "rubber", "atmosphere", "carnot", "boiling", "lipids", "balloon", "smell", "binding", "fep", "cell", "buffer", "mask", "dna", "demon", "ensemble", "osmosis_free", "osmometer", "flask", "emulsion", "enthalpy", "humid", "solubility", "perrin", "avogadro", "heatcap"];
 
 pub fn build(name: &str, o: &Options) -> Result<Scenario, String> {
     let sc = build_unchecked(name, o)?;
@@ -132,6 +132,7 @@ fn build_unchecked(name: &str, o: &Options) -> Result<Scenario, String> {
         "solubility" => Ok(solubility(o)),
         "perrin" => Ok(perrin(o)),
         "avogadro" => Ok(avogadro(o)),
+        "heatcap" => Ok(heatcap(o)),
         _ => Err(format!("unknown scenario {name}")),
     }
 }
@@ -1821,4 +1822,59 @@ pub fn avogadro(o: &Options) -> Scenario {
     let state = State { pos: pos.iter().map(|p| [fixed::to_fixed(p[0]), fixed::to_fixed(p[1])]).collect(), vel, species };
     // Drawn a little larger than their contact size, so that they show in so big a box.
     Scenario { warmup: 0, finish: Finish::None, marked: 0, grid: [4, 4], radii: vec![0.8; 4], sys, state }
+}
+
+/// Heat capacities, classically: a periodic box (no walls, no bath: constant energy) of one of
+/// three kinds (`kind`): 0, single atoms (a WCA gas); 1, two-atom molecules, the atoms joined by a
+/// harmonic spring (stiffness `k`, rest length 1.12 σ) in a WCA gas; 2, a 2D Lennard-Jones crystal
+/// (triangular, near its zero-pressure spacing). Options: n (molecules; for the crystal, rounded
+/// to a 20-column lattice), density (molecules per σ², gases), temperature, k, seed.
+pub fn heatcap(o: &Options) -> Scenario {
+    let n = o.get("n", 400.0) as usize;
+    let t = o.get("temperature", 0.2);
+    let seed = o.get("seed", 1.0) as u64;
+    let kind = o.get("kind", 0.0) as u32;
+    if kind == 2 {
+        let a = 1.10;
+        let cols = 20usize;
+        let rows = (n.div_ceil(cols) + 1) / 2 * 2; // even, so the lattice wraps
+        let w = cols as f64 * a;
+        let h = rows as f64 * a * 3f64.sqrt() / 2.0;
+        let sys = System::new([fixed::to_fixed(w), fixed::to_fixed(h)], init::DT, Pair::lj(2.5), vec![1.0]);
+        let pos: Vec<[i64; 2]> = (0..cols * rows)
+            .map(|k| {
+                let (i, j) = ((k % cols) as f64, (k / cols) as f64);
+                let x = (i + 0.5 * (j as usize % 2) as f64 + 0.25) * a;
+                let y = (j + 0.5) * a * 3f64.sqrt() / 2.0;
+                [fixed::to_fixed(x), fixed::to_fixed(y)]
+            })
+            .collect();
+        let species = vec![0; pos.len()];
+        let vel = init::maxwell(&sys, &species, t, seed);
+        let state = State { pos, vel, species };
+        return Scenario { warmup: 0, finish: Finish::None, marked: 0, grid: [4, 4], radii: vec![0.5], sys, state };
+    }
+    let rho = o.get("density", 0.1);
+    let box_len = init::box_for(n, rho, 1.0);
+    let sys = System::new(box_len, init::DT, Pair::wca(), vec![1.0]);
+    let sites = init::lattice(n, box_len, 0.2, seed);
+    let (mut pos, mut bonds) = (vec![], vec![]);
+    for (m, c) in sites.iter().enumerate() {
+        if kind == 0 {
+            pos.push(*c);
+        } else {
+            const R0: f64 = 1.12;
+            let a = 2.0 * std::f64::consts::PI * gpu_prims::threefry::uniform(seed, 81, m as u32);
+            let d = [fixed::to_fixed(0.5 * R0 * a.cos()), fixed::to_fixed(0.5 * R0 * a.sin())];
+            let i = pos.len() as u32;
+            pos.push([fixed::wrap(c[0] - d[0], box_len[0]), fixed::wrap(c[1] - d[1], box_len[1])]);
+            pos.push([fixed::wrap(c[0] + d[0], box_len[0]), fixed::wrap(c[1] + d[1], box_len[1])]);
+            bonds.push([i, i + 1, 0]);
+        }
+    }
+    let sys = if kind == 1 { sys.with_bonds(vec![md_core::BondType::Harmonic { k: o.get("k", 200.0), r0: 1.12 }], bonds) } else { sys };
+    let species = vec![0; pos.len()];
+    let vel = init::maxwell(&sys, &species, t, seed);
+    let state = State { pos, vel, species };
+    Scenario { warmup: 0, finish: Finish::None, marked: 0, grid: [4, 4], radii: vec![0.5], sys, state }
 }

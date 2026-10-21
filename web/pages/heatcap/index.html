@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Heat per Degree</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 16 16%22%3E%3Ccircle cx=%223%22 cy=%2212%22 r=%222%22 fill=%22%23e5483a%22/%3E%3Ccircle cx=%227%22 cy=%227%22 r=%222%22 fill=%22%23e5483a%22/%3E%3Cline x1=%227%22 y1=%227%22 x2=%2212%22 y2=%224%22 stroke=%22%234f7cc4%22 stroke-width=%222%22/%3E%3Ccircle cx=%2212%22 cy=%224%22 r=%222%22 fill=%22%234f7cc4%22/%3E%3C/svg%3E" />
+    <link rel="stylesheet" href="../../src/lib/style.css" />
+  </head>
+  <body>
+    <nav class="topbar"><div class="wrap"><a href="../../index.html">Micrographia</a></div></nav>
+    <main class="wrap">
+      <header class="question">
+        <div class="eyebrow">The evidence for atoms: specific heats (Dulong and Petit, 1819; Maxwell's "greatest difficulty")</div>
+        <h1>Why does it take more heat to warm some gases than others? And why don't argon atoms spin?</h1>
+        <p class="lede">
+          Give the same heat to a gramme-molecule of argon and one of nitrogen, and the argon gets hotter. The heat goes into
+          the molecules' motions, shared equally among every way they can move: argon's atoms can only fly about, but a nitrogen
+          molecule can also tumble and vibrate, so its heat is spread thinner. Count the ways and you predict the heat per
+          degree. That worked, mostly, and where it failed it was the first sign of quantum mechanics.
+        </p>
+      </header>
+
+      <h2>1. The same heat, three ways to hold it</h2>
+      <section class="lab">
+        <div class="left">
+          <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px">
+            <div>
+              <div class="stage" style="aspect-ratio: 1 / 1"><canvas id="canvas0" aria-label="A gas of single atoms"></canvas><div class="overlay" id="overlay0">Starting the GPU…</div></div>
+              <div class="legend"><span><b>Atoms</b> (like argon)</span></div>
+            </div>
+            <div>
+              <div class="stage" style="aspect-ratio: 1 / 1"><canvas id="canvas1" aria-label="A gas of two-atom molecules on springs"></canvas><div class="overlay" id="overlay1">Starting the GPU…</div></div>
+              <div class="legend"><span><b>Molecules</b>: two atoms on a spring (like nitrogen)</span></div>
+            </div>
+            <div>
+              <div class="stage" style="aspect-ratio: 1 / 1"><canvas id="canvas2" aria-label="A crystal"></canvas><div class="overlay" id="overlay2">Starting the GPU…</div></div>
+              <div class="legend"><span><b>A crystal</b> (like copper)</span></div>
+            </div>
+          </div>
+          <canvas class="plot tall" id="tq" aria-label="Temperature against the heat added"></canvas>
+          <div class="legend"><span><i style="background: var(--trace-1)"></i>atoms</span><span><i style="background: var(--trace-2)"></i>molecules</span><span><i style="background: var(--trace-3)"></i>crystal</span><span>The steeper the line, the less heat it takes per degree.</span></div>
+          <canvas class="plot" id="where" aria-label="Where the heat went"></canvas>
+          <div class="legend"><span>Where each one's energy is, per molecule (in kT): <i style="background: var(--trace-4)"></i>flying about, <i style="background: var(--trace-2)"></i>tumbling, <i style="background: var(--trace-1)"></i>vibrating (moving), <i style="background: var(--muted)"></i>stored in springs and bonds (stretched, counted from the start's)</span></div>
+        </div>
+        <aside class="panel">
+          <div class="buttons">
+            <button class="primary" id="run">Run all three</button>
+            <button id="heat">Add heat to each</button>
+            <button id="cool">Take heat out</button>
+            <button id="reset">Start again</button>
+          </div>
+          <label class="row">Dose, per molecule <span id="dosev">0.1 ε</span>
+            <input type="range" id="dose" min="0.02" max="0.5" step="0.02" value="0.1" />
+          </label>
+          <div class="readouts">
+            <div class="readout"><div class="k">temperature kT: atoms, molecules, crystal</div><div class="v" id="t">–</div></div>
+            <div class="readout"><div class="k">heat per degree, per molecule (in k)</div><div class="v" id="c">–</div></div>
+            <div class="readout"><div class="k">equipartition says</div><div class="v">1, 2.5, 2</div></div>
+          </div>
+          <canvas class="plot" id="energy" aria-label="Each box's energy minus the heat put in"></canvas>
+          <div class="legend"><span>Total energy minus the heat put in, per molecule, since the start: flat, because nothing else gets in or out.</span></div>
+          <div class="status" id="status">
+            Run, then add heat a few times. The atoms warm fastest. Each molecule has more places to put the same heat (look at
+            the bars: half of it goes into spinning and vibrating). The crystal's atoms cannot fly about, but each sits in a
+            spring-like cage, so half its heat goes into stretching: 2k per atom. Add a lot of heat and the crystal melts.
+          </div>
+        </aside>
+      </section>
+
+      <h2>2. Why the counting failed, and what fixed it</h2>
+      <section class="lab">
+        <div class="left">
+          <canvas class="plot tall" id="quantum" aria-label="Heat per degree against temperature, with quantum levels"></canvas>
+          <div class="legend"><span><i style="background: var(--trace-3)"></i>hydrogen, H₂</span><span><i style="background: var(--trace-2)"></i>nitrogen, N₂</span><span><i style="background: var(--trace-1)"></i>argon</span><span><i style="background: var(--muted)"></i>the classical count: 3.5k for a molecule, 1.5k for an atom</span><span>(real, 3D molecules: in 3D an atom has 1.5k, a molecule adds 1k of spin and 1k of vibration)</span></div>
+          <canvas class="plot" id="levels" aria-label="Which spinning and vibrating levels are occupied"></canvas>
+          <div class="legend"><span>Hydrogen at this temperature: how many molecules are in each spinning level (left) and vibrating level (right).</span></div>
+        </div>
+        <aside class="panel">
+          <label class="row">Temperature <span id="tempv">300 K</span>
+            <input type="range" id="temp" min="0" max="4" step="0.01" value="2.477" />
+          </label>
+          <div class="readouts">
+            <div class="readout"><div class="k">heat per degree (k): H₂, N₂, argon</div><div class="v" id="cq">–</div></div>
+            <div class="readout"><div class="k">H₂ molecules spinning, vibrating</div><div class="v" id="occ">–</div></div>
+          </div>
+          <div class="status">
+            Slide the temperature down. Below about 100 K hydrogen stops spinning: its heat per degree drops to that of a
+            single atom, 1.5k. Its vibration is frozen at all ordinary temperatures, nitrogen's too, so at room temperature
+            both take 2.5k, not the 3.5k the classical count gives. Argon never spins at all.
+          </div>
+        </aside>
+      </section>
+
+      <article class="notes">
+        <h2>Counting the ways to move</h2>
+        <p>
+          Equipartition says that, in equilibrium, every independent way a molecule can hold energy that goes as a square (a
+          velocity in one direction, a spin about one axis, the stretch of a spring) holds ½kT on average. In 2D an atom has two
+          directions to fly in: 1k of heat per degree. A two-atom molecule adds a spin (½k) and a vibration, which holds
+          energy twice over, moving and stretched (1k): 2.5k. An atom in a crystal cannot fly, but vibrates in two directions,
+          each moving and stretched: 2k (in 3D, 3k: Dulong and Petit's law, 1819, the same for every element's atoms, which
+          let chemists check atomic weights). Measured natively: 1.01, 2.58 and 1.98.
+        </p>
+        <h2>The greatest difficulty</h2>
+        <p>
+          Real gases do not do quite this. Nitrogen at room temperature takes the heat per degree of translation plus rotation
+          and no vibration, as if its spring were frozen solid; and hydrogen, cooled below about 100 K, stops rotating too.
+          Maxwell called it the greatest difficulty the kinetic theory had met; classical mechanics cannot freeze a motion, as
+          part 1 shows (a stiffer spring makes no difference: 2.39 at stiffness 1,000 against 2.58 at 200, the same within the
+          noise).
+        </p>
+        <p>
+          The answer is quanta, as in the <a href="../einstein-solid/index.html">Einstein solid</a>: a spin or a vibration can
+          only take energy in steps, and when the first step is much bigger than kT the collisions almost never supply it. The
+          motion is frozen out. Hydrogen's spin steps are big because the molecule is light and small (θ<sub>rot</sub> ≈ 85 K);
+          nitrogen's are tiny (3 K), but both vibrate stiffly (6,300 K and 3,400 K). And an argon atom? Its mass sits in the
+          nucleus, 10,000 times smaller than the atom, so its moment of inertia is tiny and its first step of spin enormous
+          (around 10⁹ K, Perrin's §94): it never spins, which is why a monatomic gas has only its translations, as Perrin argued
+          from the specific heats to the nucleus.
+        </p>
+        <div class="caveat">
+          <h3>Caveats</h3>
+          <ul>
+            <li>Part 1 is 2D molecular dynamics and classical; part 2 is a calculation, not a simulation, for real 3D
+              molecules: the heat capacity of a quantum rotor (levels J(J + 1)kθ<sub>rot</sub>, each 2J + 1 times over) and
+              oscillator (nkθ<sub>vib</sub>), from their partition functions, plus 1.5k of translation.</li>
+            <li>Real (3D) hydrogen's rotation also depends on its nuclear spins (ortho- and para-hydrogen); left out here.</li>
+            <li>Heat is added by scaling every velocity in a box by the same factor (exactly the dose's worth of kinetic energy);
+              the molecules then share it out among their motions.</li>
+          </ul>
+        </div>
+      </article>
+    </main>
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>

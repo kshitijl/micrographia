@@ -51,6 +51,7 @@ M1 Pro (Metal) unless stated. Run everything with `cargo xtask all`.
 | `relativity` (relativistic hard disks, JavaScript) | Can a gas get hotter without getting faster? Is hot tea heavier? | Energy conserved to 1e-15 per molecule; E within 1% of Jüttner at kT 0.05, 0.73, 2.4 with every speed below c (mean 0.91 c at kT 2.4); pushed, inertia per molecule 1.03 (cold) and 3.09 (hot) against (E + pA)/c² = 1.025 and 3.07 |
 | `perrin` (a table, no simulation) | Thirteen ways to count atoms: do they agree? | Values of N measured on the millikan page (e = 1.604 × 10⁻¹⁹ C, N = F/e = 6.0 × 10²³) and the counting page (6.1 × 10²³) appear in the table; also from sedimentation, brownian (RT/Dζ), viscosity (Loschmidt) and light (h from the photoelectrons, k from Wien: 6.0 × 10²³) |
 | `lines` | Why are a hot gas's spectral lines blurred? | At 1,000 K: H line 14.8 pm wide (Doppler 14.9), O 4.5 (4.4); the widths weigh the atoms at 1.01 u and 15.2 u; at 2,220 K: 21.5 and 6.6 pm (22.2, 6.6) |
+| `heatcap` (2D MD, and a quantum calculation) | Why does it take more heat to warm some gases? Why don't argon atoms spin? | Heat per degree per molecule 1.01, 2.45, 1.94 (equipartition 1, 2.5, 2; natively 1.01, 2.58, 1.98, and 2.39 with a 5× stiffer spring); quantum 3D: H₂ 1.54k at 20 K, 2.50 at 300 K, 3.47 at 10,000 K; argon 1.5 always |
 
 Plus `selftest`: the GPU primitive and engine checks, run under the browser's shader compiler.
 

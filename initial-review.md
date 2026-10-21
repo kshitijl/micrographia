@@ -761,3 +761,9 @@ docs/performance.md.
   atoms, as a spectroscope looking along x would show them, in lab units (kT 1 = 1,000 K): widths within 1–3%
   of λ√(kT/mc²); a readout weighs the glowing atoms from the width (Buisson and Fabry: hydrogen glows as
   atoms). Drag a box to look at part of the gas, and heat, cool or shove it towards you (a blueshift).
+- [ ] Tracks B2 and B19, new page `heatcap`: three constant-energy boxes (atoms, two-atom molecules on
+  springs, a 2D LJ crystal) heated by the same counted doses; heat per degree 1.01k, 2.45k, 1.94k against
+  equipartition's 1, 2.5, 2; bars show where the energy sits (flying, tumbling, vibrating, stretched); add
+  enough heat and the crystal melts. Part 2: real 3D molecules' quantum rotor and oscillator: hydrogen stops
+  spinning below ~100 K, vibrations frozen at room temperature, argon's spin never unfreezes (mass in the
+  nucleus), with occupation bars of hydrogen's levels. New scenario `heatcap`.
