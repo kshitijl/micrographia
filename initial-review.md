@@ -714,3 +714,7 @@ docs/performance.md.
   colour swatch and a brightness against an ideal gas). Very hot: S ≈ 1.2, blue; near T_c: S at
   the red scale 178, white, 55 times brighter. New API `GasSim.sites()`. Notes: why the sky is blue,
   counting molecules from its brightness, critical opalescence.
+- [ ] Track B9, new page `viscosity`: a thin and a dense gas (same molecules, densities 0.02 and
+  0.08) stirred with a gentle shear wave; its decay gives η = ρ × rate / k²: 0.265 and 0.311 (dilute
+  kinetic theory: 0.288), the same within the dense gas's Enskog correction; the velocity profile
+  flattening live; mean free path and molecular size from η, Loschmidt's way.

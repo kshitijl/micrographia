@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>The Viscosity of a Gas</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 16 16%22%3E%3Cpath d=%22M1 8 C 4 2, 6 2, 8 8 S 12 14, 15 8%22 stroke=%22%232d6a9f%22 stroke-width=%222%22 fill=%22none%22/%3E%3C/svg%3E" />
+    <link rel="stylesheet" href="../../src/lib/style.css" />
+  </head>
+  <body>
+    <nav class="topbar"><div class="wrap"><a href="../../index.html">Micrographia</a></div></nav>
+    <main class="wrap">
+      <header class="question">
+        <div class="eyebrow">The evidence for atoms: Maxwell, 1860; Loschmidt, 1865</div>
+        <h1>Why is a gas just as sticky whatever its pressure? And how did that measure the size of a molecule?</h1>
+        <p class="lede">
+          Two gases of the same molecules, one four times denser than the other. Stir them both the same way,
+          and watch the stirring die away. Common sense says the denser gas should be stickier: more molecules
+          to rub against. Maxwell worked out in 1860 that it should not be, measured it, and was right.
+        </p>
+      </header>
+
+      <section class="lab">
+        <div class="left">
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px">
+            <div>
+              <div class="stage" id="stageA" style="aspect-ratio: 1 / 1">
+                <canvas id="canvasA" aria-label="A thin gas"></canvas>
+                <div class="overlay" id="overlayA">Starting the GPU…</div>
+              </div>
+              <div class="legend"><span><b>Thin</b>: density 0.02</span></div>
+            </div>
+            <div>
+              <div class="stage" id="stageB" style="aspect-ratio: 1 / 1">
+                <canvas id="canvasB" aria-label="A gas four times denser"></canvas>
+                <div class="overlay" id="overlayB">Starting the GPU…</div>
+              </div>
+              <div class="legend"><span><b>Dense</b>: density 0.08, four times as many molecules per area</span></div>
+            </div>
+          </div>
+          <canvas class="plot" id="profile" aria-label="Average sideways speed against height, in each gas" style="margin-top: 10px"></canvas>
+          <div class="legend"><span><i style="background: var(--plot-back)"></i>thin</span><span><i style="background: var(--accent)"></i>dense</span><span>average sideways speed (σ/τ) against height (as a share of the box)</span></div>
+          <canvas class="plot tall" id="plot" aria-label="The stirring's strength against time, on a log scale"></canvas>
+          <div class="legend"><span><i style="background: var(--plot-back)"></i>thin</span><span><i style="background: var(--accent)"></i>dense</span><span>how strongly each gas is still swirling (log scale): a straight line, falling at a rate set by its viscosity</span></div>
+        </div>
+        <aside class="panel">
+          <div class="buttons">
+            <button class="primary" id="run">Run both</button>
+            <button id="stir">Stir both</button>
+          </div>
+          <div class="readouts">
+            <div class="readout"><div class="k">viscosity η: thin, dense</div><div class="v" id="eta">–</div></div>
+            <div class="readout"><div class="k">how fast the swirl dies: thin, dense (per τ)</div><div class="v" id="rate">–</div></div>
+            <div class="readout"><div class="k">mean free path from η: thin, dense</div><div class="v" id="mfp">–</div></div>
+            <div class="readout"><div class="k">molecule's size from η (it is ~1 σ)</div><div class="v" id="size">–</div></div>
+          </div>
+          <div class="status" id="status">
+            Press Run, then Stir. The stirring is bands of gas moving left and right, too gentle to see among the
+            molecules' thermal jiggling, but plain in the profile above: each gas's average sideways speed at each
+            height, a wave that flattens as the stirring dies. Each gas's swirl dies away at its own rate; the viscosity, worked out
+            from that rate and the gas's density, comes out the same for both.
+          </div>
+        </aside>
+      </section>
+
+      <article class="notes">
+        <h2>Maxwell's surprise</h2>
+        <p>
+          Viscosity is a gas carrying sideways momentum from fast-moving layers to slow ones: molecules wander
+          from one layer to the next, bringing their layer's motion with them. A denser gas has more molecules
+          to carry momentum, but each one gets less far before it collides and hands it on, its mean free path
+          shorter in proportion. The two cancel: the viscosity η ≈ ½ n m v̄ λ (in 2D) does not depend on the density
+          n, because λ ∝ 1/n. Maxwell predicted this in 1860, found it so surprising that he measured it himself, with
+          discs swinging in a gas at different pressures, and it held, from a sixtieth of an atmosphere to one.
+          It was one of the first big successes of the idea that a gas is molecules flying about.
+        </p>
+        <p>
+          Here, the thinner gas's swirl dies away just as fast in this pair of boxes. Its viscosity is the same, but its
+          mass per area is a quarter as big, so the same viscous force slows it four times as fast; its box is twice
+          as wide (it has the same number of molecules), so its swirl is four times as wide, which slows the decay by
+          four. The viscosity, worked out from each, agrees.
+        </p>
+        <h2>The size of a molecule</h2>
+        <p>
+          The mean free path is λ ≈ 2η/(n m v̄), from the measured viscosity. And λ depends on the molecules' size d: a
+          molecule sweeps out a strip 2d wide as it flies, and travels until that strip has met another molecule,
+          λ = 1/(2√2 n d) in 2D (in 3D, 1/(√2 n π d²)). So the viscosity gives d. Loschmidt did this in 1865 for air,
+          getting a molecule a millionth of a millimetre across, and, from how many such molecules fill a cubic
+          centimetre of liquid air, the first estimate of the number of molecules in a gas: Loschmidt's number, Avogadro's
+          number's first appearance. The readout makes the same rough estimate here; it lands near the molecules' real
+          size, within the slack of the simple formulas.
+        </p>
+        <div class="caveat">
+          <h3>Caveats</h3>
+          <ul>
+            <li>2D: discs, and the simplest kinetic-theory formulas (factors of order one are not trusted).</li>
+            <li>The stirring is a gentle shear wave (sideways speed up to 0.4 σ/τ, against thermal speeds of ~1), so
+              the gas stays near equilibrium; the friction turns it into heat, warming each gas a little.</li>
+            <li>No heat bath: each gas conserves its energy apart from the stirring.</li>
+            <li>Both gases are thin enough for kinetic theory (mean free paths of about 12 and 3 σ); a liquid's
+              viscosity works differently and does depend strongly on density.</li>
+          </ul>
+        </div>
+      </article>
+    </main>
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>
