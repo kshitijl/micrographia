@@ -177,6 +177,11 @@ impl BallSim {
         self.engine.kick_region([-1.0; 3], [b[0] + 1.0, b[1] + 1.0, b[2] + 1.0], scale, [0.0; 3]);
     }
 
+    /// Give every particle of `species` the velocity (vx, vy, vz) σ/τ.
+    pub fn set_species_velocity(&mut self, species: u32, vx: f64, vy: f64, vz: f64) {
+        self.engine.set_species_velocity(species, [vx, vy, vz]);
+    }
+
     pub fn set_species(&mut self, ids: Vec<u32>, species: u32) {
         self.engine.set_species(&ids, species);
     }

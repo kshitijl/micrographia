@@ -48,6 +48,7 @@ pub struct Params3 {
     pub wall_kind: [[u32; 4]; 2],
     pub wall_sd: [[f32; 4]; 6],
     pub pairs: [[f32; 4]; 16],
+    pub pair_list_r2: [[f32; 4]; 4],
 }
 
 /// Verlet lists in 3D: a 0.4 σ skin and room for twice the mean number of neighbours, but never
@@ -155,6 +156,7 @@ impl Params3 {
             wall_kind,
             wall_sd,
             pairs,
+            pair_list_r2: crate::engine::pair_list_r2(ns, |a, c| sys.pair(a, c).rc, skin),
         }
     }
 }
@@ -314,6 +316,7 @@ pub struct GpuEngine3 {
     reverse: Dispatch,
     kick_region: Dispatch,
     set_species: Dispatch,
+    set_velocity: Dispatch,
     set_list: wgpu::Buffer,
     kinetic: Dispatch,
     ke_sum: ReducePlan,
@@ -410,7 +413,7 @@ impl GpuEngine3 {
                 let build = Dispatch::new_at(
                     gpu,
                     &pl("build_list"),
-                    &[(0, &b.params), (1, &b.pos), (5, &rbin.starts), (6, &rbin.counts), (11, &b.ctl), (20, &nbr), (21, &nbr_count), (22, &ref_pos)],
+                    &[(0, &b.params), (1, &b.pos), (3, &b.species), (5, &rbin.starts), (6, &rbin.counts), (11, &b.ctl), (20, &nbr), (21, &nbr_count), (22, &ref_pos)],
                     g,
                 );
                 let mut list = reorder.clone();
@@ -435,6 +438,7 @@ impl GpuEngine3 {
             reverse: Dispatch::new_at(gpu, &pl("reverse"), &[(0, &b.params), (2, &b.vel), (3, &b.species), (8, &b.kicks)], g),
             kick_region: Dispatch::new_at(gpu, &pl("kick_region"), &[(0, &b.params), (1, &b.pos), (2, &b.vel), (3, &b.species), (12, &b.cmd)], g),
             set_species: Dispatch::new_at(gpu, &pl("set_species"), &[(0, &b.params), (3, &b.species), (10, &b.ids), (12, &b.cmd), (13, &set_list)], g),
+            set_velocity: Dispatch::new_at(gpu, &pl("set_species_velocity"), &[(0, &b.params), (2, &b.vel), (3, &b.species), (12, &b.cmd)], g),
             kinetic: Dispatch::new_at(gpu, &pl("kinetic"), &[(0, &b.params), (2, &b.vel), (3, &b.species), (19, &b.ke)], g),
             ke_sum: ReducePlan::new(prims, Scalar::F32, &b.ke, n),
             set_list,
@@ -538,6 +542,17 @@ impl GpuEngine3 {
         let mut p = Params3::new(&sys, self.n(), self.mode);
         // Keep the cell and list geometry the buffers were sized for.
         (p.ncx, p.ncy, p.ncz, p.ncell, p.cell_scale, p.list) = (self.params.ncx, self.params.ncy, self.params.ncz, self.params.ncell, self.params.cell_scale, self.params.list);
+        // A pair whose cutoff grew must be listed further out from the next rebuild on.
+        let mut grew = false;
+        for a in 0..4 {
+            for b in 0..4 {
+                grew |= p.pair_list_r2[a][b] > self.params.pair_list_r2[a][b];
+                p.pair_list_r2[a][b] = p.pair_list_r2[a][b].max(self.params.pair_list_r2[a][b]);
+            }
+        }
+        if grew {
+            self.gpu().queue.write_buffer(&self.buf.ctl, 4 * CTL_REBUILD as u64, bytemuck::bytes_of(&1u32));
+        }
         self.gpu().queue.write_buffer(&self.buf.params, 0, bytemuck::bytes_of(&p));
         self.params = p;
         self.sys = sys;
@@ -563,6 +578,14 @@ impl GpuEngine3 {
             self.gpu().queue.write_buffer(&self.set_list, 0, bytemuck::cast_slice(chunk));
             self.submit(|pass| self.set_species.encode(pass));
         }
+    }
+
+    /// Give every particle of `species` the velocity `v` (σ/τ): throw a ball, say.
+    pub fn set_species_velocity(&mut self, species: u32, v: [f64; 3]) {
+        let a = v.map(|x| self.sys.to_step_displacement(x));
+        let c = Cmd3 { add: [a[0], a[1], a[2], 0], to: species, ..Default::default() };
+        self.gpu().queue.write_buffer(&self.buf.cmd, 0, bytemuck::bytes_of(&c));
+        self.submit(|pass| self.set_velocity.encode(pass));
     }
 
     /// Replace the state (same particle count).

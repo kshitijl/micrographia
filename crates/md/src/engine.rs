@@ -61,6 +61,7 @@ pub struct Params {
     pub fan: [u32; 4],
     pub thermo_sd: [f32; 4],
     pub wall_sd: [[f32; 4]; 4],
+    pub pair_list_r2: [[f32; 4]; 4],
 }
 
 /// Words of the control buffer (see `params.wgsl`).
@@ -293,8 +294,22 @@ impl Params {
                 }
                 sd
             },
+            pair_list_r2: pair_list_r2(ns, |a, b| sys.pair(a, b).rc, skin),
         }
     }
+}
+
+/// Per species pair, the squared radius a neighbour list keeps it within: (cutoff + skin)², with
+/// the same conservative margin as the list radius. Pairs of species that are not there get 0.
+pub(crate) fn pair_list_r2(ns: usize, rc: impl Fn(u32, u32) -> f64, skin: f64) -> [[f32; 4]; 4] {
+    let mut out = [[0f32; 4]; 4];
+    for a in 0..ns {
+        for b in 0..ns {
+            let r = (rc(a as u32, b as u32) + skin) * (1.0 + 1e-4);
+            out[(a * 4 + b) / 4][(a * 4 + b) % 4] = (r * r) as f32;
+        }
+    }
+    out
 }
 
 /// Arguments of the `kick_region` kernel.
@@ -685,7 +700,7 @@ impl GpuEngine {
                 let build = Dispatch::new_at(
                     gpu,
                     &npl("build_list"),
-                    &[(0, &b.params), (1, &b.pos), (4, &reorder.bin.starts), (5, &reorder.bin.counts), (6, &nbr), (7, &nbr_count), (8, &ref_pos), (9, &b.ctl)],
+                    &[(0, &b.params), (1, &b.pos), (3, &b.species), (4, &reorder.bin.starts), (5, &reorder.bin.counts), (6, &nbr), (7, &nbr_count), (8, &ref_pos), (9, &b.ctl)],
                     g,
                 );
                 let mut list = reorder.dispatches();
@@ -894,6 +909,16 @@ impl GpuEngine {
         p.mbits = self.params.mbits;
         p.list_r2 = self.params.list_r2;
         p.half_skin2 = self.params.half_skin2;
+        // A pair whose cutoff grew must be listed further out from the next rebuild on.
+        let mut grew = false;
+        for a in 0..4 {
+            for b in 0..4 {
+                if p.pair_list_r2[a][b] > self.params.pair_list_r2[a][b] {
+                    grew = true;
+                }
+                p.pair_list_r2[a][b] = p.pair_list_r2[a][b].max(self.params.pair_list_r2[a][b]);
+            }
+        }
         p.itab_len = self.params.itab_len;
         // Soft walls cannot appear at run time unless the engine read wall forces from the start.
         p.features |= self.params.features;
@@ -902,6 +927,9 @@ impl GpuEngine {
         self.gpu().queue.write_buffer(&self.buf.params, 0, bytemuck::bytes_of(&p));
         self.params = p;
         self.sys = sys;
+        if grew {
+            self.request_rebuild();
+        }
     }
 
     /// Set a fixed-speed piston's speed (σ/τ; positive opens the box).

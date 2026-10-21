@@ -30,6 +30,7 @@ fn build_list(@builtin(global_invocation_id) gid: vec3<u32>) {
         return;
     }
     let pi = pos[i];
+    let si = species[i];
     let cc = cell_coords(pi);
     var count = 0u;
     for (var oy = 0u; oy < 3u; oy++) {
@@ -44,7 +45,8 @@ fn build_list(@builtin(global_invocation_id) gid: vec3<u32>) {
                     continue;
                 }
                 let f = sep2(pi, pos[j]);
-                if (dot(f, f) < P.list_r2) {
+                let k = si * 4u + species[j];
+                if (dot(f, f) < P.pair_list_r2[k / 4u][k % 4u]) {
                     if (count < P.cap) {
                         nbr[count * P.n + i] = j;
                     }

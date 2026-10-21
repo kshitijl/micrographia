@@ -12,13 +12,14 @@ pub struct Scenario3 {
     pub radii: Vec<f64>,
 }
 
-pub const NAMES3: &[&str] = &["crystal3", "gas3", "freeze3"];
+pub const NAMES3: &[&str] = &["crystal3", "gas3", "freeze3", "brownian3"];
 
 pub fn build3(name: &str, o: &Options) -> Result<Scenario3, String> {
     let sc = match name {
         "crystal3" => crystal3(o),
         "gas3" => gas3(o),
         "freeze3" => freeze3(o),
+        "brownian3" => brownian3(o),
         _ => return Err(format!("unknown 3D scenario {name}")),
     };
     for (i, p) in sc.state.pos.iter().enumerate() {
@@ -122,4 +123,32 @@ pub fn freeze3(o: &Options) -> Scenario3 {
     let pos = pos.into_iter().map(|p| [p[0], p[2], p[1]]).collect();
     let vel = three::maxwell(&sys, &species, t, seed + 1);
     Scenario3 { sys, state: State3 { pos, vel, species }, radii: vec![0.5, 0.55] }
+}
+
+/// A Brownian grain: one big sphere (species 1, diameter `size` σ, as dense as the liquid, so
+/// mass ∝ its volume) in a liquid of repulsive (WCA) molecules at `density`, periodic, at
+/// Maxwell's distribution. Options: n, density, size, temperature, seed.
+pub fn brownian3(o: &Options) -> Scenario3 {
+    let n = o.get("n", 16000.0) as usize;
+    let rho = o.get("density", 0.7);
+    let size = o.get("size", 5.0);
+    let t = o.get("temperature", 1.0);
+    let seed = o.get("seed", 1.0) as u64;
+    let mass = rho * std::f64::consts::PI / 6.0 * size.powi(3);
+    let wca = |sigma: f64| Pair { eps: 1.0, sigma, rc: sigma * 2f64.powf(1.0 / 6.0) };
+    let box_len = three::cube_for(n, rho);
+    let sys = System3::new(box_len, init::DT, wca(1.0), vec![1.0, mass]).with_pair(0, 1, wca(0.5 * (size + 1.0))).with_pair(1, 1, wca(size)).with_seed(seed);
+    // A lattice of solvent with the grain at the centre: remove the molecules where it goes.
+    let all = three::fcc(n, box_len, three::fcc_cells(n, box_len), 0.1, seed);
+    let c = box_len.map(|l| l / 2);
+    let clear = fixed::to_fixed(0.5 * (size + 1.0) * 1.02);
+    let mut pos = vec![c];
+    pos.extend(all.into_iter().filter(|p| {
+        let d2: f64 = (0..3).map(|a| fixed::to_f64(fixed::min_image(p[a], c[a], box_len[a])).powi(2)).sum();
+        d2 > fixed::to_f64(clear).powi(2)
+    }));
+    let mut species = vec![0; pos.len()];
+    species[0] = 1;
+    let vel = three::maxwell(&sys, &species, t, seed + 1);
+    Scenario3 { sys, state: State3 { pos, vel, species }, radii: vec![0.5, 0.5 * size] }
 }

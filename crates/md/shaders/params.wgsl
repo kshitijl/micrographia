@@ -77,6 +77,10 @@ struct Params {
     // species for thermal walls (σ/τ), computed on the CPU.
     thermo_sd: vec4<f32>,
     wall_sd: array<vec4<f32>, 4>,
+    // Per species pair a·4 + b: the squared radius within which a neighbour list keeps the pair,
+    // (its cutoff + skin)², so pairs with short cutoffs (small molecules beside a big one) do not
+    // fill the lists out to the largest cutoff.
+    pair_list_r2: array<vec4<f32>, 4>,
 }
 
 fn is_pinned(s: u32) -> bool {

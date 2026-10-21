@@ -55,6 +55,8 @@ struct Params3 {
     wall_sd: array<vec4<f32>, 6>,
     // Per species pair a·4 + b: (rc², 4ε, σ², energy shift).
     pairs: array<vec4<f32>, 16>,
+    // Per species pair a·4 + b: (its cutoff + skin)², the radius its neighbour lists keep it within.
+    pair_list_r2: array<vec4<f32>, 4>,
 }
 
 struct Pos3 {
@@ -444,6 +446,7 @@ fn build_list(@builtin(global_invocation_id) gid: vec3<u32>) {
         return;
     }
     let pi = pos[i];
+    let si = species[i];
     let cc = cell_of(pi);
     var count = 0u;
     for (var oz = 0u; oz < 3u; oz++) {
@@ -460,7 +463,8 @@ fn build_list(@builtin(global_invocation_id) gid: vec3<u32>) {
                         continue;
                     }
                     let f = sep3(pi, pos[j]);
-                    if (dot(f, f) < P.list.x) {
+                    let k = si * 4u + species[j];
+                    if (dot(f, f) < P.pair_list_r2[k / 4u][k % 4u]) {
                         if (count < P.cap) {
                             nbr[count * P.n + i] = j;
                         }
@@ -644,4 +648,13 @@ fn copy_back_meta(@builtin(global_invocation_id) gid: vec3<u32>) {
     }
     species[k] = tmp_species[k];
     ids[k] = tmp_ids[k];
+}
+
+// Give every particle of species C.to_species the velocity C.add (position units per step).
+@compute @workgroup_size(256)
+fn set_species_velocity(@builtin(global_invocation_id) gid: vec3<u32>) {
+    let i = gid.x;
+    if (i < P.n && species[i] == C.to_species) {
+        vel[i] = i3(C.add.xyz);
+    }
 }
