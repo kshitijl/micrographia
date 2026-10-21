@@ -552,18 +552,27 @@ pub fn carnot(o: &Options) -> Scenario {
 }
 
 /// A pool of Lennard-Jones liquid (rc 2.5) with its vapour above, held at a temperature by a
-/// bulk bath, or heated from below by a hot plate (`plate`, a heat-bath floor, with an
-/// insulating lid); weak gravity keeps the liquid at the bottom (the vapour's scale height is
-/// far taller than the box). Options: n, width, height (σ), temperature, plate, seed.
+/// bulk bath, or heated from below by a hot plate (`plate`, a heat-bath floor) or a hot layer
+/// (`layer`, a bath in the bottom 3 σ), with an insulating lid; weak gravity keeps the liquid at the bottom (the vapour's scale height is
+/// far taller than the box). Options: n, width, height (σ), temperature, plate, layer, seed.
 pub fn boiling(o: &Options) -> Scenario {
     let n = o.get("n", 6000.0) as usize;
     let (w, h) = (o.get("width", 200.0), o.get("height", 160.0));
     let t = o.get("temperature", 0.42);
-    // `plate` > 0: no bulk heat bath; instead the floor is a hot plate (a heat-bath wall) at that
-    // temperature, and the lid is insulating.
-    let plate = o.get("plate", 0.0);
+    // Heating, one of: `plate` > 0, a hot plate (the floor is a heat-bath wall at that
+    // temperature); `layer` > 0, a hot layer (a heat bath acting only in the bottom 3 σ, the
+    // liquid's first few layers); otherwise a bulk bath at `temperature`. Both plates sit under an
+    // insulating lid. (On the plate the liquid, which does not wet a purely repulsive wall, can
+    // hold a thin vapour gap above it; the layer heats the liquid directly.)
+    let (plate, layer) = (o.get("plate", 0.0), o.get("layer", 0.0));
     let sys = System::new([fixed::to_fixed(w), fixed::to_fixed(h)], init::DT, Pair::lj(2.5), vec![1.0]).with_gravity([0.0, -0.002]);
-    let sys = if plate > 0.0 { sys.with_walls(1, Wall::Thermal(plate), Wall::Soft) } else { sys.with_walls(1, Wall::Soft, Wall::Soft).with_thermostat(t, 0.5) };
+    let sys = if plate > 0.0 {
+        sys.with_walls(1, Wall::Thermal(plate), Wall::Soft)
+    } else if layer > 0.0 {
+        sys.with_walls(1, Wall::Soft, Wall::Soft).with_thermostat(layer, 1.0).with_bath_layer(0.0, 3.0)
+    } else {
+        sys.with_walls(1, Wall::Soft, Wall::Soft).with_thermostat(t, 0.5)
+    };
     // The liquid starts as a slab at density 0.75 on the floor.
     let depth = n as f64 / (0.75 * w);
     let pool = System::new([fixed::to_fixed(w), fixed::to_fixed(depth + 2.0)], init::DT, Pair::lj(2.5), vec![1.0]).with_walls(1, Wall::Soft, Wall::Soft);

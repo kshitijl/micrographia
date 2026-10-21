@@ -159,13 +159,14 @@ impl System {
             Some(t) => {
                 let who: Vec<String> = (0..ns).filter(|&s| t.species & (1 << s) != 0 && !self.is_pinned(s as u32)).map(name).collect();
                 let all = who.len() == (0..ns).filter(|&s| !self.is_pinned(s as u32)).count();
-                let region = t.region[0] > i64::MIN && (t.region[0] > 0 || t.region[1] < self.box_len[0]);
+                let region = t.region[0] > i64::MIN && (t.region[0] > 0 || t.region[1] < self.box_len[t.axis]);
+                let axis = ["x", "y"][t.axis];
                 format!(
                     "Heat bath (Andersen thermostat) at kT = {}: each molecule{} has its velocity replaced by a random one at that temperature about {} times per τ{}{}. Energy is not conserved: the bath adds and removes it.",
                     num(t.t),
                     if all { String::new() } else { format!(" of {}", who.join(" and ")) },
                     num(t.rate),
-                    if region { format!(", only between x = {} and {} σ", num(fixed::to_f64(t.region[0].max(0))), num(fixed::to_f64(t.region[1].min(self.box_len[0])))) } else { String::new() },
+                    if region { format!(", only between {axis} = {} and {} σ", num(fixed::to_f64(t.region[0].max(0))), num(fixed::to_f64(t.region[1].min(self.box_len[t.axis])))) } else { String::new() },
                     if t.drift != 0.0 { format!(", around a mean velocity of {} σ/τ to the right (a fan)", num(t.drift)) } else { String::new() }
                 )
             }

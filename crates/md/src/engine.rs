@@ -219,7 +219,7 @@ impl Params {
                 [c[0] as u32, c[1] as u32]
             },
             thermo: match sys.thermostat {
-                Some(t) => [t.t as f32, (t.rate * sys.dt) as f32, 0.0, 0.0],
+                Some(t) => [t.t as f32, (t.rate * sys.dt) as f32, t.axis as f32, 0.0],
                 None => [0.0; 4],
             },
             membrane: match sys.membrane {
@@ -268,9 +268,10 @@ impl Params {
                 t
             },
             pairs,
-            // The bath's x range, clamped to the box so that unsigned comparisons work.
+            // The bath's range along its axis, clamped to the box so that unsigned comparisons work.
             fan: {
-                let r = sys.thermostat.map_or([0, 0], |t| t.region).map(|x| x.clamp(0, sys.box_len[0]));
+                let axis = sys.thermostat.map_or(0, |t| t.axis);
+                let r = sys.thermostat.map_or([0, 0], |t| t.region).map(|x| x.clamp(0, sys.box_len[axis]));
                 let (lo, hi) = (fixed64::split(r[0]), fixed64::split(r[1]));
                 [lo[0], lo[1], hi[0], hi[1]]
             },

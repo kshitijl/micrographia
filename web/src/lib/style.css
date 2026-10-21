@@ -476,3 +476,6 @@ table.results th {
   color: var(--muted);
   text-align: center;
 }
+.with-sides.two {
+  grid-template-columns: minmax(0, 1fr) repeat(2, 64px);
+}

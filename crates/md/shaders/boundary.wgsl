@@ -140,7 +140,8 @@ fn andersen(i: u32, v: vec2<i32>) -> vec2<i32> {
     if (P.thermo.y <= 0.0 || is_pinned(species[i]) || (P.thermo_species & (1u << species[i])) == 0u) {
         return v;
     }
-    let px = pos[i].xy;
+    // The bath's region is a range of x (thermo.z = 0) or of y (thermo.z = 1).
+    let px = select(pos[i].xy, pos[i].zw, P.thermo.z > 0.5);
     if (lt64(px, P.fan.xy) || !lt64(px, P.fan.zw)) {
         return v;
     }

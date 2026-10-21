@@ -14,6 +14,9 @@ export function side(
     lo?: number;
     hi: number;
     label: (v: number) => string;
+    /** The part of the canvas height the bars cover, as fractions from the bottom (default the
+     * whole height): to line the bars up with a box drawn inside a larger view. */
+    span?: [number, number];
   },
 ) {
   const c = $<HTMLCanvasElement>(id);
@@ -29,14 +32,16 @@ export function side(
   const lo = p.lo ?? 0;
   const x = (v: number) => (Math.max(0, v - lo) / (p.hi - lo)) * W;
   const n = p.values[0].length;
-  const bh = H / n;
+  const [f0, f1] = p.span ?? [0, 1];
+  const bh = (H * (f1 - f0)) / n;
+  const base = H * (1 - f0); // the pixel row of the bottom of bin 0
   for (let b = 0; b < n; b++) {
     let x0 = 0;
     p.values.forEach((v, k) => {
       const w = k === 0 ? x(v[b]) : (Math.max(0, v[b]) / (p.hi - lo)) * W; // stacked on the first
       const col = p.colors[k];
       ctx.fillStyle = typeof col === "string" ? col : col(b);
-      ctx.fillRect(x0, H - (b + 1) * bh + 0.5, w, bh - (n > 40 ? 0 : 1));
+      ctx.fillRect(x0, base - (b + 1) * bh + 0.5, w, bh - (n > 40 ? 0 : 1));
       x0 += w;
     });
   }
@@ -50,7 +55,7 @@ export function side(
     ctx.setLineDash([...dash]);
     ctx.beginPath();
     line.forEach((v, b) => {
-      const y = H - (b + 0.5) * bh;
+      const y = base - (b + 0.5) * bh;
       if (b === 0) ctx.moveTo(x(v), y);
       else ctx.lineTo(x(v), y);
     });

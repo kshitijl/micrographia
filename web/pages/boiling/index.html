@@ -20,10 +20,25 @@
         </p>
       </header>
 
+      <h2>1. A pot with a lid on a hot plate</h2>
       <section class="lab">
-        <div class="stage" id="stage">
-          <canvas id="canvas" aria-label="A liquid pool with vapour molecules above it"></canvas>
-          <div class="overlay" id="overlay">Starting the GPU…</div>
+        <div class="left">
+          <div class="with-sides two">
+            <div class="stage" id="stage">
+              <canvas id="canvas" aria-label="A liquid pool with vapour molecules above it"></canvas>
+              <div class="overlay" id="overlay">Starting the GPU…</div>
+            </div>
+            <canvas class="side" id="sideRho" aria-label="Density at each height"></canvas>
+            <canvas class="side" id="sideT" aria-label="Temperature at each height"></canvas>
+            <div></div>
+            <div class="side-label">density</div>
+            <div class="side-label">temper&shy;ature</div>
+          </div>
+          <div class="sub" style="font-size: 13px; color: var(--muted); margin-top: 6px">
+            Beside the pot, at each height (averaged over the last few frames): how dense it is (liquid
+            below, vapour above) and how hot, blue where colder than average and red where hotter; the
+            dashed line is the hot plate's temperature.
+          </div>
         </div>
         <aside class="panel">
           <div class="buttons">
@@ -32,8 +47,9 @@
           </div>
           <label class="row">Heat it with <span></span>
             <select id="heat">
-              <option value="bath" selected>a heat bath throughout (a thermostat)</option>
-              <option value="plate">a hot plate under the floor</option>
+              <option value="plate" selected>a hot plate (the floor itself is the heat bath)</option>
+              <option value="layer">a hot layer (a heat bath in the bottom 3 σ of liquid)</option>
+              <option value="bath">a heat bath throughout (a thermostat)</option>
             </select>
           </label>
           <label class="row">Molecules <span></span>
@@ -46,8 +62,18 @@
               <option value="48000">48,000</option>
             </select>
           </label>
-          <label class="row">Temperature <span id="tv">0.420</span>
+          <label class="row"><span id="tlabel">Temperature</span> <span id="tv">0.420</span>
             <input type="range" id="t" min="0.38" max="0.47" step="0.005" value="0.42" />
+          </label>
+          <label class="row" id="platerow">Hot plate at kT = <span id="platev">0.60</span>
+            <input type="range" id="plateT" min="0.30" max="1.20" step="0.01" value="0.60" />
+          </label>
+          <label class="row">Colour molecules by <span></span>
+            <select id="colorby">
+              <option value="smooth" selected>energy, averaged over ~2 τ (shows heat moving)</option>
+              <option value="speed">speed right now (each molecule's own, jumpy)</option>
+              <option value="plain">nothing (all one colour)</option>
+            </select>
           </label>
           <div class="readouts">
             <div class="readout"><div class="k">measured temperature</div><div class="v" id="tm">–</div></div>

@@ -159,16 +159,18 @@ pub struct Thermostat {
     pub rate: f64,
     /// Bit s set if the bath acts on species s (pinned species never).
     pub species: u32,
-    /// The bath acts only on particles with x in [lo, hi) (position units).
+    /// The bath acts only on particles whose coordinate `axis` is in [lo, hi) (position units).
     pub region: [i64; 2],
+    /// 0: the region is a range of x (a fan's slab); 1: a range of y (a layer, like a hot plate).
+    pub axis: usize,
     /// Mean x velocity of the redrawn particles (σ/τ): a bath with a drift is a fan.
     pub drift: f64,
 }
 
 impl Thermostat {
-    /// Does the bath act on a particle of species `s` at x coordinate `x`?
-    pub fn acts_on(&self, s: u32, x: i64) -> bool {
-        self.species & (1 << s) != 0 && (self.region[0]..self.region[1]).contains(&x)
+    /// Does the bath act on a particle of species `s` at position `p`?
+    pub fn acts_on(&self, s: u32, p: [i64; 2]) -> bool {
+        self.species & (1 << s) != 0 && (self.region[0]..self.region[1]).contains(&p[self.axis])
     }
 }
 
@@ -322,11 +324,11 @@ impl System {
     }
 
     pub fn with_thermostat(mut self, t: f64, rate: f64) -> Self {
-        let (species, region, drift) = match self.thermostat {
-            Some(th) => (th.species, th.region, th.drift),
-            None => (u32::MAX, [i64::MIN, i64::MAX], 0.0),
+        let (species, region, axis, drift) = match self.thermostat {
+            Some(th) => (th.species, th.region, th.axis, th.drift),
+            None => (u32::MAX, [i64::MIN, i64::MAX], 0, 0.0),
         };
-        self.thermostat = Some(Thermostat { t, rate, species, region, drift });
+        self.thermostat = Some(Thermostat { t, rate, species, region, axis, drift });
         self
     }
 
@@ -336,7 +338,17 @@ impl System {
         let th = self.thermostat.as_mut().expect("a fan is a thermostat with a region: add the thermostat first");
         th.species = species;
         th.region = [fixed::to_fixed(x0), fixed::to_fixed(x1)];
+        th.axis = 0;
         th.drift = drift;
+        self
+    }
+
+    /// Confine the thermostat to the layer y0 ≤ y < y1 (σ): a hot (or cold) plate's worth of bath
+    /// that heats whatever liquid or gas lies against the floor or ceiling.
+    pub fn with_bath_layer(mut self, y0: f64, y1: f64) -> Self {
+        let th = self.thermostat.as_mut().expect("a bath layer is a thermostat with a region: add the thermostat first");
+        th.region = [fixed::to_fixed(y0), fixed::to_fixed(y1)];
+        th.axis = 1;
         self
     }
 

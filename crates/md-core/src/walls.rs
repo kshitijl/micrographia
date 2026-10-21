@@ -116,10 +116,10 @@ pub fn soft_wall(d: f64) -> (f64, f64) {
 pub const STREAM_THERMO: u32 = 0x5448_524d;
 
 /// Andersen thermostat: Some(new velocity in σ/τ, relative to the bath's drift) if particle
-/// `id` (species `s`, at x coordinate `x`) is redrawn this step.
-pub fn andersen(sys: &System, id: u32, clock: u32, s: u32, x: i64) -> Option<(f64, f64)> {
+/// `id` (species `s`, at position `p`) is redrawn this step.
+pub fn andersen(sys: &System, id: u32, clock: u32, s: u32, p: [i64; 2]) -> Option<(f64, f64)> {
     let th = sys.thermostat?;
-    if !th.acts_on(s, x) {
+    if !th.acts_on(s, p) {
         return None;
     }
     let m = sys.masses[s as usize];
