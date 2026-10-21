@@ -42,6 +42,13 @@
           <label class="row">Hot bath temperature (cold bath is 1.0) <span id="thv">1.50</span>
             <input type="range" id="th" min="1.2" max="3" step="0.1" value="1.5" />
           </label>
+          <label class="row">Molecules <span></span>
+            <select id="nmol">
+              <option value="800">800</option>
+              <option value="3200" selected>3,200</option>
+              <option value="12800">12,800</option>
+            </select>
+          </label>
           <div class="readouts">
             <div class="readout"><div class="k">now</div><div class="v" id="leg" style="font-size: 14px">–</div></div>
             <div class="readout"><div class="k">gas temperature</div><div class="v" id="temp">–</div></div>

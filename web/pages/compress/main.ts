@@ -114,7 +114,7 @@ const host = new SimHost({
   canvas: $<HTMLCanvasElement>("canvas"),
   overlay: $("overlay"),
   scenario: "compress",
-  options: () => ({ n: 3000, density: 0.05, thermal: thermal.checked ? 1 : 0, seed: 9 }),
+  options: () => ({ n: Number($<HTMLSelectElement>("nmol").value), density: 0.05, thermal: thermal.checked ? 1 : 0, seed: 9 }),
   // Work done on the gas by the piston = −(work done by the gas).
   energy: { work: async (sim) => -Array.from((await sim.piston()) as Float64Array)[3] },
   names: ["gas"],
@@ -188,4 +188,9 @@ window.compressTest = {
       return { t0, a0, t1: lastT, a1: lastA };
     });
   },
+};
+
+$("nmol").onchange = () => {
+  const run = host.running;
+  void host.create().then(() => (host.running = run));
 };

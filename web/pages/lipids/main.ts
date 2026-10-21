@@ -81,7 +81,7 @@ const host = new SimHost({
   canvas: $<HTMLCanvasElement>("canvas"),
   overlay: $("overlay"),
   scenario: "lipids",
-  options: () => ({ lipids: 800, tail: TAIL, density: 0.25, temperature: Number(tIn.value), attraction: Number(epsIn.value), head: Number(headIn.value), seed: 14 }),
+  options: () => ({ lipids: Number($<HTMLSelectElement>("nmol").value), tail: TAIL, density: 0.25, temperature: Number(tIn.value), attraction: Number(epsIn.value), head: Number(headIn.value), seed: 14 }),
   names: ["heads", "tails"],
   colors: ["--species-2", "--cream"],
   stepsPerFrame: () => 200,
@@ -126,3 +126,5 @@ window.lipidsTest = {
     });
   },
 };
+
+$("nmol").onchange = restart;

@@ -679,15 +679,19 @@ pub fn lipids(o: &Options) -> Scenario {
 /// outside is empty. Dilute, so molecules effuse through the pores. Options: n, heavy, pore
 /// (width σ), seed.
 pub fn balloon(o: &Options) -> Scenario {
-    let n = o.get("n", 1000.0) as usize;
+    // `scale` (a whole number) enlarges the whole box, keeping the gas as thin: a leak obeys Graham's
+    // law only while the mean free path is longer than the pores (effusion); a denser gas flows
+    // through them instead (measured: at 4× the density the ratio fell from 2.7 to 1.7).
+    let k = o.get("scale", 1.0).round().max(1.0) as i64;
+    let n = o.get("n", 1000.0 * (k * k) as f64) as usize;
     let small = Pair { eps: 1.0, sigma: 0.3, rc: 0.3 * 2f64.powf(1.0 / 6.0) };
     let masses = vec![1.0, o.get("heavy", 29.0 / 4.0)];
-    let sys = System::new([128i64 << 32, 96i64 << 32], init::DT, small, masses.clone())
+    let sys = System::new([(128 * k) << 32, (96 * k) << 32], init::DT, small, masses.clone())
         .with_walls(0, Wall::Hard, Wall::Hard)
         .with_walls(1, Wall::Hard, Wall::Hard)
-        .with_membrane(0, 32.0, &[0, 1])
+        .with_membrane(0, 32.0 * k as f64, &[0, 1])
         .with_pores(4, o.get("pore", 0.6));
-    let inside = System::new([31i64 << 32, 96i64 << 32], init::DT, small, masses).with_walls(0, Wall::Hard, Wall::Hard).with_walls(1, Wall::Hard, Wall::Hard);
+    let inside = System::new([(32 * k - 1) << 32, (96 * k) << 32], init::DT, small, masses).with_walls(0, Wall::Hard, Wall::Hard).with_walls(1, Wall::Hard, Wall::Hard);
     let seed = o.get("seed", 1.0) as u64;
     let mut state = init::fluid(&inside, n, 1.0, seed);
     for i in (1..n).step_by(2) {

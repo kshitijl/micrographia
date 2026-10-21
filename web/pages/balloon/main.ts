@@ -3,7 +3,9 @@ import { LinesPlot } from "../../src/lib/plot";
 import { cssColor } from "../../src/lib/theme";
 import type { DiscSim } from "../../src/lib/wasm";
 
-const WALL = 32;
+/** The membrane's position (σ): 32 per unit of the box's scale. */
+let WALL = 32;
+let HEIGHT = 96;
 const heavyIn = $<HTMLInputElement>("heavy");
 let start = [0, 0];
 let history: { t: number; f: [number, number] }[] = [];
@@ -22,7 +24,7 @@ function wall(sim: DiscSim) {
   const c = cssColor("--accent");
   const r: number[] = [];
   // Wall segments between pores (pores are 0.6 σ wide, every 16 σ).
-  for (let y = 0; y < 96; y += 16) r.push(WALL - 0.3, y + 0.6, WALL + 0.3, y + 16, c[0], c[1], c[2], 1);
+  for (let y = 0; y < HEIGHT; y += 16) r.push(WALL - 0.3, y + 0.6, WALL + 0.3, y + 16, c[0], c[1], c[2], 1);
   sim.set_overlay(new Float32Array(r));
 }
 
@@ -49,12 +51,15 @@ const host = new SimHost({
   canvas: $<HTMLCanvasElement>("canvas"),
   overlay: $("overlay"),
   scenario: "balloon",
-  options: () => ({ n: 1000, heavy: Number(heavyIn.value), pore: 0.6, seed: 15 }),
+  options: () => ({ scale: Number($<HTMLSelectElement>("nmol").value), heavy: Number(heavyIn.value), pore: 0.6, seed: 15 }),
   names: ["helium", "air"],
   colors: ["--cream", "--species-2"],
   stepsPerFrame: () => 100,
   afterSteps: (sim) => readout(sim),
   onCreate: async (sim) => {
+    const [w, h] = Array.from(sim.box_size());
+    WALL = w / 4;
+    HEIGHT = h;
     history = [];
     lastRatio = NaN;
     $("graham").textContent = Math.sqrt(Number(heavyIn.value)).toFixed(2);
@@ -99,4 +104,9 @@ window.balloonTest = {
       return { ratio: lastRatio, graham: Math.sqrt(Number(heavyIn.value)) };
     });
   },
+};
+
+$("nmol").onchange = () => {
+  const run = host.running;
+  void host.create().then(() => (host.running = run));
 };

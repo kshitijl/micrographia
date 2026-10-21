@@ -39,6 +39,14 @@
           <label class="row">Head size (charged heads repel more) <span id="hv">1.00</span>
             <input type="range" id="head" min="0.8" max="1.6" step="0.05" value="1" />
           </label>
+          <label class="row">Lipids (4 beads each) <span></span>
+            <select id="nmol">
+              <option value="400">400</option>
+              <option value="800">800</option>
+              <option value="1600" selected>1,600</option>
+              <option value="3200">3,200</option>
+            </select>
+          </label>
           <div class="readouts">
             <div class="readout"><div class="k">lipids in aggregates</div><div class="v" id="agg">–</div></div>
             <div class="readout"><div class="k">largest aggregate</div><div class="v" id="big">–</div></div>

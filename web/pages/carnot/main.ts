@@ -125,7 +125,7 @@ const host = new SimHost({
   canvas: $<HTMLCanvasElement>("canvas"),
   overlay: $("overlay"),
   scenario: "carnot",
-  options: () => ({ n: 800, width: 64, start: H1, top: 4 * H1 * ISO, hot: th(), contact: contact(), seed: 12 }),
+  options: () => ({ n: Number($<HTMLSelectElement>("nmol").value), width: (64 * Number($<HTMLSelectElement>("nmol").value)) / 800, start: H1, top: 4 * H1 * ISO, hot: th(), contact: contact(), seed: 12 }),
   // Work done on the gas by the piston = −(work done by the gas).
   energy: { work: async (sim) => -Array.from((await sim.piston()) as Float64Array)[3] },
   names: ["gas"],
@@ -191,4 +191,10 @@ window.carnotTest = {
     });
     return { eff: results.slice(start).map((p) => p.y), total: lastEff, limit: limit() };
   },
+};
+
+// More molecules: a wider cylinder at the same density (the cycle's heights are unchanged).
+$("nmol").onchange = () => {
+  const run = host.running;
+  void host.create().then(() => (host.running = run));
 };
