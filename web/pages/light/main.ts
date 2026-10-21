@@ -351,7 +351,7 @@ function frame(now: number) {
   lastTime = now;
   if (running) {
     sweep();
-    measure(0.9);
+    measure(0.97);
     draw1();
   }
   if (running2) {
