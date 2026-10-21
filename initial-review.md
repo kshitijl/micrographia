@@ -669,3 +669,7 @@ docs/performance.md.
   cold and a hot thin gas, click to sneeze an exactly counted burst of heat into a spot, or into
   everyone at once; entropy (N × Boltzmann's H of the energies) against Q/T, and S against E
   (slope 1/T, flattening). The same 300 ε adds 569 k to the cold box and 146 k to the hot one.
+- [ ] The triple point (original list): answered on the `crystal` page, whose crystal melts with
+  its own vapour around it, so its temperature plateau (kT ≈ 0.62) is the triple point; why only
+  one point (two conditions on G, two lines crossing), and why ice in a drink or an iceberg is not
+  at it (one atmosphere of air; the vapour's partial pressure is the humidity's).
