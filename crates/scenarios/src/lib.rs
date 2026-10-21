@@ -82,7 +82,7 @@ pub struct Scenario {
     pub radii: Vec<f64>,
 }
 
-pub const NAMES: &[&str] = &["cream", "corner", "boltzmann", "heavy", "oilwater", "heatflow", "osmosis", "compress", "rubber", "atmosphere", "carnot", "boiling", "lipids", "balloon", "smell", "binding", "fep", "cell", "buffer", "mask", "dna", "demon", "ensemble", "osmosis_free", "osmometer", "flask", "emulsion", "enthalpy"];
+pub const NAMES: &[&str] = &["cream", "corner", "boltzmann", "heavy", "oilwater", "heatflow", "osmosis", "compress", "rubber", "atmosphere", "carnot", "boiling", "lipids", "balloon", "smell", "binding", "fep", "cell", "buffer", "mask", "dna", "demon", "ensemble", "osmosis_free", "osmometer", "flask", "emulsion", "enthalpy", "humid"];
 
 pub fn build(name: &str, o: &Options) -> Result<Scenario, String> {
     let sc = build_unchecked(name, o)?;
@@ -128,6 +128,7 @@ fn build_unchecked(name: &str, o: &Options) -> Result<Scenario, String> {
         "flask" => Ok(flask(o)),
         "emulsion" => Ok(emulsion(o)),
         "enthalpy" => Ok(enthalpy(o)),
+        "humid" => Ok(humid(o)),
         _ => Err(format!("unknown scenario {name}")),
     }
 }
@@ -1623,4 +1624,59 @@ pub fn enthalpy(o: &Options) -> Scenario {
     let mut state = init::fluid(&lower, n, t, seed);
     state.vel = init::maxwell(&sys, &state.species, t, seed);
     Scenario { warmup: 0, finish: Finish::None, marked: 0, grid: [4, 4], radii: vec![0.5], sys, state }
+}
+
+/// The saturated vapour density of the 2D LJ fluid (rc 2.5) at temperature `t`: a
+/// Clausius–Clapeyron fit through the Gibbs-ensemble and MD values (0.023 at kT 0.40, 0.058 at
+/// 0.44; crates/mc/tests/gibbs.rs).
+pub fn saturated_vapour_density(t: f64) -> f64 {
+    0.023 * (-4.07 * (1.0 / t.clamp(0.3, 0.47) - 1.0 / 0.40)).exp()
+}
+
+/// Humid air over water: a pool of LJ "water" (species 0) on the floor under "air" (species 1, a
+/// gas that never condenses: purely repulsive), with the water's vapour in the air at
+/// `humidity` × its saturated density. A gentle bath holds the temperature; weak gravity keeps
+/// the pool down; hard walls left and right. Options: width, height, depth (of the pool, σ), air
+/// (density), humidity,
+/// temperature, seed.
+pub fn humid(o: &Options) -> Scenario {
+    let (w, h) = (o.get("width", 120.0), o.get("height", 100.0));
+    let depth = o.get("depth", 14.0);
+    let t = o.get("temperature", 0.42);
+    let seed = o.get("seed", 1.0) as u64;
+    let wca = Pair::wca();
+    let sys = System::new([fixed::to_fixed(w), fixed::to_fixed(h)], init::DT, Pair::lj(2.5), vec![1.0, 1.0])
+        .with_pair(0, 1, wca)
+        .with_pair(1, 1, wca)
+        .with_walls(0, Wall::Hard, Wall::Hard)
+        .with_walls(1, Wall::Soft, Wall::Soft)
+        .with_gravity([0.0, -0.002])
+        .with_thermostat(t, o.get("rate", 0.1));
+    let n_pool = (0.75 * w * depth) as usize;
+    let pool = System::new([fixed::to_fixed(w), fixed::to_fixed(depth + 2.0)], init::DT, Pair::lj(2.5), vec![1.0]).with_walls(0, Wall::Soft, Wall::Soft).with_walls(1, Wall::Soft, Wall::Soft);
+    let mut state = init::fluid(&pool, n_pool, t, seed);
+    // Vapour and air at random above the pool, clear of each other.
+    let (y0, y1) = (depth + 3.0, h - 1.5);
+    let area = w * (y1 - y0);
+    let nv = (o.get("humidity", 1.0) * saturated_vapour_density(t) * area).round() as usize;
+    let na = (o.get("air", 0.05) * area).round() as usize;
+    let mut placed: Vec<[f64; 2]> = vec![];
+    let mut k = 0u32;
+    while placed.len() < nv + na && k < 200 * (nv + na) as u32 + 100 {
+        let x = 1.0 + gpu_prims::threefry::uniform(seed, 51, 2 * k) * (w - 2.0);
+        let y = y0 + gpu_prims::threefry::uniform(seed, 51, 2 * k + 1) * (y1 - y0);
+        k += 1;
+        if placed.iter().any(|q| (q[0] - x).powi(2) + (q[1] - y).powi(2) < 1.44) {
+            continue;
+        }
+        placed.push([x, y]);
+    }
+    let species: Vec<u32> = (0..placed.len()).map(|i| (i >= nv) as u32).collect();
+    let vel = init::maxwell(&sys, &species, t, seed + 3);
+    for ((q, v), s) in placed.iter().zip(vel).zip(species) {
+        state.pos.push([fixed::to_fixed(q[0]), fixed::to_fixed(q[1])]);
+        state.vel.push(v);
+        state.species.push(s);
+    }
+    Scenario { warmup: 0, finish: Finish::None, marked: 0, grid: [1, 50], radii: vec![0.5, 0.5], sys, state }
 }

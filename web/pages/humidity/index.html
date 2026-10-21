@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Humid Air</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 16 16%22%3E%3Cpath d=%22M8 1 C 4 7 3 9 3 11 a5 5 0 0 0 10 0 C 13 9 12 7 8 1 Z%22 fill=%22%234f7cc4%22/%3E%3C/svg%3E" />
+    <link rel="stylesheet" href="../../src/lib/style.css" />
+  </head>
+  <body>
+    <nav class="topbar"><div class="wrap"><a href="../../index.html">Micrographia</a></div></nav>
+    <main class="wrap">
+      <header class="question">
+        <div class="eyebrow">Humidity and dew</div>
+        <h1>Why does warm air hold more water? What does "saturated" mean?</h1>
+        <p class="lede">
+          Water molecules (blue) in a pool, under air (grey) that never condenses. Some water molecules
+          escape into the air; some in the air land back on the water. Warm it, and more escape. Cool it, or
+          hold a cold glass in it, and the water comes back out of the air as dew.
+        </p>
+      </header>
+
+      <section class="lab">
+        <div class="stage" id="stage" style="aspect-ratio: 6 / 5">
+          <canvas id="canvas" aria-label="A pool of water under humid air"></canvas>
+          <div class="overlay" id="overlay">Starting the GPU…</div>
+        </div>
+        <aside class="panel">
+          <div class="buttons">
+            <button class="primary" id="run">Run</button>
+            <button id="glass">Put in a cold glass</button>
+            <button id="breathe">Humidifier</button>
+          </div>
+          <label class="row">Temperature kT <span id="tv">0.440</span>
+            <input type="range" id="t" min="0.38" max="0.46" step="0.005" value="0.44" />
+          </label>
+          <div class="readouts">
+            <div class="readout"><div class="k">water vapour in the air (per σ²)</div><div class="v" id="rv">–</div></div>
+            <div class="readout"><div class="k">saturated, at this temperature</div><div class="v" id="rs">–</div></div>
+            <div class="readout"><div class="k">relative humidity</div><div class="v" id="rh">–</div></div>
+            <div class="readout"><div class="k">dew point (where this vapour would be saturated)</div><div class="v" id="dew">–</div></div>
+            <div class="readout"><div class="k">fog: water in droplets in the air</div><div class="v" id="fog">–</div></div>
+          </div>
+          <canvas class="plot tall" id="sat" aria-label="Saturated vapour density against temperature, and the air now"></canvas>
+          <div class="legend"><span><i style="background: var(--muted)"></i>saturation (most the air can hold)</span><span><i style="background: var(--accent)"></i>the air now</span></div>
+          <canvas class="plot" id="time" aria-label="Water vapour over time"></canvas>
+          <div class="legend"><span><i style="background: var(--species-2)"></i>water vapour over time</span><span><i style="background: var(--muted)"></i>saturated</span></div>
+          <div class="status" id="status">
+            Press Run. The air starts saturated: as many water molecules land on the pool as leave it. Turn the
+            temperature down and watch the vapour fall to the new, lower saturation: the extra forms fog,
+            droplets that drift down into the pool. Put in the cold glass and watch dew gather on it. With the humidifier on, click in the air
+            to breathe moist air into it.
+          </div>
+        </aside>
+      </section>
+
+      <article class="notes">
+        <h2>Saturation is a balance, not a container</h2>
+        <p>
+          Air does not "hold" water like a sponge: the air molecules here do nothing for the water, and the
+          same amount of vapour would sit over the pool in a vacuum. Molecules leave the liquid's surface when one
+          happens to get enough energy to break free of its neighbours' attraction, and vapour molecules hitting
+          the surface stick. When the two rates are equal the vapour is saturated: that is its equilibrium,
+          the liquid's vapour pressure. Over a pool it settles there by itself; above it, the excess condenses
+          back; below it, more evaporates.
+        </p>
+        <h2>Why warmer means more</h2>
+        <p>
+          Escaping takes an energy L per molecule (the latent heat), and the share of molecules with that much
+          to spare goes as e<sup>−L/kT</sup>: steeply up with temperature. So the saturated vapour roughly doubles with
+          every few degrees: here from 0.023 per σ² at kT 0.40 to 0.058 at 0.44 (measured by the Gibbs-ensemble
+          method on <a href="../coexistence/index.html">liquid meets vapour</a>, and held steady by this
+          simulation). For water, saturated air holds about twice as much for every 10 °C warmer: 4.8 g per m³ at
+          0 °C, 17 at 20 °C, 30 at 30 °C (the Clausius–Clapeyron equation).
+        </p>
+        <h2>Dew, fog and clouds</h2>
+        <p>
+          Cool humid air, and the vapour it carries can be more than saturation at the new temperature: the
+          excess condenses, onto whatever is there (the pool; a cold glass; dust in the air: clouds; grass at
+          night: dew). Over tiny droplets, though, the vapour stays a little above saturation: a molecule on a
+          sharply curved surface has fewer neighbours holding it, and escapes more easily (the Kelvin effect),
+          so fog lingers until its droplets merge or fall, and clouds need dust to start on. The dew point is the temperature at which the vapour now in the air would be saturated:
+          anything colder than that gets wet. Breathing on a cold window raises the vapour near it above
+          saturation at the window's temperature, and it fogs.
+        </p>
+        <div class="caveat">
+          <h3>Caveats</h3>
+          <ul>
+            <li>A 2D Lennard-Jones liquid, not water, with its narrow liquid range (kT ≈ 0.38–0.46 here).</li>
+            <li>Evaporation in 2D is slow: a vapour space started empty takes over a thousand τ to fill. So the
+              air starts saturated, and condensation (which is fast) is easier to watch than evaporation.</li>
+            <li>A gentle heat bath holds the temperature (the experiment is about temperature); the cold glass is
+              a heat-bath wall at a lower temperature.</li>
+            <li>The vapour density counts the water molecules more than 8 σ above the pool and below the
+              ceiling that are single or in clusters of fewer than 8 (a saturated vapour has a few dimers and
+              trimers); bigger clusters are droplets, counted as fog.</li>
+          </ul>
+        </div>
+      </article>
+    </main>
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>

@@ -673,3 +673,9 @@ docs/performance.md.
   its own vapour around it, so its temperature plateau (kT ≈ 0.62) is the triple point; why only
   one point (two conditions on G, two lines crossing), and why ice in a drink or an iceberg is not
   at it (one atmosphere of air; the vapour's partial pressure is the humidity's).
+- [ ] New page `humidity` (original list: why warm air holds more water; saturation): a pool under
+  air that never condenses, the vapour starting saturated; temperature slider, a cold glass (a
+  strip at the wall that takes molecules' heat), a humidifier (click to turn air into water
+  vapour), relative humidity and dew point against the saturation curve (the Gibbs-ensemble fit),
+  and fog: cooled, the extra water forms droplets in the air first. New scenario `humid` and
+  `scenarios::saturated_vapour_density`.
