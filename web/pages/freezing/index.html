@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Salt and Ice</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 16 16%22%3E%3Crect x=%222%22 y=%222%22 width=%2212%22 height=%2212%22 fill=%22%234f7cc4%22/%3E%3C/svg%3E" />
+    <link rel="stylesheet" href="../../src/lib/style.css" />
+  </head>
+  <body>
+    <nav class="topbar"><div class="wrap"><a href="../../index.html">Micrographia</a></div></nav>
+    <main class="wrap">
+      <header class="question">
+        <div class="eyebrow">Freezing-point depression, in 3D</div>
+        <h1>Why does mixing salt into water lower its melting point?</h1>
+        <p class="lede">
+          A crystal lies on the floor of a box, under its own liquid, held just below its melting point:
+          slowly the liquid freezes onto it. Pour in some "salt", atoms a little too big to fit into the
+          crystal, and the freezing stops, or the crystal melts back, at the same temperature. Nothing about
+          the forces between the solvent's atoms has changed. What changed is entropy.
+        </p>
+      </header>
+
+      <section class="lab">
+        <div class="stage" id="stage" style="aspect-ratio: 1 / 1; cursor: grab">
+          <canvas id="canvas" aria-label="A crystal under its liquid, in 3D; drag to turn it"></canvas>
+          <div class="overlay" id="overlay">Starting the GPU…</div>
+        </div>
+        <aside class="panel">
+          <div class="buttons">
+            <button class="primary" id="run">Run</button>
+            <button id="salt">Pour in salt</button>
+            <button id="reset">Start again</button>
+          </div>
+          <label class="row">Temperature kT <span id="tv">0.56</span>
+            <input type="range" id="t" min="0.48" max="0.68" step="0.005" value="0.56" />
+          </label>
+          <div class="status" style="margin-top: -4px">the pure crystal melts at kT ≈ 0.62 here</div>
+          <label class="row">Cut away the front <span id="cutv">none</span>
+            <input type="range" id="cut" min="0" max="0.6" step="0.02" value="0" />
+          </label>
+          <label class="row"><span><input type="checkbox" id="onlycrystal" /> show only the crystal and the salt</span><span></span></label>
+          <div class="legend"><span><i style="background: var(--species-2)"></i>in the crystal</span><span><i style="background: var(--cream)"></i>liquid</span><span><i style="background: var(--species-3)"></i>salt</span></div>
+          <div class="readouts">
+            <div class="readout"><div class="k">solvent in the crystal</div><div class="v" id="xtal">–</div></div>
+            <div class="readout"><div class="k">salt in the liquid</div><div class="v" id="conc">–</div></div>
+            <div class="readout"><div class="k">temperature kT (measured)</div><div class="v" id="tm">–</div></div>
+            <div class="readout"><div class="k">time</div><div class="v" id="time">–</div></div>
+          </div>
+          <canvas class="plot" id="plot" aria-label="Share of the solvent in the crystal over time, this run and the previous one"></canvas>
+          <div class="legend"><span><i style="background: var(--accent)"></i>this run</span><span><i style="background: var(--muted)"></i>the previous run</span></div>
+          <div class="status" id="status">
+            Press Run and watch the crystal grow up into the liquid (it is just below its melting point).
+            Then pour in salt: each pour turns 150 liquid atoms that have room into salt atoms. Turn the
+            temperature down to see how much colder it must be to freeze the salty liquid.
+          </div>
+        </aside>
+      </section>
+
+      <article class="notes">
+        <h2>Why salt stops the freezing</h2>
+        <p>
+          At the melting point a crystal and its liquid are in balance: atoms leave the crystal for the
+          liquid as often as they join it from the liquid. Joining the crystal gives out heat (the crystal's
+          bonds are lower in energy) but costs entropy (the liquid's atoms can be arranged in far more ways).
+          Below the melting point the heat wins, above it the entropy does.
+        </p>
+        <p>
+          Salt does not fit into the crystal, so it stays in the liquid, and it gives the liquid something
+          extra: the entropy of mixing, all the ways of arranging salt among solvent. Every solvent atom that
+          freezes leaves the salt fewer solvent atoms to mix with, so it gives up a little of that mixing
+          entropy too. Freezing now costs more entropy than before, and only a colder liquid (where heat counts
+          for more against entropy) freezes. For a dilute solution the shift is ΔT ≈ x kT<sub>m</sub><sup>2</sup>/L, where x
+          is the share of salt and L the latent heat per atom: it depends only on how many salt particles
+          there are, not what they are (a "colligative" property, like osmotic pressure, and for the same
+          reason).
+        </p>
+        <p>
+          You can see the balance shift as it freezes: the crystal pushes the salt ahead of it into the
+          remaining liquid, which gets saltier, so its freezing point falls further, until it reaches the
+          temperature you set and the freezing stops, part way. Measured natively at kT 0.52, a tenth below the
+          melting point, the pure liquid froze almost completely (94% of the solvent in the crystal), while
+          with 15% salt the crystal stopped at about half (53%).
+        </p>
+        <h2>Road salt, and why it stops working in the cold</h2>
+        <p>
+          Spread salt on ice and the ice melts, though nothing is warmer: the salty water that forms at the
+          surface has a lower melting point than the air's temperature, so the ice keeps dissolving into it,
+          taking its heat (the latent heat) from the surroundings. But there is a limit: the more salt, the
+          lower the melting point, until the salt itself would rather crystallise out. For ordinary salt in
+          water that limit, the eutectic, is about −21 °C; colder than that, salt cannot keep ice melted.
+        </p>
+        <h2>Why salt changes the melting point much more than the boiling point</h2>
+        <p>
+          The same argument raises the boiling point (the vapour holds no salt, so evaporating also loses
+          mixing entropy), by ΔT ≈ x kT<sub>b</sub><sup>2</sup>/L<sub>vap</sub>. For water the shifts per mole of particles per kg
+          are 1.86 °C down for freezing and 0.51 °C up for boiling: although T<sub>b</sub><sup>2</sup> is larger, the latent
+          heat of boiling is almost seven times that of melting, and it sits in the denominator.
+        </p>
+        <div class="caveat">
+          <h3>Caveats</h3>
+          <ul>
+            <li>A Lennard-Jones crystal, not ice, and "salt" atoms that are simply a little too big to fit,
+              and cling to the solvent a little more than it clings to itself (so they stay in the liquid):
+              real salt splits into ions that water molecules cling to. The colligative argument does not
+              care.</li>
+            <li>A heat bath holds the temperature (this experiment is about temperature). The total energy is
+              therefore not conserved: the bath removes the latent heat as the liquid freezes.</li>
+            <li>The crystal's floor is a flat wall, which helps hold it; its top face is the (100) face.</li>
+            <li>A few thousand atoms: the crystal's edge with the liquid is a large share of it, and growth
+              and melting take tens to hundreds of τ.</li>
+          </ul>
+        </div>
+      </article>
+    </main>
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>

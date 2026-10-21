@@ -21,7 +21,7 @@ const R_CUT = 1.5;
 
 let heat = 0; // ε, in total
 let lastSteps = 0;
-let lastCrystal = 0; // wall time of the last crystal test
+let lastCrystal = -Infinity; // wall time of the last crystal test
 let crystal = 0;
 let bonds: Uint8Array | null = null;
 const tLine: { x: number; y: number }[] = [];
@@ -180,7 +180,7 @@ window.crystalTest = {
     return host.exclusive(async (sim) => {
       for (let k = 0; k < steps; k += 200) {
         sim.step(200);
-        lastCrystal = 0;
+        lastCrystal = -Infinity;
         await readout(sim);
       }
       sim.render();
@@ -201,7 +201,7 @@ window.crystalTest = {
       await sim.crystal_bonds(R_CUT);
       const crystalMs = performance.now() - t0;
       t0 = performance.now();
-      lastCrystal = 0;
+      lastCrystal = -Infinity;
       await readout(sim);
       return { stepsPerS, crystalMs, readoutMs: performance.now() - t0 };
     });

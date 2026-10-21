@@ -650,3 +650,11 @@ docs/performance.md.
   ideal gas): a 2D and a 3D gas, every molecule's velocity as a dot, a draggable ring whose
   count and density are read out against a same-area patch at the centre, and energy and speed
   histograms against Boltzmann's and Maxwell's curves; heat, cool and kick tools.
+- [ ] New page `freezing` (original list: salt and the melting point): a crystal slab under its
+  liquid in 3D, held just below its melting point by a gentle bath, with salt poured in by hand
+  (atoms too big for the crystal, placed only where they have room). The pure liquid freezes
+  (92%); salty, freezing stops part way (51%), because the crystal pushes the salt into the
+  remaining liquid until its melting point falls to the set temperature. Notes: entropy of
+  mixing, ΔT ≈ x kT²/L, road salt's eutectic, and why boiling shifts less (L_vap ≈ 7 L_fus).
+  Bug found on the way: forcing a readout by setting the throttle's last time to 0 fails in a
+  page younger than the throttle window; now −∞ (also on the crystal page).

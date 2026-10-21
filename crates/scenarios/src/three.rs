@@ -2,7 +2,7 @@
 
 use crate::Options;
 use md_core::three::{self, State3, System3};
-use md_core::{fixed, init, Pair};
+use md_core::{fixed, init, Pair, Wall};
 
 #[derive(Clone, Debug)]
 pub struct Scenario3 {
@@ -12,12 +12,13 @@ pub struct Scenario3 {
     pub radii: Vec<f64>,
 }
 
-pub const NAMES3: &[&str] = &["crystal3", "gas3"];
+pub const NAMES3: &[&str] = &["crystal3", "gas3", "freeze3"];
 
 pub fn build3(name: &str, o: &Options) -> Result<Scenario3, String> {
     let sc = match name {
         "crystal3" => crystal3(o),
         "gas3" => gas3(o),
+        "freeze3" => freeze3(o),
         _ => return Err(format!("unknown 3D scenario {name}")),
     };
     for (i, p) in sc.state.pos.iter().enumerate() {
@@ -67,4 +68,58 @@ pub fn gas3(o: &Options) -> Scenario3 {
     let species = vec![0; n];
     let vel = three::maxwell(&sys, &species, t, seed + 1);
     Scenario3 { sys, state: State3 { pos, vel, species }, radii: vec![0.5] }
+}
+
+/// Freezing with salt: a Lennard-Jones crystal slab on the floor (y = 0; FCC, its (100) face up,
+/// `cells` unit cells across and `layers` deep), its liquid above it (`liquid` σ deep), then
+/// empty space up to the ceiling, so the pressure is close to zero. Species 1 is the solute
+/// ("salt"): a little bigger against the solvent (σ = 1.1), so it does not fit into the crystal,
+/// attracted to the solvent more strongly than the solvent to itself (ε = 1.5: it stays in the
+/// liquid rather than evaporating, as salt does), and purely repulsive among itself. A heat bath holds the temperature (`rate` collisions per
+/// atom per τ): this experiment needs a fixed temperature. Options: cells, layers, liquid,
+/// temperature, solute (share of the liquid's atoms made solute at the start), rate, seed.
+pub fn freeze3(o: &Options) -> Scenario3 {
+    let cells = o.get("cells", 10.0) as usize;
+    let layers = o.get("layers", 8.0) as usize;
+    let t = o.get("temperature", 0.6);
+    let seed = o.get("seed", 1.0) as u64;
+    let a = (4.0 / 0.96f64).cbrt();
+    let side = a * cells as f64;
+    let crystal_h = a * layers as f64;
+    let liquid_h = o.get("liquid", 14.0);
+    let z0 = 0.6;
+    let height = z0 + crystal_h + liquid_h + o.get("space", 20.0);
+    let lj = Pair::lj(2.5);
+    // y is up (as the renderer draws it): the floor and the ceiling are on y.
+    let sys = System3::new([fixed::to_fixed(side), fixed::to_fixed(height), fixed::to_fixed(side)], init::DT, lj, vec![1.0, 1.0])
+        .with_walls(1, Wall::Hard, Wall::Hard)
+        .with_pair(0, 1, Pair { eps: 1.5, sigma: 1.1, rc: 2.5 })
+        .with_pair(1, 1, Pair { eps: 1.0, sigma: 1.1, rc: 1.1 * 2f64.powf(1.0 / 6.0) })
+        .with_thermostat(t, o.get("rate", 0.2))
+        .with_seed(seed);
+    let block = [fixed::to_fixed(side), fixed::to_fixed(side), fixed::to_fixed(crystal_h)];
+    let mut pos: Vec<[i64; 3]> = three::fcc(4 * cells * cells * layers, block, [cells, cells, layers], 0.02, seed).into_iter().map(|p| [p[0], p[1], p[2] + fixed::to_fixed(z0)]).collect();
+    // The liquid: a jittered simple cubic lattice at density ~0.85.
+    let b = (1.0f64 / 0.85).cbrt();
+    let nl = (side / b).floor() as usize;
+    let bl = side / nl as f64;
+    let nz = (liquid_h / b).floor() as usize;
+    let zl = z0 + crystal_h + 0.5;
+    let mut k = 0u32;
+    for iz in 0..nz {
+        for iy in 0..nl {
+            for ix in 0..nl {
+                let j = |q: u32| 0.1 * (gpu_prims::threefry::uniform(seed, 41, 3 * k + q) - 0.5);
+                pos.push([fixed::to_fixed((ix as f64 + 0.5) * bl + j(0)), fixed::to_fixed((iy as f64 + 0.5) * bl + j(1)), fixed::to_fixed(zl + (iz as f64 + 0.5) * b + j(2))]);
+                k += 1;
+            }
+        }
+    }
+    let n_crystal = 4 * cells * cells * layers;
+    let share = o.get("solute", 0.0);
+    let species: Vec<u32> = (0..pos.len()).map(|i| (i >= n_crystal && gpu_prims::threefry::uniform(seed, 42, i as u32) < share) as u32).collect();
+    // Built with z up; turn it so y is up.
+    let pos = pos.into_iter().map(|p| [p[0], p[2], p[1]]).collect();
+    let vel = three::maxwell(&sys, &species, t, seed + 1);
+    Scenario3 { sys, state: State3 { pos, vel, species }, radii: vec![0.5, 0.55] }
 }

@@ -149,3 +149,18 @@ fn verlet_lists_and_cell_list_give_the_same_trajectory() {
     // are visited does not matter: the trajectories agree bit for bit.
     assert_eq!(a.hash(), b.hash());
 }
+
+#[test]
+fn set_species_changes_the_chosen_particles() {
+    let p = prims();
+    let (sys, s) = liquid(2000, 0.8, 1.0, false);
+    let sys = md_core::three::System3 { masses: vec![1.0, 1.0], pairs: vec![Pair::lj(2.5); 4], ..sys };
+    let mut gpu = GpuEngine3::new(&p, sys, &s);
+    gpu.step(300);
+    gpu.set_species(&[5, 17, 1999], 1);
+    // Long enough for list rebuilds, which reorder storage.
+    gpu.step(2000);
+    let st = block_on(gpu.read_state());
+    let ones: Vec<usize> = (0..st.n()).filter(|&i| st.species[i] == 1).collect();
+    assert_eq!(ones, vec![5, 17, 1999]);
+}
