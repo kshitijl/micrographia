@@ -277,13 +277,24 @@ fn main() {
         ));
     }
     if args.cpu {
-        let n = 16_000;
-        let sys = System::new(init::box_for(n, args.density, 1.0), init::DT, args.pair, vec![1.0]);
-        let mut e = md_ref::IntEngine::<f32>::new(sys.clone(), init::fluid(&sys, n, 1.0, 1));
-        let t = Instant::now();
-        e.step(50);
-        let sps = 50.0 / t.elapsed().as_secs_f64();
-        println!("\ncpu-int-float<f32>, one thread, N = {n}: {sps:.1} steps/s ({:.1} ns/(N·step))", 1e9 / (sps * n as f64));
+        // The CPU engine, one thread: its fast pair path, and the reference loop (bit-identical).
+        println!("\ncpu-int-float<f32>, one thread, {} fluid, density {}", args.pair_name, args.density);
+        println!("{:>9} {:>12} {:>12} {:>12} {:>12}", "N", "fast st/s", "ns/(N·step)", "ref st/s", "ns/(N·step)");
+        for &n in &args.sizes {
+            let sys = System::new(init::box_for(n, args.density, 1.0), init::DT, args.pair, vec![1.0]);
+            let run = |fast: bool| {
+                let mut e = md_ref::IntEngine::<f32>::new(sys.clone(), init::fluid(&sys, n, 1.0, 1));
+                e.fast = fast;
+                e.step(5);
+                let steps = (2_000_000 / n).clamp(5, 2000);
+                let t = Instant::now();
+                e.step(steps);
+                steps as f64 / t.elapsed().as_secs_f64()
+            };
+            let f = run(true);
+            let r = if n <= 64_000 { run(false) } else { f64::NAN };
+            println!("{n:>9} {f:>12.0} {:>12.1} {r:>12.0} {:>12.1}", 1e9 / (f * n as f64), 1e9 / (r * n as f64));
+        }
     }
     if args.save {
         let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../bench/results.jsonl");

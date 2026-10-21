@@ -137,8 +137,37 @@ Two smaller terms:
 
 ## 3. CPU or GPU?
 
-**Today:** the CPU twins (`md-ref`) are reference engines, written for bit-exact agreement, not
+**Today:** the CPU twins (`md-ref`) were reference engines, written for bit-exact agreement, not
 speed: scalar Rust, single-threaded, no explicit SIMD. Pages always use the GPU.
+
+*Done (2026-10-21): a fast pair path in the 2D CPU engine* (`md-ref/src/fast.rs`), used whenever
+every pair may interact (no insulating compartments). Bit-exact with the reference loop, and so
+with the GPU (tests: `md-ref/tests/fast_path.rs`, and the existing GPU–CPU comparisons):
+- a cell list by counting sort; a half shell of neighbour cells, so each pair is computed once
+  (its force factor depends only on r², so it is the same from both ends; each end's kick is
+  rounded with its own mass coefficient, exactly as the reference rounds it);
+- per cell, the neighbourhood gathered into contiguous buffers (shifted across periodic edges),
+  padded to whole vectors; per particle, a branch-free loop over it (masked to the entries after
+  it), which LLVM vectorises (NEON here: `fdiv.4s`, `frintx.4s`, `fcvtzs.4s`);
+- the separation's conversion to float written without a branch (rounding d/16 towards zero,
+  then a signed conversion), bit-identical to `sep_f32` (tested over 2M values), so that it
+  vectorises too.
+
+Measured, one thread, density 0.7 (`cargo xtask bench --cpu`), ns per particle-step:
+
+| N | LJ fast | LJ reference | WCA fast | WCA reference |
+|---|---|---|---|---|
+| 1,000 | 100 (10.0k steps/s) | 550 | 94 (10.7k steps/s) | 140 |
+| 16,000 | 100 | 499 | 94 | 140 |
+| 64,000 | 100 | 461 | – | – |
+
+Against the GPU's 9.7k steps/s at N = 1,000 (launch-bound), the CPU now matches it on one core
+(natively). Where the time goes (macOS `sample`): the force kernel ~40% (two f32 divisions per
+pair, kept for bit-exactness: a reciprocal would round differently), converting separations ~20%,
+gathering neighbourhoods ~15%, scattering kicks ~10%, integration ~12 ns per particle. Bigger
+cells do not help (tried: 1.5–6 particles per cell, 93–122 ns). **Next**, for 2× or more:
+Verlet lists (about 9 pairs per particle instead of ~28 padded candidates), cluster-pair tiles
+(4 × 4 particles per SIMD tile, as GROMACS's nbnxm), and threads.
 
 **Estimates, to be measured:**
 - A good CPU implementation of 2D LJ (cell lists, SIMD over neighbours, all cores) should reach

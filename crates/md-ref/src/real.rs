@@ -25,6 +25,8 @@ pub trait Real:
     fn sep(d: i64) -> Option<Self>;
     /// A fixed-point separation of any length (for bonds), as the GPU converts it.
     fn sep_long(d: i64) -> Self;
+    /// [`Real::sep`] for a separation known to be within 8 σ: the same value, without the check.
+    fn sep_near(d: i64) -> Self;
     fn floor(self) -> Self;
     fn sqrt(self) -> Self;
 }
@@ -49,6 +51,16 @@ impl Real for f32 {
     }
     fn sep_long(d: i64) -> Self {
         fixed::sep_long_f32(d)
+    }
+    /// The magnitude's |d| >> SEP_SHIFT, signed, without a branch: rounding d / 16 towards zero
+    /// gives sign(d) · (|d| >> 4), and an i32-to-f32 conversion rounds symmetrically, so this is
+    /// `sep_f32` bit for bit (tested), and it vectorises.
+    #[inline(always)]
+    fn sep_near(d: i64) -> Self {
+        let q = (d + ((d >> 63) & ((1 << fixed::SEP_SHIFT) - 1))) >> fixed::SEP_SHIFT;
+        let v = q as i32 as f32 * fixed::SEP_UNIT_F32;
+        // A tiny negative separation is −0, as in sep_f32.
+        f32::from_bits(v.to_bits() | ((d >> 32) as u32 & 0x8000_0000))
     }
     fn floor(self) -> Self {
         f32::floor(self)
@@ -77,6 +89,9 @@ impl Real for f64 {
         if (-fixed::SEP_LIMIT..fixed::SEP_LIMIT).contains(&d) { Some(fixed::to_f64(d)) } else { None }
     }
     fn sep_long(d: i64) -> Self {
+        fixed::to_f64(d)
+    }
+    fn sep_near(d: i64) -> Self {
         fixed::to_f64(d)
     }
     fn floor(self) -> Self {

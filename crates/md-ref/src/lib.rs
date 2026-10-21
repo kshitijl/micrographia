@@ -6,9 +6,13 @@
 //! - [`FloatEngine`] (`cpu-float`): conventional float MD in f32 or f64. The f64 build is the
 //!   reference for observables and integrator error.
 //!
+//! `IntEngine`'s pair forces take a fast path (cell-sorted, half shell, batched for SIMD; bit-exact
+//! with the reference loop) when every pair may interact; set `fast = false` for the reference.
+//!
 //! Both use the same leapfrog: `v_{n+1/2} = v_{n-1/2} + a(x_n) Δt`, `x_{n+1} = x_n + v_{n+1/2} Δt`.
 
 mod cells;
+mod fast;
 mod float_engine;
 mod int_engine;
 mod int_engine3;

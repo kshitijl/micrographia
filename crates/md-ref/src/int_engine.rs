@@ -44,6 +44,9 @@ pub struct IntEngine<F: Real> {
     pub piston_work: f64,
     /// All-integer pair forces (`cpu-int-int`), if set: bit-identical to the GPU's `Arith::Int`.
     pub int_tables: Option<md_core::table::IntTables>,
+    /// The fast pair path's buffers (crate::fast), and whether to use it when it applies.
+    scratch: std::cell::RefCell<crate::fast::Scratch<F>>,
+    pub fast: bool,
 }
 
 impl<F: Real> IntEngine<F> {
@@ -82,6 +85,8 @@ impl<F: Real> IntEngine<F> {
             piston_v,
             piston_work: 0.0,
             int_tables: None,
+            scratch: Default::default(),
+            fast: true,
         }
     }
 
@@ -116,9 +121,14 @@ impl<F: Real> IntEngine<F> {
         let s = &self.state;
         let b = self.sys.box_f64();
         let ns = self.sys.species();
-        let list = self.cell_list();
         let mut kicks = vec![[0i32; 2]; s.n()];
         let mut pe = 0.0f64;
+        // Pairs: the fast path (crate::fast) when it applies, else the reference loop below.
+        let fast = self.fast && self.int_tables.is_none() && crate::fast::eligible(&self.sys, self.cells);
+        if fast {
+            pe += crate::fast::pair_kicks(&self.sys, s, &self.consts, &self.kick_c, self.cells, &mut self.scratch.borrow_mut(), &mut kicks);
+        }
+        let list = (!fast).then(|| self.cell_list());
         let mut wall_force = vec![[0.0f64; walls::WALLS]; s.n()];
         let mut piston_fixed = 0i64;
         for i in 0..s.n() {
@@ -126,9 +136,14 @@ impl<F: Real> IntEngine<F> {
             let si = s.species[i] as usize;
             let c = self.kick_c[si];
             let cell = [cell_of(fixed::to_f64(pi[0]), b[0], self.cells[0]), cell_of(fixed::to_f64(pi[1]), b[1], self.cells[1])];
-            let (mut kx, mut ky) = (0i32, 0i32);
+            let (mut kx, mut ky) = (kicks[i][0], kicks[i][1]);
             let mut pe_i = F::from_f64(0.0);
-            list.for_neighbors(cell, |j| {
+            let neighbors = |f: &mut dyn FnMut(usize)| {
+                if let Some(list) = &list {
+                    list.for_neighbors(cell, f);
+                }
+            };
+            neighbors(&mut |j| {
                 if j == i {
                     return;
                 }
