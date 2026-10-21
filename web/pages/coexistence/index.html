@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Liquid Meets Vapour</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 16 16%22%3E%3Crect x=%222%22 y=%222%22 width=%2212%22 height=%2212%22 fill=%22%234f7cc4%22/%3E%3C/svg%3E" />
+    <link rel="stylesheet" href="../../src/lib/style.css" />
+  </head>
+  <body>
+    <nav class="topbar"><div class="wrap"><a href="../../index.html">Micrographia</a></div></nav>
+    <main class="wrap">
+      <header class="question">
+        <div class="eyebrow">Phase transitions, three ways</div>
+        <h1>Why do liquid and vapour sit side by side, and why does the difference vanish at the critical point?</h1>
+        <p class="lede">
+          Below its critical temperature a substance splits into a dense liquid and a thin vapour, at two
+          definite densities; heat it and the two densities creep together until, at the critical point,
+          they merge and the boundary between them dissolves into flickering clusters of every size. Molecular
+          dynamics is a slow way to see this: here are three faster ones, each simplifying something
+          different.
+        </p>
+      </header>
+
+      <h2>1. A lattice gas: molecules hopping on a grid</h2>
+      <section class="lab">
+        <div class="stage" id="stage" style="aspect-ratio: 1 / 1">
+          <canvas id="canvas" aria-label="A grid of sites, each empty or holding a molecule"></canvas>
+          <div class="overlay" id="overlay">Starting the GPU…</div>
+        </div>
+        <aside class="panel">
+          <div class="buttons">
+            <button class="primary" id="run">Run</button>
+            <button id="dropper">Dropper</button>
+            <button id="sponge">Sponge</button>
+          </div>
+          <label class="row">Temperature kT <span id="tv">0.45</span>
+            <input type="range" id="t" min="0.25" max="0.9" step="0.005" value="0.45" />
+          </label>
+          <div class="status" style="margin-top: -4px">critical point: kT<sub>c</sub> = 0.567</div>
+          <label class="row">Gravity <span id="gv">off</span>
+            <input type="range" id="g" min="0" max="0.05" step="0.0025" value="0" />
+          </label>
+          <label class="row">Hot plate <span id="hotv">off</span>
+            <input type="range" id="hot" min="0" max="1.5" step="0.05" value="0" />
+          </label>
+          <label class="row">Sweeps per frame <span id="spfv">2</span>
+            <input type="range" id="spf" min="1" max="20" step="1" value="2" />
+          </label>
+          <div class="buttons">
+            <span class="k" style="align-self: center">Start again:</span>
+            <button id="startMix">a quench</button>
+            <button id="startSlab">a slab</button>
+            <button id="startPool">a pool</button>
+          </div>
+          <label class="row">Sites <span></span>
+            <select id="size">
+              <option value="258">258 × 258</option>
+              <option value="516" selected>516 × 516</option>
+              <option value="1020">1,020 × 1,020</option>
+              <option value="2040">2,040 × 2,040</option>
+            </select>
+          </label>
+          <div class="readouts">
+            <div class="readout"><div class="k">liquid density</div><div class="v" id="rl">–</div></div>
+            <div class="readout"><div class="k">vapour density</div><div class="v" id="rv">–</div></div>
+            <div class="readout"><div class="k">energy per molecule</div><div class="v" id="e">–</div></div>
+            <div class="readout"><div class="k">sweeps</div><div class="v" id="sweeps">–</div></div>
+          </div>
+          <canvas class="plot tall" id="pd" aria-label="Phase diagram: temperature against density, with the exact coexistence curve"></canvas>
+          <div class="legend"><span><i style="background: var(--muted)"></i>exact (Onsager)</span><span><i style="background: var(--accent)"></i>measured here, at each temperature you visit</span></div>
+          <canvas class="plot" id="eplot" aria-label="Energy per molecule over time"></canvas>
+          <div class="legend"><span><i style="background: var(--accent)"></i>energy per molecule (ε); the moves are a heat bath</span></div>
+          <div class="status" id="status">
+            Each site holds a molecule (blue) or nothing. Molecules attract their four neighbours and hop at
+            random to empty neighbours, more readily if the hop does not break bonds. Drag with the dropper
+            to add molecules, with the sponge to take them away. Watch the densities when you cross kT = 0.567.
+          </div>
+        </aside>
+      </section>
+
+      <article class="notes">
+        <h2>What the lattice gas keeps, and what it throws away</h2>
+        <p>
+          It keeps the two things that make a liquid–gas transition: molecules attract their neighbours
+          (energy, favouring the clumped liquid) and they wander (entropy, favouring the spread-out vapour).
+          It throws away velocities, momentum and the continuous positions of molecular dynamics. Each step
+          picks a neighbouring molecule and hole and lets the molecule hop with the Metropolis probability
+          min(1, e<sup>−ΔE/kT</sup>): downhill hops always, uphill ones with the Boltzmann factor. Molecules are
+          never created or destroyed. This makes it cheap: a million sites, a thousand sweeps a second on a
+          laptop's GPU.
+        </p>
+        <p>
+          It is the Ising model of magnetism in disguise (a molecule is a spin up, a hole a spin down), which
+          Onsager solved exactly in 1944. So the coexisting densities here can be checked against an exact
+          formula, (1 ± M)/2 with M = (1 − sinh(ε/2kT)<sup>−4</sup>)<sup>1/8</sup>, and they agree (measured natively:
+          vapour 0.0450 against 0.0443 at kT = 0.5, liquid 0.957 against 0.956).
+        </p>
+        <h2>The critical point</h2>
+        <p>
+          As the temperature rises the vapour fills up and the liquid thins, and at kT<sub>c</sub> = 0.567 they are
+          the same: there is just one fluid. Near it, regions of liquid and vapour of every size come and go,
+          from single sites to the whole box; in a real fluid this makes it milky (critical opalescence),
+          because clusters the size of the wavelength of light scatter it. Remarkably, the way the densities
+          merge (M ∝ (T<sub>c</sub> − T)<sup>1/8</sup> in 2D) is the same for every fluid and every magnet in two
+          dimensions, whatever the molecules: near a critical point only dimension and symmetry matter
+          (universality).
+        </p>
+        <h2>Entropy</h2>
+        <p>
+          The vapour has more entropy per molecule (more places to be) and the liquid less energy (more bonds).
+          Which wins depends on temperature, through the free energy F = E − TS: the hotter it is, the more
+          the entropy counts, so the more molecules the vapour holds at coexistence.
+        </p>
+        <div class="caveat">
+          <h3>Caveats</h3>
+          <ul>
+            <li>No momentum: molecules diffuse rather than flow, so droplets grow only by molecules
+              wandering from one to another (and liquid falls under gravity only by hopping down). The next
+              method, lattice Boltzmann, has flow.</li>
+            <li>The hot plate holds the bottom rows at a different temperature, a local heat bath: the
+              moves there use its temperature.</li>
+            <li>The densities above are read from 6 × 6 blocks: blocks fuller than ¾ count as liquid,
+              emptier than ¼ as vapour. Near the critical point there are no such blocks to speak of.</li>
+          </ul>
+        </div>
+      </article>
+    </main>
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>

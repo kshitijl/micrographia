@@ -4,10 +4,25 @@ import { EnergyPanel } from "./interact";
 
 export type Options = Record<string, number>;
 
-/** The simulations a host can run: 2D (`DiscSim`) or 3D (`BallSim`). */
+/** Particle simulations, 2D (`DiscSim`) or 3D (`BallSim`): these have the energies the energy
+ * panel plots. */
 export type AnySim = DiscSim | BallSim;
 
-export interface HostConfig<S extends AnySim = DiscSim> {
+/** What a host needs from a simulation (particle or lattice). */
+export interface HostedSim {
+  step(k: number): void;
+  sync(): Promise<unknown>;
+  render(): void;
+  resize(width: number, height: number): void;
+  set_colors(c: Float32Array): void;
+  describe(names: string[]): string[];
+  energy_note(): string;
+  dt(): number;
+  steps(): number;
+  free(): void;
+}
+
+export interface HostConfig<S extends HostedSim = DiscSim> {
   canvas: HTMLCanvasElement;
   overlay: HTMLElement;
   scenario: string;
@@ -35,6 +50,9 @@ export interface HostConfig<S extends AnySim = DiscSim> {
    * returns the work done on the system so far, if something (a piston) does work on it.
    */
   energy?: false | { work?: (sim: S) => Promise<number>; workLabel?: string };
+  /** What one step is, for the speed readout, if not a time step of `dt` τ (e.g. "sweeps" for
+   * Monte Carlo): then only steps per second are shown. */
+  stepName?: string;
 }
 
 /**
@@ -51,7 +69,7 @@ export interface HostConfig<S extends AnySim = DiscSim> {
  *   briefly while the page reads out and acts (its `afterSteps`), so page logic never races the
  *   steps.
  */
-export class SimHost<S extends AnySim = DiscSim> {
+export class SimHost<S extends HostedSim = DiscSim> {
   sim: S | null = null;
   running = false;
   /** Steps run since creation, in either direction. */
@@ -158,7 +176,7 @@ export class SimHost<S extends AnySim = DiscSim> {
     try {
       if (this.sim === sim) {
         await this.cfg.afterSteps?.(sim);
-        if (this.energy) await this.energy.sample(sim);
+        if (this.energy) await this.energy.sample(sim as unknown as AnySim);
       }
     } finally {
       this.sampleMs = performance.now() - t0;
@@ -173,7 +191,9 @@ export class SimHost<S extends AnySim = DiscSim> {
     if (!this.speedLabel || now - this.rate.t0 < 500) return;
     const rate = ((this.elapsed - this.rate.steps0) / (now - this.rate.t0)) * 1000;
     this.rate = { t0: now, steps0: this.elapsed };
-    this.speedLabel.textContent = this.running ? `${Math.round(rate).toLocaleString()} steps/s · ${(rate * sim.dt()).toFixed(rate * sim.dt() < 10 ? 1 : 0)} τ/s` : "";
+    const steps = `${Math.round(rate).toLocaleString()} ${this.cfg.stepName ?? "steps"}/s`;
+    const tau = rate * sim.dt();
+    this.speedLabel.textContent = !this.running ? "" : this.cfg.stepName ? steps : `${steps} · ${tau.toFixed(tau < 10 ? 1 : 0)} τ/s`;
   }
 
   get canvas(): HTMLCanvasElement {
@@ -229,7 +249,7 @@ export class SimHost<S extends AnySim = DiscSim> {
     this.cfg.overlay.textContent = "Starting the GPU…";
     this.sizeCanvas();
     const opts = { aspect: this.cfg.canvas.width / this.cfg.canvas.height, ...this.cfg.options() };
-    const create = this.cfg.create ?? ((c, name, o) => DiscSim.create(c, name, o) as Promise<S>);
+    const create = this.cfg.create ?? ((c, name, o) => DiscSim.create(c, name, o) as unknown as Promise<S>);
     const sim = await create(this.cfg.canvas, this.cfg.scenario, opts);
     this.sim = sim;
     this.applyColors();
@@ -239,7 +259,7 @@ export class SimHost<S extends AnySim = DiscSim> {
     if (this.energy) {
       this.energy.clear();
       this.energy.setNote(sim.energy_note());
-      await this.energy.sample(sim);
+      await this.energy.sample(sim as unknown as AnySim);
     }
     sim.render();
   }
@@ -298,7 +318,7 @@ export class SimHost<S extends AnySim = DiscSim> {
       // plots are sampled a few times a second.
       const after = this.cfg.afterSteps?.(sim);
       const now = performance.now();
-      const energy = this.energy && now - this.lastEnergy > 150 ? ((this.lastEnergy = now), this.energy.sample(sim)) : null;
+      const energy = this.energy && now - this.lastEnergy > 150 ? ((this.lastEnergy = now), this.energy.sample(sim as unknown as AnySim)) : null;
       const wait = Promise.all([after instanceof Promise ? after : (sim.sync() as Promise<void>), energy]);
       this.frameBusy = true;
       wait.finally(() => (this.frameBusy = false));
@@ -311,7 +331,7 @@ export class SimHost<S extends AnySim = DiscSim> {
  * Write (or rewrite) the page's "About this simulation" section at the end of its notes: the
  * method, forces, boundaries and ensemble, as the engine describes the system it is running.
  */
-export function showAbout(sim: AnySim, names: string[] = [], label = "") {
+export function showAbout(sim: HostedSim, names: string[] = [], label = "") {
   const notes = document.querySelector("article.notes");
   if (!notes) return;
   const id = `about-sim${label ? `-${label.replace(/\W+/g, "-")}` : ""}`;

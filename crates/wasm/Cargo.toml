@@ -13,6 +13,7 @@ gpu-prims = { path = "../gpu-prims" }
 md = { path = "../md" }
 md-core = { path = "../md-core" }
 md-ref = { path = "../md-ref" }
+lattice = { path = "../lattice" }
 scenarios = { path = "../scenarios" }
 wgpu.workspace = true
 bytemuck.workspace = true

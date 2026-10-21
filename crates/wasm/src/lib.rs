@@ -8,9 +8,11 @@ mod render;
 mod render3;
 mod sims;
 mod sims3;
+mod sims_grid;
 
 pub use sims::*;
 pub use sims3::*;
+pub use sims_grid::*;
 
 use gpu_prims::{Gpu, Prims};
 use js_sys::{Array, Object, Reflect};

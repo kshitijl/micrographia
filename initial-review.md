@@ -589,3 +589,12 @@ Still to do: a molecule-count control on the other pages.
   against heat added (the melting plateau) and crystal fraction against time. Natively: melts in
   ~60 τ at kT 0.9; held at 0.42 the drop stays liquid ~320 τ (supercooled), then freezes. Next
   for it: Verlet lists in 3D (3–4× faster), and dropping in a seed crystal by hand.
+- [ ] Phase transitions three ways (item 25), part 1 of 3: a GPU lattice gas (new crate
+  `lattice`): Kawasaki Monte Carlo (molecules hop to empty neighbours, number conserved) on
+  twelve sublattices of non-interfering pairs, with integer acceptance thresholds computed on the
+  CPU, so the GPU and its CPU twin agree bit for bit. Coexisting densities match Onsager's exact
+  curve within 2% natively and within 0.008 in Chrome; ~1,000 sweeps/s on 2,040² sites natively,
+  ~6,000 sweeps/s on 516² in the browser. New page `coexistence`, part 1: temperature, gravity,
+  a hot plate, a dropper and a sponge to add or take molecules by hand, a quench / slab / pool
+  start, the measured densities on Onsager's curve, and energy. Lattice Boltzmann and Gibbs
+  ensemble next.
