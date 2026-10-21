@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Why Warm Soda Goes Flat</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 16 16%22%3E%3Crect x=%225%22 y=%222%22 width=%226%22 height=%2213%22 rx=%221%22 fill=%22%234f7cc4%22/%3E%3Ccircle cx=%228%22 cy=%229%22 r=%221%22 fill=%22%23fff%22/%3E%3Ccircle cx=%229%22 cy=%226%22 r=%220.8%22 fill=%22%23fff%22/%3E%3C/svg%3E" />
+    <link rel="stylesheet" href="../../src/lib/style.css" />
+  </head>
+  <body>
+    <nav class="topbar"><div class="wrap"><a href="../../index.html">Micrographia</a></div></nav>
+    <main class="wrap">
+      <header class="question">
+        <div class="eyebrow">Gas solubility: Henry's law, and how it changes with temperature</div>
+        <h1>Why does warm soda go flat faster than cold soda?</h1>
+        <p class="lede">
+          A sealed bottle of soda holds carbon dioxide two ways: dissolved in the drink, and as gas in the space at the top.
+          The two trade molecules until they balance, and where they balance depends on temperature: warm water holds less gas.
+          Open the bottle and the gas above escapes, so the dissolved gas comes out to replace it, as fizz.
+        </p>
+      </header>
+
+      <section class="lab">
+        <div class="left">
+          <div class="stage" id="stage" style="aspect-ratio: 5 / 4">
+            <canvas id="canvas" aria-label="Water with dissolved carbon dioxide, under a headspace"></canvas>
+            <div class="overlay" id="overlay">Starting the GPU…</div>
+          </div>
+          <div class="legend"><span><i style="background: var(--species-2)"></i>water</span><span><i style="background: var(--highlight)"></i>carbon dioxide</span><span><i style="background: var(--muted)"></i>air (after the bottle is opened)</span></div>
+          <canvas class="plot tall" id="counts" aria-label="Carbon dioxide dissolved, and above, against time"></canvas>
+          <div class="legend"><span><i style="background: var(--highlight)"></i>CO₂ dissolved in the drink</span><span><i style="background: var(--muted)"></i>CO₂ in the space above it</span></div>
+        </div>
+        <aside class="panel">
+          <div class="buttons">
+            <button class="primary" id="run">Run</button>
+            <button id="open">Open the bottle</button>
+          </div>
+          <label class="row">Temperature <span id="tv">–</span>
+            <input type="range" id="t" min="0.39" max="0.45" step="0.005" value="0.4" />
+          </label>
+          <div class="readouts">
+            <div class="readout"><div class="k">CO₂ molecules dissolved</div><div class="v" id="nl">–</div></div>
+            <div class="readout"><div class="k">CO₂ molecules above</div><div class="v" id="ng">–</div></div>
+            <div class="readout"><div class="k">how much more crowded it is in the drink than above (per area)</div><div class="v" id="ratio">–</div></div>
+          </div>
+          <div class="status" id="status">
+            Run, with the bottle sealed, and let the gas settle between drink and headspace (a minute). Warm it: gas comes out
+            of the drink into the space above; cool it, and it goes back in. Then open the bottle, cold, and warm.
+          </div>
+        </aside>
+      </section>
+
+      <article class="notes">
+        <h2>Why gas dissolves at all, and less when warm</h2>
+        <p>
+          A CO₂ molecule in the drink is surrounded by water molecules that pull on it: down there its energy is lower than in
+          the gas above, by roughly the depth of that pull. In equilibrium, by Boltzmann, it is found in the drink more often
+          than above by a factor of about e<sup>ΔE/kT</sup>, times how much room it has there. That factor is Henry's law: the
+          dissolved amount is proportional to the gas's pressure above, with a constant that falls as kT rises, because the same
+          energy difference counts for less when everything is shaking harder. Measured here: the drink is 5.6 times as crowded
+          with CO₂ as the space above at kT 0.40, 4.8 times at 0.425, and only 2.8 times at 0.45. (For real CO₂ in water,
+          the solubility halves between 0 and 25 °C.)
+        </p>
+        <h2>Why opening the bottle makes it fizz</h2>
+        <p>
+          Sealed, the headspace fills with CO₂ until the balance is struck. Opened, that gas drifts away and is replaced by air,
+          and the drink, now holding far more than the balance with the air allows, gives up its gas. In a real drink it comes
+          out mostly as bubbles, which grow on scratches and specks (it takes a seed to start a bubble); here it simply
+          evaporates from the surface. Warm, it starts with less, but loses it faster.
+        </p>
+        <div class="caveat">
+          <h3>Caveats</h3>
+          <ul>
+            <li>2D Lennard-Jones "water" with a gas it attracts (as deeply as it attracts itself) but which does not attract
+              itself; real CO₂ also reacts a little with water (carbonic acid), which does not change the story.</li>
+            <li>A heat bath acts on every molecule to hold the temperature you set; it slows the molecules' wandering, so how
+              fast the gas comes out is only roughly right; how much is dissolved is not affected.</li>
+            <li>The opened bottle is a rule of the page: CO₂ more than 15 σ above the drink is turned into air (it has drifted
+              away into the room), every 5 τ.</li>
+          </ul>
+        </div>
+      </article>
+    </main>
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>

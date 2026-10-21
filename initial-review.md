@@ -791,3 +791,7 @@ docs/performance.md.
   slider's value (a live control); a fan brings that band down close to the water. Dry air: the water cools
   15% below the day (the wet-bulb temperature); saturated: no cooling. Coloured by speed. New scenario
   `sweat`.
+- [ ] Brainstorm (warm soda, gas solvation and its temperature dependence), new page `soda`: LJ water with a gas
+  it attracts (CO₂) under a headspace, in a heat bath; a live temperature slider moves gas out of the drink
+  when warmed and back when cooled (crowding ratio 5.2 cold, 2.5 warm); "Open the bottle" vents headspace CO₂
+  as air and the drink fizzes out. New scenario `soda`.

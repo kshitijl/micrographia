@@ -82,7 +82,7 @@ pub struct Scenario {
     pub radii: Vec<f64>,
 }
 
-pub const NAMES: &[&str] = &["cream", "corner", "boltzmann", "heavy", "oilwater", "heatflow", "osmosis", "compress", "rubber", "atmosphere", "carnot", "boiling", "lipids", "balloon", "smell", "binding", "fep", "cell", "buffer", "mask", "dna", "demon", "ensemble", "osmosis_free", "osmometer", "flask", "emulsion", "enthalpy", "humid", "solubility", "perrin", "avogadro", "heatcap", "cloud", "depletion", "sweat"];
+pub const NAMES: &[&str] = &["cream", "corner", "boltzmann", "heavy", "oilwater", "heatflow", "osmosis", "compress", "rubber", "atmosphere", "carnot", "boiling", "lipids", "balloon", "smell", "binding", "fep", "cell", "buffer", "mask", "dna", "demon", "ensemble", "osmosis_free", "osmometer", "flask", "emulsion", "enthalpy", "humid", "solubility", "perrin", "avogadro", "heatcap", "cloud", "depletion", "sweat", "soda"];
 
 pub fn build(name: &str, o: &Options) -> Result<Scenario, String> {
     let sc = build_unchecked(name, o)?;
@@ -136,6 +136,7 @@ fn build_unchecked(name: &str, o: &Options) -> Result<Scenario, String> {
         "cloud" => Ok(cloud(o)),
         "depletion" => Ok(depletion(o)),
         "sweat" => Ok(sweat(o)),
+        "soda" => Ok(soda(o)),
         _ => Err(format!("unknown scenario {name}")),
     }
 }
@@ -2017,4 +2018,60 @@ pub fn sweat(o: &Options) -> Scenario {
         state.species.push(s);
     }
     Scenario { warmup: 0, finish: Finish::None, marked: 0, grid: [1, 50], radii: vec![0.5, 0.5], sys, state }
+}
+
+/// Soda: a pool of LJ "water" (species 0) under a headspace holding a gas (species 1, "CO₂")
+/// that the water attracts (LJ, depth `solvation`) but that does not attract itself, and inert
+/// air (species 2, none at the start: a page turns headspace CO₂ into air to "open the bottle").
+/// A bulk heat bath holds the temperature; weak gravity keeps the pool down; hard walls left and
+/// right; soft floor and ceiling. CO₂ starts spread through pool and headspace. Options: width,
+/// height, depth, gas (CO₂ molecules per σ² of the whole box), solvation, temperature, seed.
+pub fn soda(o: &Options) -> Scenario {
+    let (w, h) = (o.get("width", 100.0), o.get("height", 80.0));
+    let depth = o.get("depth", 20.0);
+    let t = o.get("temperature", 0.42);
+    let seed = o.get("seed", 1.0) as u64;
+    let wca = Pair::wca();
+    let solv = Pair { eps: o.get("solvation", 1.0), sigma: 1.0, rc: 2.5 };
+    let sys = System::new([fixed::to_fixed(w), fixed::to_fixed(h)], init::DT, Pair::lj(2.5), vec![1.0, 1.0, 1.0])
+        .with_pair(0, 1, solv)
+        .with_pair(0, 2, wca)
+        .with_pair(1, 1, wca)
+        .with_pair(1, 2, wca)
+        .with_pair(2, 2, wca)
+        .with_walls(0, Wall::Hard, Wall::Hard)
+        .with_walls(1, Wall::Soft, Wall::Soft)
+        .with_gravity([0.0, -0.002])
+        .with_thermostat(t, o.get("rate", 0.1));
+    // Water on a lattice in the pool, with a share of its sites given to CO₂; more CO₂ at random
+    // in the headspace.
+    let n_gas = (o.get("gas", 0.02) * w * h) as usize;
+    let pool = System::new([fixed::to_fixed(w), fixed::to_fixed(depth)], init::DT, Pair::lj(2.5), vec![1.0]).with_walls(0, Wall::Soft, Wall::Soft).with_walls(1, Wall::Soft, Wall::Soft);
+    let n_pool = (0.75 * w * depth) as usize;
+    let mut state = init::fluid(&pool, n_pool, t, seed);
+    let in_pool = n_gas / 2;
+    let np = state.n();
+    for i in 0..in_pool.min(np) {
+        state.species[(i * 7919) % np] = 1;
+    }
+    let (y0, y1) = (depth + 2.0, h - 1.5);
+    let mut placed: Vec<[f64; 2]> = vec![];
+    let mut k = 0u32;
+    while placed.len() < n_gas - in_pool && k < 200 * n_gas as u32 + 100 {
+        let x = 1.0 + gpu_prims::threefry::uniform(seed, 121, 2 * k) * (w - 2.0);
+        let y = y0 + gpu_prims::threefry::uniform(seed, 121, 2 * k + 1) * (y1 - y0);
+        k += 1;
+        if placed.iter().any(|q| (q[0] - x).powi(2) + (q[1] - y).powi(2) < 1.44) {
+            continue;
+        }
+        placed.push([x, y]);
+    }
+    let species = vec![1u32; placed.len()];
+    let vel = init::maxwell(&sys, &species, t, seed + 3);
+    for (q, v) in placed.iter().zip(vel) {
+        state.pos.push([fixed::to_fixed(q[0]), fixed::to_fixed(q[1])]);
+        state.vel.push(v);
+        state.species.push(1);
+    }
+    Scenario { warmup: 0, finish: Finish::None, marked: 0, grid: [1, 50], radii: vec![0.5; 3], sys, state }
 }
