@@ -51,8 +51,9 @@ Plus `selftest`: the GPU primitive and engine checks, run under the browser's sh
   cell list over 3×3×3 cells, LJ/WCA pairs, hard, soft or heat-bath walls per axis, gravity,
   an Andersen bath, pinned species, region kicks and exact reversal. Its own kernels and buffers,
   so 2D is untouched (an A/B benchmark against the commit before showed no change). CPU twin
-  `IntEngine3<F>`. Speed: LJ (rc 2.5) at density 0.8: 1,800 steps/s at 4k, 350 at 64k; WCA:
-  6,800 at 4k, 1,300 at 64k (M1 Pro, native). Verlet lists for 3D are next. Renderer: lit
+  `IntEngine3<F>`. Verlet lists (GPU-gated rebuild) or a cell list, bit-identical. Speed with
+  lists: LJ (rc 2.5) at density 0.8: 4,800 steps/s at 4k, 610 at 64k; WCA: 8,400 at 4k, 3,000
+  at 64k (M1 Pro, native). Renderer: lit
   sphere impostors with exact depth, an orbit camera and a cut-away. Crystal test
   (`md_core::order`): Steinhardt q6 bonds (ten Wolde–Frenkel).
 - **CPU twins** (crate `md-ref`): `IntEngine<F>` (same integer scheme, f32 or f64 forces) and

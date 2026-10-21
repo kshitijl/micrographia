@@ -39,8 +39,13 @@ Before the rest of this plan:
    0.8: LJ 1,810 steps/s at 4k, 1,090 at 16k, 351 at 64k, 99 at 256k (40–140 ns per
    particle-step); WCA 6,810 at 4k, 1,280 at 64k, 344 at 256k. In the browser the 8,788-atom
    crystal page runs ~2,100 steps/s at full speed. A 3D cell list scans 27 cells of side ≥ rc, ~4.6×
-   the volume of a Verlet sphere (rc + skin), so Verlet lists in 3D should give 3–4× for LJ:
-   next.
+   the volume of a Verlet sphere (rc + skin). *Verlet lists in 3D (done):* LJ 4,770 steps/s at 4k
+   (2.6×), 2,130 at 16k, 613 at 64k, 175 at 256k (22–52 ns per particle-step); WCA 8,420 at 4k,
+   3,050 at 64k (2.4×), 909 at 256k. A smaller skin is faster (0.3: +5%; 0.8: −30%): the force over
+   ~80 neighbours, not the rebuild, dominates, and at 64k it reads ~170 MB per step, ~100 GB/s,
+   close to the copy bandwidth. Halving that would take half lists with integer atomic kicks
+   (still exact, since integer sums do not depend on order). In the browser the crystal page's
+   engine runs 2,100 steps/s (was 1,400).
 3. **Phase transitions, three ways, all on the GPU:** a lattice gas (checkerboard or Kawasaki
    Monte Carlo), Gibbs-ensemble Monte Carlo, and Shan–Chen lattice Boltzmann. They will be
    compared for explaining and understanding.
