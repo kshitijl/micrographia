@@ -646,3 +646,7 @@ docs/performance.md.
   switches on 40 soap molecules where it lands (they wait in the water as dormant three-bead
   molecules that behave as water, because bonds cannot be made at run time; species can change).
   New public API `DiscSim.bonds()`.
+- [ ] New page `speeds` (original list: Boltzmann vs Maxwell; the average kinetic energy of an
+  ideal gas): a 2D and a 3D gas, every molecule's velocity as a dot, a draggable ring whose
+  count and density are read out against a same-area patch at the centre, and energy and speed
+  histograms against Boltzmann's and Maxwell's curves; heat, cool and kick tools.

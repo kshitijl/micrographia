@@ -26,6 +26,11 @@ function setup<S extends GasSim>(p: "A" | "B", dims: 2 | 3, host: SimHost<S>, sc
   const sh = new LinesPlot($<HTMLCanvasElement>(`sh${p}`), { xLabel: "speed (σ/τ)", yLabel: "share per unit speed", yMin: 0, ink: () => cssVar("--muted"), rule: () => cssVar("--rule") });
   /** The velocity range the plane shows (σ/τ, each way). */
   let vmax = 4;
+  // Histograms averaged over recent readouts (each decays by AVG per readout), in units of the
+  // current kT, so peaks are not lost in the noise of one snapshot.
+  const AVG = 0.85;
+  let heAvg: number[] = [];
+  let hsAvg: number[] = [];
 
   function draw() {
     const v = lab.last;
@@ -86,16 +91,21 @@ function setup<S extends GasSim>(p: "A" | "B", dims: 2 | 3, host: SimHost<S>, sc
     const kt = k / n / (dims / 2);
     vmax = 4 * Math.sqrt(kt);
     // Histograms against the theory (m = 1).
-    const binsE = 30;
+    const binsE = 60;
     const eMax = 6 * kt;
-    const he = new Array(binsE).fill(0);
+    const heNow = new Array(binsE).fill(0);
     const vMaxH = 4 * Math.sqrt(kt);
-    const hs = new Array(binsE).fill(0);
+    const hsNow = new Array(binsE).fill(0);
     for (let i = 0; i < n; i++) {
       const e = 0.5 * speeds[i] ** 2;
-      if (e < eMax) he[Math.floor((e / eMax) * binsE)]++;
-      if (speeds[i] < vMaxH) hs[Math.floor((speeds[i] / vMaxH) * binsE)]++;
+      if (e < eMax) heNow[Math.floor((e / eMax) * binsE)]++;
+      if (speeds[i] < vMaxH) hsNow[Math.floor((speeds[i] / vMaxH) * binsE)]++;
     }
+    // Shares of n, averaged.
+    const blend = (avg: number[], now: number[]) => (avg.length ? avg.map((a, j) => AVG * a + (1 - AVG) * (now[j] / n)) : now.map((c) => c / n));
+    heAvg = blend(heAvg, heNow);
+    hsAvg = blend(hsAvg, hsNow);
+    const [he, hs] = [heAvg.map((x) => x * n), hsAvg.map((x) => x * n)];
     const de = eMax / binsE;
     const dv = vMaxH / binsE;
     const eTheory = (e: number) => (dims === 2 ? Math.exp(-e / kt) / kt : (2 * Math.sqrt(e / Math.PI) / kt ** 1.5) * Math.exp(-e / kt));
@@ -109,9 +119,9 @@ function setup<S extends GasSim>(p: "A" | "B", dims: 2 | 3, host: SimHost<S>, sc
       { points: hs.map((c, j) => ({ x: (j + 0.5) * dv, y: c / (n * dv) })), color: cssVar("--species-2"), dots: true },
       { points: line(sTheory, vMaxH), color: cssVar("--muted") },
     ]);
-    // The peak of the histogram, smoothed over five bins (the top of the speed curve is flat).
+    // The peak of the histogram, smoothed over three bins (the top of the speed curve is flat).
     const peak = (h: number[], w: number) => {
-      const sm = h.map((_, j) => h.slice(Math.max(0, j - 2), j + 3).reduce((x, y) => x + y, 0) / (Math.min(h.length, j + 3) - Math.max(0, j - 2)));
+      const sm = h.map((_, j) => h.slice(Math.max(0, j - 1), j + 2).reduce((x, y) => x + y, 0) / (Math.min(h.length, j + 2) - Math.max(0, j - 1)));
       return (sm.indexOf(Math.max(...sm)) + 0.5) * w;
     };
     // Ring and centre counts, in the (vx, vy) plane (3D: of the projected velocities).
@@ -244,13 +254,18 @@ window.speedsTest = {
   /** Run both gases `steps` steps and return their readouts (average energy, peaks). */
   async run(steps: number) {
     const ids = (p: string) => ["e", "me", "ms"].map((k) => $(`${k}${p}`).textContent ?? "");
+    // Readouts every steps/20, so the averaged histograms cover the run.
     await hostA.exclusive(async (sim) => {
-      sim.step(steps);
-      await readA(sim);
+      for (let k = 0; k < 20; k++) {
+        sim.step(steps / 20);
+        await readA(sim);
+      }
     });
     await hostB.exclusive(async (sim) => {
-      sim.step(steps);
-      await readB(sim);
+      for (let k = 0; k < 20; k++) {
+        sim.step(steps / 20);
+        await readB(sim);
+      }
     });
     return { a: ids("A"), b: ids("B") };
   },

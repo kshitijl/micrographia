@@ -13,11 +13,11 @@ test("energies peak at zero in 2D and ½kT in 3D; speeds at a nonzero speed in b
   // Average energy: kT in 2D, 1.5 kT in 3D (the readout is "E = x kT").
   expect(r.a[0]).toContain("= 1.00 kT");
   expect(r.b[0]).toContain("= 1.50 kT");
-  // The most common energy: ~0 in 2D (the first bin), near ½kT in 3D.
-  expect(num(r.a[1])).toBeLessThan(0.25);
-  expect(num(r.b[1])).toBeGreaterThan(0.25);
-  // The most common speed is well away from zero in both.
-  expect(num(r.a[2])).toBeGreaterThan(0.6);
-  expect(num(r.b[2])).toBeGreaterThan(0.9);
+  // The most common energy: ~0 in 2D (the first bins), ½kT in 3D (kT = 0.95 here).
+  expect(num(r.a[1])).toBeLessThan(0.15);
+  expect(Math.abs(num(r.b[1]) - 0.48)).toBeLessThan(0.12);
+  // The most common speed, √(kT/m) in 2D and √(2kT/m) in 3D.
+  expect(Math.abs(num(r.a[2]) - 1.0)).toBeLessThan(0.12);
+  expect(Math.abs(num(r.b[2]) - 1.38)).toBeLessThan(0.15);
   expect(errors).toEqual([]);
 });
