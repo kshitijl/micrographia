@@ -1,4 +1,4 @@
-import { BallSim, DiscSim, loadWasm, webgpuProblem } from "./wasm";
+import { BallSim, CpuDiscSim, DiscSim, loadWasm, webgpuProblem } from "./wasm";
 import { cssColor, onThemeChange } from "./theme";
 import { EnergyPanel } from "./interact";
 
@@ -53,6 +53,9 @@ export interface HostConfig<S extends HostedSim = DiscSim> {
   /** What one step is, for the speed readout, if not a time step of `dt` τ (e.g. "sweeps" for
    * Monte Carlo): then only steps per second are shown. */
   stepName?: string;
+  /** The page uses only what the CPU engine (`CpuDiscSim`) has: run on it where WebGPU is
+   * missing, or when the address says `?engine=cpu`. */
+  cpu?: boolean;
 }
 
 /**
@@ -200,9 +203,14 @@ export class SimHost<S extends HostedSim = DiscSim> {
     return this.cfg.canvas;
   }
 
+  /** Running on the CPU engine (a page that allows it, without WebGPU or when asked). */
+  onCpu = false;
+
   private async init() {
+    const asked = new URLSearchParams(location.search).get("engine") === "cpu";
     const problem = await webgpuProblem();
-    if (problem) {
+    if (this.cfg.cpu && !this.cfg.create && (problem || asked)) this.onCpu = true;
+    else if (problem) {
       this.cfg.overlay.textContent = problem;
       throw new Error(problem);
     }
@@ -246,10 +254,12 @@ export class SimHost<S extends HostedSim = DiscSim> {
     this.elapsed = 0;
     this.rate = { t0: performance.now(), steps0: 0 };
     this.cfg.overlay.style.display = "grid";
-    this.cfg.overlay.textContent = "Starting the GPU…";
+    this.cfg.overlay.textContent = this.onCpu ? "Starting…" : "Starting the GPU…";
     this.sizeCanvas();
     const opts = { aspect: this.cfg.canvas.width / this.cfg.canvas.height, ...this.cfg.options() };
-    const create = this.cfg.create ?? ((c, name, o) => DiscSim.create(c, name, o) as unknown as Promise<S>);
+    // The CPU engine stands in for DiscSim on pages that use only what it has (cfg.cpu).
+    const cpu = (c: HTMLCanvasElement, name: string, o: Options) => Promise.resolve(CpuDiscSim.create(c, name, o) as unknown as S);
+    const create = this.cfg.create ?? (this.onCpu ? cpu : (c, name, o) => DiscSim.create(c, name, o) as unknown as Promise<S>);
     const sim = await create(this.cfg.canvas, this.cfg.scenario, opts);
     this.sim = sim;
     this.applyColors();

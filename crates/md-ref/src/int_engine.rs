@@ -97,12 +97,22 @@ impl<F: Real> IntEngine<F> {
         e
     }
 
-    fn cell_list(&self) -> CellList {
+    fn cell_list(&self, cells: [u32; 2]) -> CellList {
         let b = self.sys.box_f64();
         let s = &self.state;
-        CellList::build(s.n(), self.cells, |i| {
-            [cell_of(fixed::to_f64(s.pos[i][0]), b[0], self.cells[0]), cell_of(fixed::to_f64(s.pos[i][1]), b[1], self.cells[1])]
-        })
+        CellList::build(s.n(), cells, |i| [cell_of(fixed::to_f64(s.pos[i][0]), b[0], cells[0]), cell_of(fixed::to_f64(s.pos[i][1]), b[1], cells[1])])
+    }
+
+    /// Cells for the species present now (a page may change species while running): at least
+    /// the largest cutoff among them wide, and never fewer than the scenario's own.
+    fn present_cells(&self) -> [u32; 2] {
+        let present = self.state.species.iter().fold(0u32, |m, &s| m | (1 << s));
+        let rc = self.sys.rc_max_present(present);
+        if rc <= 0.0 {
+            return self.cells;
+        }
+        let c = self.sys.cells_for(rc);
+        [c[0].max(self.cells[0]), c[1].max(self.cells[1])]
     }
 
     fn separation(&self, a: i64, b: i64, axis: usize) -> i64 {
@@ -124,18 +134,19 @@ impl<F: Real> IntEngine<F> {
         let mut kicks = vec![[0i32; 2]; s.n()];
         let mut pe = 0.0f64;
         // Pairs: the fast path (crate::fast) when it applies, else the reference loop below.
-        let fast = self.fast && self.int_tables.is_none() && crate::fast::eligible(&self.sys, self.cells);
+        let cells = self.present_cells();
+        let fast = self.fast && self.int_tables.is_none() && crate::fast::eligible(&self.sys, cells);
         if fast {
-            pe += crate::fast::pair_kicks(&self.sys, s, &self.consts, &self.kick_c, self.cells, &mut self.scratch.borrow_mut(), &mut kicks);
+            pe += crate::fast::pair_kicks(&self.sys, s, &self.consts, &self.kick_c, cells, &mut self.scratch.borrow_mut(), &mut kicks);
         }
-        let list = (!fast).then(|| self.cell_list());
+        let list = (!fast).then(|| self.cell_list(cells));
         let mut wall_force = vec![[0.0f64; walls::WALLS]; s.n()];
         let mut piston_fixed = 0i64;
         for i in 0..s.n() {
             let pi = s.pos[i];
             let si = s.species[i] as usize;
             let c = self.kick_c[si];
-            let cell = [cell_of(fixed::to_f64(pi[0]), b[0], self.cells[0]), cell_of(fixed::to_f64(pi[1]), b[1], self.cells[1])];
+            let cell = [cell_of(fixed::to_f64(pi[0]), b[0], cells[0]), cell_of(fixed::to_f64(pi[1]), b[1], cells[1])];
             let (mut kx, mut ky) = (kicks[i][0], kicks[i][1]);
             let mut pe_i = F::from_f64(0.0);
             let neighbors = |f: &mut dyn FnMut(usize)| {

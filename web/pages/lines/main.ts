@@ -136,6 +136,7 @@ const host = new SimHost<DiscSim>({
   names: ["hydrogen", "oxygen"],
   colors: ["--trace-1", "--trace-2"],
   stepsPerFrame: () => 40,
+  cpu: true,
   afterSteps: (sim) => readout(sim, tools),
   onCreate: async (sim) => {
     hist.forEach((h) => h.fill(0));

@@ -1,2 +1,7 @@
 [alias]
 xtask = "run --quiet --package xtask --"
+
+# WebAssembly SIMD (128-bit) for the browser builds: every current browser has it, and the CPU
+# engine's pair loops vectorise with it.
+[target.wasm32-unknown-unknown]
+rustflags = ["-C", "target-feature=+simd128"]

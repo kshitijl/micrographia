@@ -141,8 +141,12 @@ Two smaller terms:
 speed: scalar Rust, single-threaded, no explicit SIMD. Pages always use the GPU.
 
 *Done (2026-10-21): a fast pair path in the 2D CPU engine* (`md-ref/src/fast.rs`), used whenever
-every pair may interact (no insulating compartments). Bit-exact with the reference loop, and so
-with the GPU (tests: `md-ref/tests/fast_path.rs`, and the existing GPU–CPU comparisons):
+every pair may interact (no insulating compartments). Bit-exact with the reference CPU loop
+(`md-ref/tests/fast_path.rs`). (The f32 path is not bit-exact between CPU and GPU, natively or in
+the browser: the GPU can round a division differently, so more than half the kicks agree exactly
+and trajectories track closely, then diverge, as between any two devices; `gpu_engine.rs` tests
+exactly that. Repulsive WCA systems stayed identical for 100 steps in Chrome; an LJ crystal
+diverged between 1 and 100 steps. The all-integer path is the cross-device bit-exact one.)
 - a cell list by counting sort; a half shell of neighbour cells, so each pair is computed once
   (its force factor depends only on r², so it is the same from both ends; each end's kick is
   rounded with its own mass coefficient, exactly as the reference rounds it);
@@ -162,7 +166,29 @@ Measured, one thread, density 0.7 (`cargo xtask bench --cpu`), ns per particle-s
 | 64,000 | 100 | 461 | – | – |
 
 Against the GPU's 9.7k steps/s at N = 1,000 (launch-bound), the CPU now matches it on one core
-(natively). Where the time goes (macOS `sample`): the force kernel ~40% (two f32 divisions per
+(natively). **In the browser** (Chrome, WebAssembly with `simd128`, `selftest/engines.html`), a WCA
+gas at density 0.4, steps/s:
+
+| N | CPU (wasm SIMD, one thread) | GPU (WebGPU) |
+|---|---|---|
+| 500 | 11.3k (177 ns per particle-step) | 22.2k |
+| 2,000 | 2.8k | 15.7k |
+| 8,000 | 0.72k | 11.7k |
+| 32,000 | 0.18k | 2.1k |
+
+So on this Mac the GPU wins at every size in the browser (Chrome's WebGPU has less launch overhead
+than our native estimate suggested), and the CPU engine's use is as the fallback where WebGPU is
+missing (`CpuDiscSim`, drawn on a 2D canvas), and for machines whose GPU is weak. Wasm runs the
+CPU engine about 1.8× slower than native.
+
+*The fallback (done):* `CpuDiscSim` (crates/wasm/src/sims_cpu.rs) has the common part of
+`DiscSim`'s API (step, readouts of positions, velocities and energies, `kick_region`,
+`set_species`, the thermostat, view and overlay) and draws on a 2D canvas. A page whose sims use
+only that sets `cpu: true` in its `SimHost` config; it then runs on the CPU where WebGPU is
+missing, or when the address says `?engine=cpu`. Opted in so far: `heatcap` and `lines` (tested
+on the CPU engine: `tests/cpu-engine.spec.ts`). Its "About" section says which engine ran.
+To widen it: the rest of `DiscSim`'s methods (walls, pistons, bonds, speed colours) on the CPU
+side, then opt more pages in. Where the time goes (macOS `sample`): the force kernel ~40% (two f32 divisions per
 pair, kept for bit-exactness: a reciprocal would round differently), converting separations ~20%,
 gathering neighbourhoods ~15%, scattering kicks ~10%, integration ~12 ns per particle. Bigger
 cells do not help (tried: 1.5–6 particles per cell, 93–122 ns). **Next**, for 2× or more:

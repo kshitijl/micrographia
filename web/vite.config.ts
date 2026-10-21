@@ -14,7 +14,7 @@ export default defineConfig({
   build: {
     target: "es2022",
     rollupOptions: {
-      input: { index: resolve(import.meta.dirname, "index.html"), selftest: resolve(import.meta.dirname, "selftest/index.html"), ...pages },
+      input: { index: resolve(import.meta.dirname, "index.html"), selftest: resolve(import.meta.dirname, "selftest/index.html"), engines: resolve(import.meta.dirname, "selftest/engines.html"), ...pages },
     },
   },
   server: { port: 5173, strictPort: true },

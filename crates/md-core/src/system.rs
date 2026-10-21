@@ -366,6 +366,21 @@ impl System {
         self.pairs.iter().map(|p| p.rc).fold(0.0, f64::max)
     }
 
+    /// The largest cutoff between species that are present (`present`: bit s set if species s
+    /// has particles): a declared but empty species need not size the cells.
+    pub fn rc_max_present(&self, present: u32) -> f64 {
+        let ns = self.species();
+        let mut rc = 0.0f64;
+        for a in 0..ns {
+            for b in 0..ns {
+                if present & (1 << a) != 0 && present & (1 << b) != 0 {
+                    rc = rc.max(self.pairs[a * ns + b].rc);
+                }
+            }
+        }
+        rc
+    }
+
     pub fn periodic(&self, axis: usize) -> bool {
         self.walls[axis].is_none()
     }

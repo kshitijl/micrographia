@@ -8,12 +8,14 @@ mod render;
 mod render3;
 mod sims;
 mod sims3;
+mod sims_cpu;
 mod sims_fluid;
 mod sims_grid;
 mod sims_mc;
 
 pub use sims::*;
 pub use sims3::*;
+pub use sims_cpu::*;
 pub use sims_fluid::*;
 pub use sims_grid::*;
 pub use sims_mc::*;

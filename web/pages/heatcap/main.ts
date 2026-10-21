@@ -156,6 +156,7 @@ for (const b of boxes) {
     label: KINDS[b.kind],
     colors: [COLORS[b.kind]],
     energy: false,
+    cpu: true,
     stepsPerFrame: () => 50,
     afterSteps: (sim) => readout(b, sim),
     onCreate: async (sim) => {

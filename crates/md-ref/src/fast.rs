@@ -3,7 +3,9 @@
 //! over its neighbourhood gathered into small contiguous buffers, which the compiler turns into
 //! SIMD (wasm `simd128`, NEON, SSE/AVX).
 //!
-//! Bit-exact with the reference loop (and so with the GPU): each pair's separation is converted
+//! Bit-exact with the reference loop (whose f32 operations are the GPU kernel's, though a GPU
+//! may round a division differently, so the GPU tracks it closely rather than exactly): each
+//! pair's separation is converted
 //! to float exactly as the reference converts it, and its force factor −U'(r)/r is computed with
 //! the same operations in the same order. That factor depends only on r², so it is the same seen
 //! from either end; each end's kick is then rounded with its own mass coefficient, exactly as the

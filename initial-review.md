@@ -806,3 +806,13 @@ docs/performance.md.
   cloud seeding, boiling nucleation, water's density maximum, water splitting and pH, a catalyst, heat
   pumps, road salt, smog and inversions, rain shadow, the hot-air balloon, protein folding (HP lattice),
   haemoglobin and CO, soap and viruses, drying droplets, insulin and heat, drug binding.
+- [ ] CPU SIMD simulators (the overnight plan's next item): the 2D CPU engine's pair forces now take a fast
+  path (cell-sorted half shell, per-cell neighbourhoods, branch-free vectorised rows; bit-exact with the
+  reference CPU loop): 5.5× faster for LJ natively (100 ns per particle-step, ~10k steps/s at N = 1,000,
+  as fast as the GPU there). Compiled to WebAssembly with `simd128` it runs in the browser as
+  `CpuDiscSim` (2D canvas): 177 ns per particle-step in Chrome, where the GPU is still 2–14× faster on
+  this Mac, so its use is the fallback where WebGPU is missing. Pages opt in with `cpu: true`
+  (heatcap, lines so far); `?engine=cpu` forces it. `selftest/engines.html` compares the two engines in
+  the browser (they track to ~1e-7 σ; exactly where the GPU's division rounds as the CPU's) and times
+  both. Correction made on the way: the f32 path was never bit-exact between CPU and GPU (the GPU can
+  round a division differently); only the all-integer path is, and docs now say so.
