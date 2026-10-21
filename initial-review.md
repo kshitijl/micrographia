@@ -540,3 +540,16 @@ Still to do: a molecule-count control on the other pages.
   boundary, heads in the water and tails in the oil. Soap amount menu, spoon, re-shake, and a
   droplet-count plot that keeps the previous run for comparison. Notes on soap, emulsifiers
   (mustard, egg yolk) and micelles. New scenario `emulsion`.
+- [ ] The boiling page is now the phase-transitions page (same URL), with a part 3, "Why the gas
+  wins when it's hot": G = H − TS for solid, liquid and gas against temperature (each falling at
+  rate S; the lowest wins; drag to set T), a pressure slider that moves the boiling point through
+  the gas's entropy (the pressure cooker), and the entropy books of system, surroundings (−ΔH/T,
+  the sneeze) and universe when one molecule melts or evaporates. The numbers use the 2D LJ
+  energies with a water-like (widened) liquid range, and say so.
+- [ ] Faster methods for the liquid–gas transition, and the whole performance question, are written
+  up in `docs/performance.md`, for later: measured speeds, a simple model (launch-bound below
+  ~20–60k particles, near the bandwidth roofline at 1M), why pages run far slower than the engine
+  (one readback per frame), CPU SIMD and threads in the browser, choosing CPU or GPU by machine
+  and size, WebGPU against CUDA, a native recorder for videos instead of a CUDA port, and the
+  plan. For phase transitions: a GPU lattice gas, Gibbs-ensemble MC and Shan–Chen lattice
+  Boltzmann.
