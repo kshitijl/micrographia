@@ -32,3 +32,15 @@ test("a lattice Boltzmann pool on a hot plate boils", async ({ page }) => {
   expect(c.rho[1]).toBeLessThan(0.1);
   expect(c.rho[2]).toBeGreaterThan(0.25);
 });
+
+// The Gibbs ensemble (on the CPU, as WebAssembly): the two boxes become liquid and vapour at the
+// densities molecular dynamics gives for the same model (0.742 and 0.023 at kT 0.40).
+test("the Gibbs ensemble's boxes become the coexisting liquid and vapour", async ({ page }) => {
+  test.setTimeout(120_000);
+  await page.goto("pages/coexistence/index.html");
+  await page.evaluate(() => window.coexistenceTest!.ready);
+  const m = await page.evaluate(() => window.coexistenceTest!.gibbs(300, 0.4, 6000));
+  console.log(`Gibbs ensemble, kT 0.40: vapour ${m.vapour.toFixed(4)} (MD 0.023), liquid ${m.liquid.toFixed(3)} (MD 0.742)`);
+  expect(Math.abs(m.liquid - 0.742)).toBeLessThan(0.02);
+  expect(Math.abs(m.vapour - 0.023)).toBeLessThan(0.008);
+});

@@ -1,4 +1,4 @@
-import { FluidSim, GasSim } from "../../src/lib/wasm";
+import { FluidSim, GasSim, GibbsSim } from "../../src/lib/wasm";
 import { $, cssVar, SimHost } from "../../src/lib/host";
 import { LinesPlot } from "../../src/lib/plot";
 
@@ -196,12 +196,33 @@ declare global {
       fluidColumn(rows: number[]): Promise<{ t: number[]; rho: number[] }>;
       /** Start the fluid as a pool with gravity `g` and the hot plate at `hot` T_c, run `steps`. */
       boil(hot: number, g: number, steps: number): Promise<void>;
+      /** Gibbs ensemble: start `n` molecules at kT = t, run `cycles`, return the two densities
+       * averaged over the second half. */
+      gibbs(n: number, t: number, cycles: number): Promise<{ vapour: number; liquid: number }>;
     };
   }
 }
 
 window.coexistenceTest = {
   ready: host.ready,
+  async gibbs(n: number, t: number, cycles: number) {
+    $<HTMLSelectElement>("nC").value = String(n);
+    tC.value = String(t);
+    await hostC.create();
+    return hostC.exclusive(async (h) => {
+      h.g.run(cycles / 2);
+      let [v, l, k] = [0, 0, 0];
+      for (let s = 0; s < 50; s++) {
+        h.g.run(cycles / 100);
+        const [r0, , r1] = Array.from(h.g.measure());
+        v += Math.min(r0, r1);
+        l += Math.max(r0, r1);
+        k++;
+      }
+      h.render();
+      return { vapour: v / k, liquid: l / k };
+    });
+  },
   async boil(hot: number, g: number, steps: number) {
     gB.value = String(g);
     hotB.value = String(hot);
@@ -376,3 +397,191 @@ hostB.canvas.addEventListener("pointerdown", (e) => {
   sim.paint(x, y, 0.06 * sim.width(), toolB === "drop");
   if (!hostB.running) sim.render();
 });
+
+// ---- 3. The Gibbs ensemble (crates/mc, on the CPU as WebAssembly). Natively, at kT 0.40 the
+// boxes hold vapour 0.024 and liquid 0.747 at equal pressures (crates/mc/tests/gibbs.rs). ----
+
+/** Molecular dynamics of the same model: a liquid slab with its vapour pre-filled near
+ * saturation, held 1,000 τ (crates/md/tests/coexistence.rs, slab_with_prefilled_vapour). */
+const MD_COEX: { t: number; v: number; l: number }[] = [
+  { t: 0.4, v: 0.023, l: 0.742 },
+  { t: 0.44, v: 0.058, l: 0.68 },
+  { t: 0.46, v: 0.077, l: 0.645 },
+];
+
+/** The Gibbs simulation as SimHost expects a simulation; it draws the two boxes on a 2D canvas. */
+class GibbsHosted {
+  readonly g: GibbsSim;
+  private colors = { a: "#4f7cc4", b: "#e5483a", ink: "#888", bg: "#1d1712" };
+  constructor(
+    private canvas: HTMLCanvasElement,
+    n: number,
+    t: number,
+  ) {
+    this.g = new GibbsSim(n, 0.3, t, BigInt(7));
+  }
+  step(k: number) {
+    this.g.run(k);
+  }
+  /** Yield to the browser (the moves ran synchronously). */
+  sync() {
+    return new Promise((r) => setTimeout(r, 0));
+  }
+  render() {
+    const c = this.canvas.getContext("2d");
+    if (!c) return;
+    const [W, H] = [this.canvas.width, this.canvas.height];
+    c.fillStyle = this.colors.bg;
+    c.fillRect(0, 0, W, H);
+    const [a, b] = Array.from(this.g.sides());
+    const gap = 0.08 * Math.max(a, b);
+    const s = Math.min((0.94 * W) / (a + b + gap), (0.92 * H) / Math.max(a, b));
+    const y0 = H / 2;
+    const x0 = W / 2 - (s * (a + b + gap)) / 2;
+    const boxes: [number, number, string][] = [
+      [x0, a, this.colors.a],
+      [x0 + s * (a + gap), b, this.colors.b],
+    ];
+    boxes.forEach(([x, side, col], k) => {
+      const top = y0 - (s * side) / 2;
+      c.strokeStyle = this.colors.ink;
+      c.lineWidth = 1;
+      c.strokeRect(x, top, s * side, s * side);
+      const p = this.g.positions(k);
+      c.fillStyle = col;
+      const r = Math.max(0.8, 0.5 * s);
+      for (let i = 0; i < p.length; i += 2) {
+        c.beginPath();
+        c.arc(x + s * p[i], top + s * (side - p[i + 1]), r, 0, 2 * Math.PI);
+        c.fill();
+      }
+    });
+  }
+  resize() {}
+  /** Species 0 colours the left box, the highlight the right one, species 1 the outlines. */
+  set_colors(f: Float32Array) {
+    const hex = (k: number) => `rgb(${Math.round(255 * f[4 * k])}, ${Math.round(255 * f[4 * k + 1])}, ${Math.round(255 * f[4 * k + 2])})`;
+    this.colors = { a: hex(0), b: hex(4), ink: hex(1), bg: hex(5) };
+  }
+  describe() {
+    return [
+      `Method: Gibbs-ensemble Monte Carlo (Panagiotopoulos 1987), ${this.g.counts()[0] + this.g.counts()[1]} molecules in two periodic square boxes. A cycle is N tries at moving a molecule within its box, one try at passing area from one box to the other, and N/4 tries at moving a molecule to a random place in the other box, each accepted with the Metropolis rule for this ensemble.`,
+      "Forces: Lennard-Jones, cut and shifted at 2.5 σ (the molecular-dynamics pages' model).",
+      "Ensemble: constant total N, total area and T (the moves are a heat bath): the Gibbs ensemble. No time, only equilibrium: one cycle is not a duration.",
+      "Runs on the CPU (as WebAssembly): its moves are sequential at the sizes it needs, so a GPU would be slower.",
+    ];
+  }
+  energy_note() {
+    return "";
+  }
+  dt() {
+    return 1;
+  }
+  steps() {
+    return this.g.cycles();
+  }
+  free() {
+    this.g.free();
+  }
+}
+
+const tC = $<HTMLInputElement>("tC");
+const spfC = $<HTMLInputElement>("spfC");
+const plotC = new LinesPlot($<HTMLCanvasElement>("plotC"), { xLabel: "cycles", yLabel: "density", yMin: 0, ink: () => cssVar("--muted"), rule: () => cssVar("--rule") });
+const pdC = new LinesPlot($<HTMLCanvasElement>("pdC"), { xLabel: "density", yLabel: "kT", yMin: 0.3, yMax: 0.52, ink: () => cssVar("--muted"), rule: () => cssVar("--rule") });
+const d0: { x: number; y: number }[] = [];
+const d1: { x: number; y: number }[] = [];
+/** Averaged (vapour, liquid) per temperature, after the boxes settle. */
+const gemc = new Map<number, { v: number; l: number; n: number }>();
+let changedC = 0;
+/** Recent pressure readings of each box, for a running average (one reading is very noisy). */
+const pHist: [number, number][] = [];
+
+function drawPdC() {
+  const pts: { x: number; y: number }[] = [];
+  for (const [t, m] of gemc) if (m.n >= 5) pts.push({ x: m.v / m.n, y: t }, { x: m.l / m.n, y: t });
+  const md = MD_COEX.flatMap((p) => [
+    { x: p.v, y: p.t },
+    { x: p.l, y: p.t },
+  ]);
+  pdC.set([
+    { points: md, color: cssVar("--muted"), dots: true },
+    { points: pts, color: cssVar("--accent"), dots: true },
+  ]);
+}
+
+function readoutC(h: GibbsHosted) {
+  const [r0, p0, r1, p1] = Array.from(h.g.measure());
+  const cyc = h.g.cycles();
+  d0.push({ x: cyc, y: r0 });
+  d1.push({ x: cyc, y: r1 });
+  if (d0.length > 1500) [d0, d1].forEach((l) => l.splice(0, 1));
+  plotC.set([
+    { points: d0, color: cssVar("--species-2") },
+    { points: d1, color: cssVar("--highlight") },
+  ]);
+  // Average once the boxes have split clearly and settled at this temperature.
+  const t = Math.round(h.g.temperature() / 0.005) * 0.005;
+  const [v, l] = [Math.min(r0, r1), Math.max(r0, r1)];
+  if (cyc - changedC > 1500 && l > 3 * v) {
+    const m = gemc.get(t) ?? { v: 0, l: 0, n: 0 };
+    m.v += v;
+    m.l += l;
+    m.n++;
+    gemc.set(t, m);
+    drawPdC();
+  }
+  $("r0C").textContent = r0.toFixed(3);
+  $("r1C").textContent = r1.toFixed(3);
+  pHist.push([p0, p1]);
+  if (pHist.length > 50) pHist.splice(0, 1);
+  const avg = (k: 0 | 1) => pHist.reduce((a, p) => a + p[k], 0) / pHist.length;
+  $("pC").textContent = `${avg(0).toFixed(4)}, ${avg(1).toFixed(4)}`;
+  $("xC").textContent = `${(100 * h.g.acceptance()[2]).toFixed(1)}%`;
+}
+
+let lastReadC = 0;
+const hostC = new SimHost<GibbsHosted>({
+  canvas: $<HTMLCanvasElement>("canvasC"),
+  overlay: $("overlayC"),
+  scenario: "gibbs",
+  create: async (c) => new GibbsHosted(c, Number($<HTMLSelectElement>("nC").value), Number(tC.value)),
+  options: () => ({}),
+  names: [],
+  label: "Gibbs ensemble",
+  colors: ["--species-2", "--muted", "--species-2", "--species-3"],
+  stepsPerFrame: () => Number(spfC.value),
+  afterSteps: (h) => {
+    const now = performance.now();
+    if (now - lastReadC < 200) return;
+    lastReadC = now;
+    readoutC(h);
+  },
+  energy: false,
+  stepName: "cycles",
+  onCreate: (h) => {
+    changedC = 0;
+    pHist.length = 0;
+    [d0, d1].forEach((l) => (l.length = 0));
+    readoutC(h);
+  },
+});
+
+$("runC").onclick = () => {
+  hostC.running = !hostC.running;
+  $("runC").textContent = hostC.running ? "Pause" : "Run";
+};
+const restartC = () => {
+  const run = hostC.running;
+  void hostC.create().then(() => (hostC.running = run));
+};
+$("resetC").onclick = restartC;
+$("nC").onchange = restartC;
+tC.oninput = () => {
+  $("tCv").textContent = Number(tC.value).toFixed(3);
+  hostC.sim?.g.set_temperature(Number(tC.value));
+  changedC = hostC.sim?.g.cycles() ?? 0;
+  pHist.length = 0;
+};
+spfC.oninput = () => ($("spfCv").textContent = spfC.value);
+drawPdC();

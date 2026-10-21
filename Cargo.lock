@@ -430,6 +430,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f9f8bd3e56ce4dfc153cf470fffbfa98c7620958b312ca5c3a4b8d5181fd13c6"
 
 [[package]]
+name = "mc"
+version = "0.1.0"
+dependencies = [
+ "gpu-prims",
+ "md",
+ "md-core",
+ "pollster",
+]
+
+[[package]]
 name = "md"
 version = "0.1.0"
 dependencies = [
@@ -824,6 +834,7 @@ dependencies = [
  "gpu-prims",
  "js-sys",
  "lattice",
+ "mc",
  "md",
  "md-core",
  "md-ref",

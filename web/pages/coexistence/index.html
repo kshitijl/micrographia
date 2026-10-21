@@ -131,6 +131,49 @@
         </aside>
       </section>
 
+      <h2>3. The Gibbs ensemble: liquid and vapour with no surface between them</h2>
+      <section class="lab">
+        <div class="stage" id="stageC" style="aspect-ratio: 2 / 1">
+          <canvas id="canvasC" aria-label="Two boxes of molecules that exchange space and molecules"></canvas>
+          <div class="overlay" id="overlayC">Starting…</div>
+        </div>
+        <aside class="panel">
+          <div class="buttons">
+            <button class="primary" id="runC">Run</button>
+            <button id="resetC">Start again</button>
+          </div>
+          <label class="row">Temperature kT <span id="tCv">0.40</span>
+            <input type="range" id="tC" min="0.30" max="0.52" step="0.005" value="0.40" />
+          </label>
+          <label class="row">Cycles per frame <span id="spfCv">4</span>
+            <input type="range" id="spfC" min="1" max="20" step="1" value="4" />
+          </label>
+          <label class="row">Molecules <span></span>
+            <select id="nC">
+              <option value="200">200</option>
+              <option value="300">300</option>
+              <option value="400" selected>400</option>
+            </select>
+          </label>
+          <div class="readouts">
+            <div class="readout"><div class="k">left box: density</div><div class="v" id="r0C">–</div></div>
+            <div class="readout"><div class="k">right box: density</div><div class="v" id="r1C">–</div></div>
+            <div class="readout"><div class="k">pressures, averaged (left, right)</div><div class="v" id="pC">–</div></div>
+            <div class="readout"><div class="k">transfers accepted</div><div class="v" id="xC">–</div></div>
+          </div>
+          <canvas class="plot" id="plotC" aria-label="Density of each box over the cycles"></canvas>
+          <div class="legend"><span><i style="background: var(--species-2)"></i>left box</span><span><i style="background: var(--highlight)"></i>right box</span></div>
+          <canvas class="plot tall" id="pdC" aria-label="Coexistence curve: temperature against density, measured here and by molecular dynamics"></canvas>
+          <div class="legend"><span><i style="background: var(--accent)"></i>measured here, at each temperature you visit</span><span><i style="background: var(--muted)"></i>molecular dynamics (a liquid slab and its vapour)</span></div>
+          <div class="status" id="statusC">
+            Two boxes of the same molecules as on the molecular-dynamics pages, at one temperature. Molecules
+            jiggle within each box, a box can take area from the other, and a molecule can jump to a random
+            place in the other box. Started equal, one box soon holds liquid and the other vapour, at the
+            coexisting densities, with no surface anywhere.
+          </div>
+        </aside>
+      </section>
+
       <article class="notes">
         <h2>What the lattice gas keeps, and what it throws away</h2>
         <p>
@@ -184,12 +227,43 @@
           equation of state to 0.2% (0.3325 against 0.3321 at 0.75 T<sub>c</sub>); its vapour is less accurate (0.0109
           against 0.0086; 0.0291 against 0.0278 at 0.85 T<sub>c</sub>).
         </p>
+        <h2>The Gibbs ensemble: the trick</h2>
+        <p>
+          Liquid and vapour coexist when they have the same temperature, the same pressure and the same
+          chemical potential (no gain for a molecule in moving from one to the other). Panagiotopoulos's
+          trick (1987) was to impose those three equalities directly, without a surface: two boxes at one
+          temperature, which trade area (so their pressures equalise) and molecules (so their chemical
+          potentials do), each move accepted or not by a Metropolis rule that makes the two boxes together a
+          fair sample of all the ways the molecules could share space. Below the critical point the cheapest
+          way to share is one dense box and one thin one, and the boxes find it by themselves. No interface
+          means no surface tension and no slow growth of droplets, so a few hundred molecules give the
+          coexisting densities, where a slab simulation needs thousands. Near the critical point it fails:
+          the boxes keep swapping roles, because the two phases are hardly different.
+        </p>
+        <h2>Three methods compared</h2>
+        <ul>
+          <li><b>Molecular dynamics</b> (the other pages): real molecules with real motion. Everything is
+            there, including how fast things happen, but the separation of liquid and vapour is slow and
+            needs many molecules.</li>
+          <li><b>Lattice gas</b> (part 1): molecules on a grid, hopping. Cheap and exact (it is the Ising
+            model), so it shows the critical point and its universal behaviour in full; but no momentum, no
+            flow, and grid-shaped molecules.</li>
+          <li><b>Lattice Boltzmann</b> (part 2): a fluid rather than molecules, with flow, surface tension and
+            heat: bubbles, drops, boiling. Fast, but its liquid is far less dense than its vapour than a real
+            liquid is, and its thermodynamics is only approximate.</li>
+          <li><b>Gibbs ensemble</b> (part 3): the same molecules as molecular dynamics, but no time: only the
+            equilibrium densities, from a few hundred molecules, with no interface. The best way to draw the
+            coexistence curve; nothing to watch boiling.</li>
+        </ul>
         <div class="caveat">
           <h3>Caveats</h3>
           <ul>
             <li>Lattice Boltzmann's units are the lattice's: the liquid here is only ten to thirty times
               denser than its vapour (water's liquid is 1,600 times denser than its steam), interfaces are a
               few sites thick, and small spurious currents circulate around drops.</li>
+            <li>Gibbs ensemble: bigger boxes are not better. With 800 molecules a box has room for a drop of
+              liquid inside the vapour, or a bubble inside the liquid, and its density then mixes the two.
+              Near the critical point the liquid box's density swings widely.</li>
             <li>Lattice gas, no momentum: molecules diffuse rather than flow, so droplets grow only by molecules
               wandering from one to another (and liquid falls under gravity only by hopping down). The next
               method, lattice Boltzmann, has flow.</li>

@@ -606,3 +606,18 @@ Still to do: a molecule-count control on the other pages.
   density matches the model's coexistence prediction to 0.2%, the vapour to 5–25%. ~17,000
   steps/s on 256² in Chrome. Page `coexistence` part 2: temperature, gravity, hot plate, drops and
   bubbles placed by hand, colour by density or temperature, quench / pool / drop starts.
+- [ ] Found by comparing the methods: the molecular-dynamics vapour densities of the 2D LJ
+  fluid (the `coexistence` test, and the phase-transitions page's vapour pressure) were about
+  ten times too low, because evaporation in 2D is slow and the vapour had not filled up: started
+  empty, a slab's vapour was still rising after 1,000 τ; pre-filled at the Gibbs-ensemble value
+  (0.024 at kT 0.40), it stayed there. The page's Clausius–Clapeyron slope was still sensible
+  (the filling rate scales like the vapour pressure), but its absolute pressures were low. To
+  fix on the phase-transitions page (start the vapour near saturation, or wait far longer); noted
+  in research §18.8.
+- [ ] Part 3 of 3: Gibbs-ensemble Monte Carlo (new crate `mc`), the same 2D LJ as the MD pages,
+  on the CPU as WebAssembly: its transfers and volume moves are sequential at the sizes it needs,
+  so a GPU would be slower (written down in `mc`'s docs). At kT 0.40 it gives vapour 0.024 and
+  liquid 0.747 at equal pressures, matching MD (pre-filled slab: 0.023, 0.742); at 0.44 the
+  liquid box fluctuates widely. Bigger boxes are worse (they hold a drop or a bubble). Page
+  `coexistence` part 3: the two boxes drawn to scale as they trade area and molecules, density
+  traces, and the coexistence curve against MD's; notes comparing the three methods.
