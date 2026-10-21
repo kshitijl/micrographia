@@ -2,6 +2,7 @@ import { DiscSim } from "../../src/lib/wasm";
 import { $, cssVar, SimHost } from "../../src/lib/host";
 import { cssColor } from "../../src/lib/theme";
 import { LinesPlot } from "../../src/lib/plot";
+import { formatN, N_TRUE, record } from "../../src/lib/perrin";
 
 // Two WCA gases with the same number of molecules at densities 0.02 and 0.08. "Stir" sets a
 // shear wave v_x = U sin(2π y / L); its amplitude decays as e^(−ν k² t), ν = η/ρ, k = 2π/L.
@@ -91,6 +92,15 @@ function show() {
   $("rate").textContent = `${f(a.rate, 4)}, ${f(b.rate, 4)}`;
   $("mfp").textContent = `${f(mfp(a), 1)} σ, ${f(mfp(b), 1)} σ`;
   $("size").textContent = `${f(size(a), 2)} σ, ${f(size(b), 2)} σ`;
+  // Loschmidt: a gramme-molecule of the liquid packs N molecules of size d, so N ∝ 1/d³; the lab is
+  // scaled so that the true size, 1 σ, gives the true N.
+  const d = [size(a), size(b)].filter(Number.isFinite);
+  if (d.length) {
+    const mean = d.reduce((s, x) => s + x, 0) / d.length;
+    const n = N_TRUE / mean ** 3;
+    $("nav").textContent = formatN(n);
+    record("viscosity", n, `molecule size ${mean.toFixed(2)} σ from the viscosity`);
+  }
 }
 
 function stir(key: "A" | "B") {

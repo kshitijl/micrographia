@@ -28,4 +28,12 @@ test("light in lumps gives Planck's spectrum and the photoelectric effect", asyn
   expect(uvBright.rate / uv.rate).toBeGreaterThan(3);
   expect(uvBright.rate / uv.rate).toBeLessThan(5);
   expect(waveRed.rate).toBeGreaterThan(0);
+  // Planck's count: h from two colours' fastest electrons, k from the 3,000 K spectrum's peak.
+  await page.evaluate(() => window.lightTest!.box(3000, "quantum", 400));
+  await page.evaluate(() => window.lightTest!.photo("grains", 250, 4, 40));
+  await page.evaluate(() => window.lightTest!.photo("grains", 350, 4, 40));
+  const nh = await page.locator("#nh").innerText();
+  console.log(`light: ${nh}`);
+  const n = Number(nh.match(/N = ([\d.]+) × 10²³/)![1]);
+  expect(Math.abs(n - 6.02)).toBeLessThan(0.6);
 });

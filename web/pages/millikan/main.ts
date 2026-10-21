@@ -1,6 +1,7 @@
 import { $, cssVar } from "../../src/lib/host";
 import { cssColor } from "../../src/lib/theme";
 import { LinesPlot } from "../../src/lib/plot";
+import { FARADAY, formatN, record } from "../../src/lib/perrin";
 
 // Millikan's oil drop, as Langevin dynamics in SI units: overdamped (the drop reaches its
 // terminal speed in microseconds), so each step moves it by (forces / 6πηa) dt plus a random
@@ -77,6 +78,24 @@ function step() {
 }
 
 /** After a fall and a rise: the radius from the fall, the charge from both. */
+/** The charge they are all whole multiples of (10⁻¹⁹ C): start from the smallest, or a half, a
+ * third or a quarter of it; refine (e = Σq / Σn, with each n the nearest whole number of e's)
+ * from the smaller drops up, as a noisy smallest drop would throw the big ones' n off; take the
+ * largest that fits every drop within 0.3 e. */
+function elementary(qs: number[]) {
+  if (qs.length < 3) return NaN;
+  const sorted = [...qs].sort((a, b) => a - b);
+  for (let k = 1; k <= 4; k++) {
+    let e = sorted[0] / k;
+    for (let m = 1; m <= sorted.length; m++) {
+      const some = sorted.slice(0, m);
+      e = some.reduce((a, q) => a + q, 0) / some.reduce((a, q) => a + Math.max(1, Math.round(q / e)), 0);
+    }
+    if (qs.every((q) => Math.abs(q / e - Math.round(q / e)) < 0.3)) return e;
+  }
+  return NaN;
+}
+
 function measure() {
   if (!Number.isFinite(vFall) || !Number.isFinite(vRise)) {
     labels();
@@ -88,6 +107,9 @@ function measure() {
   vRise = NaN; // the next pair
   labels(r, q);
   drawHist();
+  const e = elementary(charges);
+  $("e").textContent = Number.isFinite(e) ? `${e.toFixed(3)} × 10⁻¹⁹ C; N = F/e = ${formatN(FARADAY / (e * 1e-19))}` : charges.length < 3 ? "measure 3 drops" : "no whole multiples yet";
+  if (Number.isFinite(e)) record("millikan", FARADAY / (e * 1e-19), `e from ${charges.length} drops, and the faraday`);
 }
 
 function labels(r?: number, q?: number) {

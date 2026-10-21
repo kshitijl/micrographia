@@ -1,5 +1,6 @@
 import { $, cssVar } from "../../src/lib/host";
 import { LinesPlot } from "../../src/lib/plot";
+import { formatN, N_TRUE, record } from "../../src/lib/perrin";
 
 // Independent radioactive atoms: in each small time step δt every atom decays with probability
 // λ δt, λ = ln 2 / half-life; a fixed share of decays reach the screen and flash. The number
@@ -136,7 +137,21 @@ function draw() {
   $("mean").textContent = recent.length > 3 ? `${mean.toFixed(1)} ± ${sd.toFixed(1)} (√ of the mean: ${Math.sqrt(mean).toFixed(1)})` : "–";
   const h = halfLife();
   $("hm").textContent = Number.isFinite(h) ? `${h.toFixed(0)} s (set: ${halfIn.value} s)` : "counting…";
+  // Rutherford's count: the flashes seen so far are SEEN of the atoms that decayed, a share
+  // 1 − e^(−λT) of the sample; so the sample had c / (SEEN (1 − e^(−λT))) atoms, and it weighed
+  // (on an imaginary balance) its atoms × 226 / N grams.
+  const c = counts.reduce((s, x) => s + x, 0);
+  if (Number.isFinite(h)) {
+    const T = counts.length * Number(intervalIn.value);
+    const atomsSeen = c / (SEEN * -Math.expm1((-Math.LN2 * T) / h));
+    const n = (atomsSeen * 226) / sampleGrams();
+    $("nav").textContent = `${formatN(n)} (sample: ${sampleGrams().toExponential(2)} g)`;
+    record("counting", n, `flashes from a weighed sample, ${c.toLocaleString()} counted`);
+  } else $("nav").textContent = `sample: ${sampleGrams().toExponential(2)} g`;
 }
+
+/** What the sample weighed at the start (g): an isotope of atomic weight 226, like radium. */
+const sampleGrams = () => (Number(nIn.value) * 226) / N_TRUE;
 
 function frame() {
   if (running) {

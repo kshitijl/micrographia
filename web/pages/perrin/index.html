@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Your Perrin Table</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 16 16%22%3E%3Cg fill=%22%239a4a1e%22%3E%3Ccircle cx=%224%22 cy=%224%22 r=%221.5%22/%3E%3Ccircle cx=%228%22 cy=%224%22 r=%221.5%22/%3E%3Ccircle cx=%2212%22 cy=%224%22 r=%221.5%22/%3E%3Ccircle cx=%224%22 cy=%228%22 r=%221.5%22/%3E%3Ccircle cx=%228%22 cy=%228%22 r=%221.5%22/%3E%3Ccircle cx=%2212%22 cy=%228%22 r=%221.5%22/%3E%3Ccircle cx=%224%22 cy=%2212%22 r=%221.5%22/%3E%3Ccircle cx=%228%22 cy=%2212%22 r=%221.5%22/%3E%3Ccircle cx=%2212%22 cy=%2212%22 r=%221.5%22/%3E%3C/g%3E%3C/svg%3E" />
+    <link rel="stylesheet" href="../../src/lib/style.css" />
+    <style>
+      table.perrin { width: 100%; border-collapse: collapse; font-size: 15px; }
+      table.perrin th, table.perrin td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--rule); vertical-align: top; }
+      table.perrin td.num { font-family: var(--mono); white-space: nowrap; }
+      table.perrin td.how { color: var(--muted); font-size: 13px; }
+      .table-wrap { overflow-x: auto; }
+    </style>
+  </head>
+  <body>
+    <nav class="topbar"><div class="wrap"><a href="../../index.html">Micrographia</a></div></nav>
+    <main class="wrap">
+      <header class="question">
+        <div class="eyebrow">Perrin, <i>Atoms</i>, 1913, §120</div>
+        <h1>Thirteen ways to count atoms: do they agree?</h1>
+        <p class="lede">
+          Jean Perrin ended his book with a table: thirteen unrelated phenomena (the stickiness of gases, the settling of grains
+          in water, the blue of the sky, the glow of a furnace, the flashes of radium) each turned into a count of the molecules
+          in a gramme-molecule, Avogadro's number N, and all of them came out between 60 and 75 × 10²². Here are his values, and
+          yours: every page below that turns a measurement into N puts your latest value in this table (in this browser only).
+        </p>
+      </header>
+
+      <section>
+        <div class="table-wrap">
+          <table class="perrin" id="table">
+            <thead><tr><th>Phenomenon</th><th>Perrin's N</th><th>Yours</th><th>How you got it</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+        <canvas class="plot" id="strip" style="margin-top: 18px" aria-label="All the values of N on one axis"></canvas>
+        <div class="legend"><span><i style="background: var(--muted)"></i>Perrin's</span><span><i style="background: var(--accent)"></i>yours</span><span><i style="background: var(--good)"></i>today's value, 6.022 × 10²³</span></div>
+        <div class="buttons" style="margin-top: 12px"><button id="forget">Forget my values</button></div>
+      </section>
+
+      <article class="notes">
+        <h2>Why the agreement is the evidence</h2>
+        <p>
+          Any one of these measurements could be explained away: a grain that is not quite a sphere, a law of viscosity that is
+          only roughly right. What could not be explained away was that thirteen of them, resting on unrelated physics, gave the
+          same number. "The real existence of the molecule is given a probability bordering on certainty", Perrin wrote, and by
+          1913 the last serious doubters (Ostwald among them) agreed.
+        </p>
+        <p>
+          He added a remark worth keeping. Eliminate N between any two of the equations and you get a relation between visible
+          things alone: the blue of the sky predicts how fast a grain of gamboge diffuses in water. In principle one could state
+          all such results without molecules; but laws that could only have been found by way of molecules would then lose
+          what nourished them.
+        </p>
+        <h2>Your values</h2>
+        <p>
+          The simulations know their own N exactly: their units are mapped to the laboratory so that a perfect measurement gives
+          6.022 × 10²³, and the error in your value is your measurement's (and the simulation's: a small box, a short run, a
+          formula that is only approximate). Perrin's spread, 60 to 75, came from the same kinds of thing.
+        </p>
+        <section class="about-sim" id="about-sim">
+          <h2>About this page</h2>
+          <ul>
+            <li>Method: no simulation of its own. It gathers the values of N that the other pages measured, kept in this
+              browser's storage, beside the values in Perrin's table (Atoms, §120; ×10²² in his units, here ×10²³).</li>
+            <li>Energy: nothing is simulated here, so nothing to conserve.</li>
+          </ul>
+        </section>
+      </article>
+    </main>
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>

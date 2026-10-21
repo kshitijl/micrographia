@@ -751,3 +751,9 @@ docs/performance.md.
   1k to 2k. Part 2: push a cold and a hot gas alike (hold the button): the hot one lags; its inertia per
   molecule is (E + pA)/c² (3.09 against 3.07), not E/c², because the gas has no walls; the page explains the
   enthalpy and Laue's walls rather than hiding it.
+- [ ] Track B23, new page `perrin`: Perrin's table of N beside the visitor's own values, which the pages now
+  compute in laboratory units and keep in this browser (web/src/lib/perrin.ts): sedimentation (RT/mgH),
+  brownian (RT/Dζ, new readout), viscosity (Loschmidt, from the molecule's size), millikan (e from the drops'
+  common divisor, then F/e; new readout), counting (atoms counted from a weighed sample; new readout), light
+  (h from the photoelectrons' slope, k from the spectrum's peak by Wien, N = R/k; new readout). A strip chart
+  shows them all against 6.022 × 10²³. Opalescence and the sky do not count yet.

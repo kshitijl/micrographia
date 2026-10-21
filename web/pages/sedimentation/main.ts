@@ -1,6 +1,7 @@
 import { DiscSim } from "../../src/lib/wasm";
 import { $, cssVar, SimHost } from "../../src/lib/host";
 import { Spoon } from "../../src/lib/interact";
+import { formatN, record } from "../../src/lib/perrin";
 
 // Perrin's grains (scenario perrin): 30 grains, 3 σ across and 30 times a molecule's mass, in a
 // thin gas under gravity set for a scale height of 12 σ. Measured natively (crates/md/tests/
@@ -117,7 +118,8 @@ async function readout(sim: DiscSim, force = false) {
     // In Perrin's units: H in cm (the box scaled so that kT/mg at kT = 1 and gravity ×1 is his ~50 µm).
     const hLab = s * ((R_LAB * T_LAB) / (N_TRUE * M_LAB * G_LAB) / SCALE);
     const nav = (R_LAB * T_LAB * kt) / (M_LAB * G_LAB * Number(gIn.value) * hLab);
-    $("nav").textContent = `${(nav / 1e23).toFixed(1)} × 10²³ (H = ${(hLab * 1e4).toFixed(0)} µm)`;
+    $("nav").textContent = `${formatN(nav)} (H = ${(hLab * 1e4).toFixed(0)} µm)`;
+    record("sedimentation", nav, `grains thinning by e over ${(hLab * 1e4).toFixed(0)} µm`);
   }
 }
 

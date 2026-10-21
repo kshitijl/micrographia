@@ -2,6 +2,7 @@ import { BallSim } from "../../src/lib/wasm";
 import { $, cssVar, SimHost } from "../../src/lib/host";
 import { cssColor } from "../../src/lib/theme";
 import { LinesPlot } from "../../src/lib/plot";
+import { formatN, N_TRUE, record } from "../../src/lib/perrin";
 
 // A Brownian grain in 3D (scenario brownian3: a sphere 5 σ across, as dense as the WCA liquid
 // around it). Measured natively (crates/md/tests/brownian3.rs): D 0.0169 over 20 τ; a throw's
@@ -135,6 +136,14 @@ async function readout(sim: BallSim) {
   const zeta = friction();
   $("zeta").textContent = Number.isFinite(zeta) ? `${zeta.toFixed(0)} (from ${throws} throws)` : "throw it";
   $("kt").textContent = Number.isFinite(zeta) && Number.isFinite(d) ? (d * zeta).toFixed(2) : "–";
+  // Perrin's count: N = RT / (D ζ) in laboratory units. The simulation's units map to the lab so
+  // that a perfect measurement gives the true N; so N = N_true × (kT from the thermometer) / (D ζ).
+  const tm = Number($("tm").textContent);
+  if (Number.isFinite(zeta) && Number.isFinite(d) && throws >= 3) {
+    const n = (N_TRUE * tm) / (d * zeta);
+    $("nav").textContent = formatN(n);
+    record("brownian", n, `D and ζ of a grain (${throws} throws)`);
+  }
 }
 
 /** ζ = m / ∫ v/v₀ dt over the throws' window. */

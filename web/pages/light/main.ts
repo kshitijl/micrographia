@@ -1,5 +1,6 @@
 import { $, cssVar } from "../../src/lib/host";
 import { LinesPlot } from "../../src/lib/plot";
+import { formatN, R, record } from "../../src/lib/perrin";
 
 // Part 1: the light in a hot box as its modes (standing waves). BINS frequency bins, each with
 // PER_BIN sample modes standing for the ν² modes a real box has there; each mode trades energy
@@ -317,6 +318,37 @@ function draw2() {
     { points: pts(fastest.grains), color: cssVar("--accent"), dots: true },
     { points: pts(fastest.wave), color: cssVar("--highlight"), dots: true },
   ]);
+  planckCount(pts(fastest.grains));
+}
+
+/** Planck's constant from the fastest electrons (the slope of their energy against frequency,
+ * over the colours that freed any), then Boltzmann's from the peak of part 1's spectrum (Wien:
+ * hν_peak = 2.821 kT), and N = R/k. */
+function planckCount(points: { x: number; y: number }[]) {
+  const p = points.filter((q) => q.y > 0);
+  if (p.length < 2 || p[p.length - 1].x - p[0].x < 1) {
+    $("nh").textContent = "try two or more colours that free electrons";
+    return;
+  }
+  const n = p.length;
+  const [sx, sy] = [p.reduce((a, q) => a + q.x, 0), p.reduce((a, q) => a + q.y, 0)];
+  const sxx = p.reduce((a, q) => a + q.x * q.x, 0);
+  const sxy = p.reduce((a, q) => a + q.x * q.y, 0);
+  const h = (n * sxy - sx * sy) / (n * sxx - sx * sx) / 1e14; // eV s
+  // The spectrum's peak, between bins (a parabola through the highest and its neighbours).
+  const u = Array.from(nu, (v, k) => v * v * mean[k]);
+  let k = 1;
+  for (let j = 1; j < BINS - 1; j++) if (u[j] > u[k]) k = j;
+  const [a, b, c] = [u[k - 1], u[k], u[k + 1]];
+  const peak = (k + 0.5 + (0.5 * (a - c)) / (a - 2 * b + c)) * DNU;
+  if (!(b > 0)) {
+    $("nh").textContent = `h = ${h.toExponential(3)} eV s; now run part 1 for its spectrum's peak`;
+    return;
+  }
+  const kB = (h * peak) / (2.821 * Number(tIn.value)) * 1.602e-19; // J/K
+  const nA = R / kB;
+  $("nh").textContent = `h = ${h.toExponential(3)} eV s, k = ${kB.toExponential(3)} J/K: N = ${formatN(nA)}`;
+  record("blackbody", nA, `h from ${p.length} colours, k from the spectrum's peak at ${tIn.value} K`);
 }
 
 const labels2 = () => {
