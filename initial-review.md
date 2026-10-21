@@ -772,3 +772,8 @@ docs/performance.md.
   nuclei: rare sharp turns, with the recoil), and loses C/v² per σ to ionisation (the page's rule), making
   ions drawn as droplets where they formed; the Bragg curve of ions along the track peaks at its end
   (137 of 240 ions in the last third). Energy panel counts what the α's spent. New scenario `cloud`.
+- [ ] Track A1 (the dissertation) attempted and deferred: a 3D suspension scenario (`suspension3`) and two
+  viscosity methods (shear-wave decay; steady periodic forcing with a thermostat on the velocities relative
+  to the flow) work, but molecular-size grains lowered the viscosity instead of raising it by 2.5φ; the
+  liquid's viscosity is too sensitive to the solvent's dilution by the grains. Recorded in research.md §18.8
+  with what it needs (bigger grains, solvent at equal pressure).

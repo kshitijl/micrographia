@@ -12,7 +12,7 @@ pub struct Scenario3 {
     pub radii: Vec<f64>,
 }
 
-pub const NAMES3: &[&str] = &["crystal3", "gas3", "freeze3", "brownian3"];
+pub const NAMES3: &[&str] = &["crystal3", "gas3", "freeze3", "brownian3", "suspension3"];
 
 pub fn build3(name: &str, o: &Options) -> Result<Scenario3, String> {
     let sc = match name {
@@ -20,6 +20,7 @@ pub fn build3(name: &str, o: &Options) -> Result<Scenario3, String> {
         "gas3" => gas3(o),
         "freeze3" => freeze3(o),
         "brownian3" => brownian3(o),
+        "suspension3" => suspension3(o),
         _ => return Err(format!("unknown 3D scenario {name}")),
     };
     for (i, p) in sc.state.pos.iter().enumerate() {
@@ -149,6 +150,42 @@ pub fn brownian3(o: &Options) -> Scenario3 {
     }));
     let mut species = vec![0; pos.len()];
     species[0] = 1;
+    let vel = three::maxwell(&sys, &species, t, seed + 1);
+    Scenario3 { sys, state: State3 { pos, vel, species }, radii: vec![0.5, 0.5 * size] }
+}
+
+/// A suspension: `grains` big spheres (species 1, diameter `size` σ, as dense as the liquid) on a
+/// loose cubic lattice in a liquid of repulsive (WCA) molecules at `density`, periodic, at
+/// Maxwell's distribution; molecules where a grain goes are removed. Options: n (molecules before
+/// the grains displace some), density, grains, size, temperature, seed.
+pub fn suspension3(o: &Options) -> Scenario3 {
+    let n = o.get("n", 16000.0) as usize;
+    let rho = o.get("density", 0.7);
+    let size = o.get("size", 3.0);
+    let k = o.get("grains", 20.0) as usize;
+    let t = o.get("temperature", 1.0);
+    let seed = o.get("seed", 1.0) as u64;
+    let mass = rho * std::f64::consts::PI / 6.0 * size.powi(3);
+    let wca = |sigma: f64| Pair { eps: 1.0, sigma, rc: sigma * 2f64.powf(1.0 / 6.0) };
+    let box_len = three::cube_for(n, rho);
+    let sys = System3::new(box_len, init::DT, wca(1.0), vec![1.0, mass]).with_pair(0, 1, wca(0.5 * (size + 1.0))).with_pair(1, 1, wca(size)).with_seed(seed);
+    let all = three::fcc(n, box_len, three::fcc_cells(n, box_len), 0.1, seed);
+    // Grains on the first k sites of an m × m × m lattice (m³ ≥ k), shuffled a little.
+    let m = (k as f64).cbrt().ceil().max(1.0) as usize;
+    let l = box_len.map(fixed::to_f64);
+    let grains: Vec<[i64; 3]> = (0..k)
+        .map(|q| {
+            let ijk = [q % m, (q / m) % m, q / (m * m)];
+            std::array::from_fn(|a| fixed::to_fixed((ijk[a] as f64 + 0.5 + 0.1 * (gpu_prims::threefry::uniform(seed, 97, (3 * q + a) as u32) - 0.5)) * l[a] / m as f64))
+        })
+        .collect();
+    let clear = (0.5 * (size + 1.0) * o.get("clear", 1.02)).powi(2);
+    let mut pos = grains.clone();
+    pos.extend(all.into_iter().filter(|p| {
+        grains.iter().all(|g| (0..3).map(|a| fixed::to_f64(fixed::min_image(p[a], g[a], box_len[a])).powi(2)).sum::<f64>() > clear)
+    }));
+    let mut species = vec![0; pos.len()];
+    species[..k].fill(1);
     let vel = three::maxwell(&sys, &species, t, seed + 1);
     Scenario3 { sys, state: State3 { pos, vel, species }, radii: vec![0.5, 0.5 * size] }
 }
