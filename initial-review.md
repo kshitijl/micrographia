@@ -437,6 +437,20 @@ Open questions (third round):
    or GPU by machine and box size; a simplified performance model of the GPU simulator that names
    the bottlenecks; whether WebGPU leaves performance on the table (rather than a CUDA version for
    recording explainer videos on the desktop; better if everything runs in the browser).
+23. Decouple the simulation from rendering and host–device traffic: the simulation runs
+   underneath as fast as the GPU allows, and the page samples the GPU state now and then to
+   animate and to read out. The UI offers both: slow motion, or full simulation speed. Then bigger
+   systems and many more timesteps, to see real boiling and vapour. Do this first.
+24. 3D in the GPU engine, for the demos that need it, with no 2D performance regression.
+25. Phase transitions: implement all three, the GPU lattice gas, Gibbs-ensemble Monte Carlo, and
+   Shan–Chen lattice Boltzmann, all on the GPU unless something truly doesn't parallelise, so they
+   can be compared for explaining and understanding.
+26. Higher particle counts on every page, or a control for them: default about 5,000–20,000.
+27. Soap: drop soap molecules in by hand.
+28. A general rule: avoid a dropdown that resets the simulation to change an amount, quantity or
+   position when that could be an interactive act. Always prefer to make the demonstration
+   interactive: we are in a lab, and the student should pick something up or use a tool to prod
+   it.
 
 ### Fourth round: done (to confirm)
 

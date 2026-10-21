@@ -49,5 +49,9 @@ engine. See `README.md`, `docs/status.md` and `docs/architecture.md`.
 - Prefer the microcanonical ensemble: energy strictly conserved (no thermostat), with Boltzmann
   distributions emerging by themselves. Use a heat bath only when the physics needs one, and say
   so. Every page shows the total energy of the whole simulation and states its ensemble plainly.
+- Never make a dropdown (or any control) that resets the simulation to change an amount, a
+  quantity or a position when the change could be an act inside the running simulation: pour it
+  in, drop it, pull it out, drag it. We are in a lab; the student picks something up or uses a
+  tool to prod the system. Resetting is for starting over, not for changing things.
 - Let users grab things: click and drag objects (an end of a rubber band, a piston, a membrane)
   rather than only pressing buttons that move them for you.

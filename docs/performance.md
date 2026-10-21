@@ -14,6 +14,28 @@ built yet. The user asked for it to be written down and done later.
 
 ---
 
+## Next steps, first (the user's priorities, 2026-10-20)
+
+Before the rest of this plan:
+
+1. **Decouple the simulation from rendering and host–device traffic.** The simulation runs
+   underneath, as fast as the GPU allows; the page samples the GPU state now and then to animate
+   (drawing straight from GPU buffers needs no readback) and to read out. The UI offers both:
+   slow motion, at a chosen τ per second, or full simulation speed. Then bigger systems and many
+   more timesteps, to see real boiling and vapour.
+2. **3D in the GPU engine**, for the demos that need it (Stokes–Einstein Brownian motion, the 3D
+   dissertation page, real melting and crystallisation), with no 2D performance regression:
+   dimension as a compile-time choice in the shaders, not a runtime branch in the hot loops.
+3. **Phase transitions, three ways, all on the GPU:** a lattice gas (checkerboard or Kawasaki
+   Monte Carlo), Gibbs-ensemble Monte Carlo, and Shan–Chen lattice Boltzmann. They will be
+   compared for explaining and understanding.
+4. **Higher particle counts everywhere**, or a control for them on every page: default about
+   5,000–20,000.
+5. **Interactive changes instead of resets** (CLAUDE.md): for example drop soap molecules in by
+   hand.
+
+---
+
 ## 1. What we know (measured)
 
 2D, density 0.7, natively on the development Mac:
