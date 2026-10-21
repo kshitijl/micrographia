@@ -117,6 +117,18 @@ impl BallSim {
         })
     }
 
+    /// Resolves to a Float32Array of every particle's (vx, vy, vz) in σ/τ (the half-step
+    /// velocity), in id order.
+    pub fn velocities(&self) -> js_sys::Promise {
+        let fut = self.engine.read_state();
+        let dt = self.engine.sys.dt;
+        future_to_promise(async move {
+            let s = fut.await;
+            let v: Vec<f32> = s.vel.iter().flat_map(|q| q.map(|x| (x as f64 * fixed::UNIT / dt) as f32)).collect();
+            Ok(Float32Array::from(&v[..]).into())
+        })
+    }
+
     /// Resolves to the positions (σ, x y z interleaved, f64) of the particles with these ids.
     pub fn positions_of(&self, ids: Vec<u32>) -> js_sys::Promise {
         let fut = self.engine.read_state();

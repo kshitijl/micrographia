@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Energy and Speed</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 16 16%22%3E%3Ccircle cx=%228%22 cy=%228%22 r=%227%22 fill=%22%232d6a9f%22/%3E%3C/svg%3E" />
+    <link rel="stylesheet" href="../../src/lib/style.css" />
+  </head>
+  <body>
+    <nav class="topbar"><div class="wrap"><a href="../../index.html">Micrographia</a></div></nav>
+    <main class="wrap">
+      <header class="question">
+        <div class="eyebrow">Boltzmann and Maxwell</div>
+        <h1>Why is a molecule's most likely energy zero, but its most likely speed not?</h1>
+        <p class="lede">
+          Boltzmann says the lower an energy, the likelier it is: the single most likely kinetic energy is
+          zero. Maxwell says the most likely speed is a definite, nonzero one. Both are right, about the same
+          molecules. The answer is in how many ways there are to have a given speed, and you can see it:
+          below, every molecule's velocity is a dot. And what is the average energy of a gas molecule?
+        </p>
+      </header>
+      <h2>1. A gas in two dimensions</h2>
+      <section class="lab">
+        <div class="left">
+          <div class="stage" id="stageA" style="aspect-ratio: 4 / 3">
+            <canvas id="canvasA" aria-label="A gas of molecules in a box"></canvas>
+            <div class="overlay" id="overlayA">Starting the GPU…</div>
+          </div>
+          <canvas class="vplane" id="vplaneA" style="width: 100%; aspect-ratio: 1 / 1; margin-top: 10px; cursor: pointer; border-radius: 10px" aria-label="Every molecule's velocity as a dot; drag the ring"></canvas>
+          <div class="legend"><span>Each dot is one molecule's velocity (v<sub>x</sub>, v<sub>y</sub>). Click or drag to move the ring; the thin circle at the centre has the same area as the ring.</span></div>
+        </div>
+        <aside class="panel">
+          <div class="buttons">
+            <button class="primary" id="runA">Run</button>
+            <button id="heatA">Heat (+20% energy)</button>
+            <button id="coolA">Cool (−20%)</button>
+          </div>
+          <div id="toolsA"></div>
+          <div class="readouts">
+            <div class="readout"><div class="k">kT (from the average energy)</div><div class="v" id="tA">–</div></div>
+            <div class="readout"><div class="k">average energy per molecule</div><div class="v" id="eA">–</div></div>
+            <div class="readout"><div class="k">most common energy</div><div class="v" id="meA">–</div></div>
+            <div class="readout"><div class="k">most common speed</div><div class="v" id="msA">–</div></div>
+            <div class="readout"><div class="k">molecules per unit area at the centre</div><div class="v" id="dcA">–</div></div>
+            <div class="readout"><div class="k">in the ring: per unit area, and in all</div><div class="v" id="drA">–</div></div>
+          </div>
+          <canvas class="plot" id="ehA" aria-label="Histogram of energies with the theory"></canvas>
+          <div class="legend"><span><i style="background: var(--accent)"></i>energies of the molecules now</span><span><i style="background: var(--muted)"></i>Boltzmann's prediction</span></div>
+          <canvas class="plot" id="shA" aria-label="Histogram of speeds with the theory"></canvas>
+          <div class="legend"><span><i style="background: var(--species-2)"></i>speeds of the molecules now</span><span><i style="background: var(--muted)"></i>Maxwell's prediction</span></div>
+        </aside>
+      </section>
+
+      <h2>2. The same in three dimensions</h2>
+      <section class="lab">
+        <div class="left">
+          <div class="stage" id="stageB" style="aspect-ratio: 4 / 3">
+            <canvas id="canvasB" aria-label="A gas of molecules in a box, in 3D"></canvas>
+            <div class="overlay" id="overlayB">Starting the GPU…</div>
+          </div>
+          <canvas class="vplane" id="vplaneB" style="width: 100%; aspect-ratio: 1 / 1; margin-top: 10px; cursor: pointer; border-radius: 10px" aria-label="Every molecule's velocity as a dot; drag the ring"></canvas>
+          <div class="legend"><span>Each dot is one molecule's velocity (v<sub>x</sub>, v<sub>y</sub>). Click or drag to move the ring; the thin circle at the centre has the same area as the ring.</span></div>
+        </div>
+        <aside class="panel">
+          <div class="buttons">
+            <button class="primary" id="runB">Run</button>
+            <button id="heatB">Heat (+20% energy)</button>
+            <button id="coolB">Cool (−20%)</button>
+          </div>
+          <div class="status">Drag the gas to turn it.</div>
+          <div class="readouts">
+            <div class="readout"><div class="k">kT (from the average energy)</div><div class="v" id="tB">–</div></div>
+            <div class="readout"><div class="k">average energy per molecule</div><div class="v" id="eB">–</div></div>
+            <div class="readout"><div class="k">most common energy</div><div class="v" id="meB">–</div></div>
+            <div class="readout"><div class="k">most common speed</div><div class="v" id="msB">–</div></div>
+            <div class="readout"><div class="k">molecules per unit area at the centre</div><div class="v" id="dcB">–</div></div>
+            <div class="readout"><div class="k">in the ring: per unit area, and in all</div><div class="v" id="drB">–</div></div>
+          </div>
+          <canvas class="plot" id="ehB" aria-label="Histogram of energies with the theory"></canvas>
+          <div class="legend"><span><i style="background: var(--accent)"></i>energies of the molecules now</span><span><i style="background: var(--muted)"></i>Boltzmann's prediction</span></div>
+          <canvas class="plot" id="shB" aria-label="Histogram of speeds with the theory"></canvas>
+          <div class="legend"><span><i style="background: var(--species-2)"></i>speeds of the molecules now</span><span><i style="background: var(--muted)"></i>Maxwell's prediction</span></div>
+        </aside>
+      </section>
+
+      <article class="notes">
+        <h2>The densest point is not the most crowded ring</h2>
+        <p>
+          Look at the dots. They are densest at the centre, zero velocity: Boltzmann's rule, e<sup>−E/kT</sup>, says
+          each small patch of velocities is less likely the faster it is, so the patch at zero is the likeliest
+          of all. But a speed is not a patch, it is a whole ring: every direction at that speed. A ring near the
+          centre is tiny and holds few dots, however dense; a ring further out is bigger, and its size grows
+          with its radius faster than the density falls, at first. So the number of molecules at a speed rises,
+          peaks, and then falls when the e<sup>−E/kT</sup> wins. Drag the ring and watch its count against its density.
+          That peak is Maxwell's most likely speed: √(kT/m) in 2D, √(2kT/m) in 3D.
+        </p>
+        <p>
+          Energy is ½mv², so in 2D a thin ring of speeds is also a thin band of energies of the same area at
+          every energy: the number of molecules at an energy just follows the density, and the likeliest energy
+          is zero. In 3D the shells of a given energy grow with √E, so the likeliest energy is ½kT, not zero,
+          though it is still the density e<sup>−E/kT</sup> of each state that falls. The rule "lower energy is likelier"
+          is about single states; how many states there are at each energy (the density of states) is the
+          other half of every distribution.
+        </p>
+        <h2>The average energy</h2>
+        <p>
+          The readout "average energy per molecule" answers the other question: ½kT for every direction a
+          molecule can move, kT in 2D, (3/2)kT in 3D, whatever the molecule's mass (see
+          <a href="../heavy/index.html">heavy and light molecules</a>). That is in fact how temperature is
+          defined here: kT is read from the average energy. The histograms then test the rest: the shape of the
+          whole distribution, which nothing forced, comes out as Boltzmann and Maxwell predicted. Heat or cool
+          the gas, or kick some molecules, and watch the shape spoil and then return within a few τ.
+        </p>
+        <div class="caveat">
+          <h3>Caveats</h3>
+          <ul>
+            <li>A dense-ish gas of repulsive molecules: the distributions of velocities are exactly
+              Maxwell's at any density (velocities and positions are independent in equilibrium), so a
+              liquid would show the same.</li>
+            <li>The energy here is kinetic energy only.</li>
+          </ul>
+        </div>
+      </article>
+    </main>
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>

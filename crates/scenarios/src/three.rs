@@ -12,11 +12,12 @@ pub struct Scenario3 {
     pub radii: Vec<f64>,
 }
 
-pub const NAMES3: &[&str] = &["crystal3"];
+pub const NAMES3: &[&str] = &["crystal3", "gas3"];
 
 pub fn build3(name: &str, o: &Options) -> Result<Scenario3, String> {
     let sc = match name {
         "crystal3" => crystal3(o),
+        "gas3" => gas3(o),
         _ => return Err(format!("unknown 3D scenario {name}")),
     };
     for (i, p) in sc.state.pos.iter().enumerate() {
@@ -50,6 +51,19 @@ pub fn crystal3(o: &Options) -> Scenario3 {
     let cells = [c; 3];
     let offset = block_len.map(|b| (sys.box_len[0] - b) / 2);
     let pos: Vec<[i64; 3]> = three::fcc(n, block_len, cells, 0.02, seed).into_iter().map(|p| std::array::from_fn(|k| fixed::wrap(p[k] + offset[k], sys.box_len[k]))).collect();
+    let species = vec![0; n];
+    let vel = three::maxwell(&sys, &species, t, seed + 1);
+    Scenario3 { sys, state: State3 { pos, vel, species }, radii: vec![0.5] }
+}
+
+/// A gas of repulsive (WCA) molecules in a periodic cube, at Maxwell's distribution.
+/// Options: n, density, temperature, seed.
+pub fn gas3(o: &Options) -> Scenario3 {
+    let n = o.get("n", 8000.0) as usize;
+    let t = o.get("temperature", 1.0);
+    let seed = o.get("seed", 1.0) as u64;
+    let sys = System3::new(three::cube_for(n, o.get("density", 0.2)), init::DT, Pair::wca(), vec![1.0]).with_seed(seed);
+    let pos = three::fcc(n, sys.box_len, three::fcc_cells(n, sys.box_len), 0.1, seed);
     let species = vec![0; n];
     let vel = three::maxwell(&sys, &species, t, seed + 1);
     Scenario3 { sys, state: State3 { pos, vel, species }, radii: vec![0.5] }
