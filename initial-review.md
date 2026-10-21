@@ -744,3 +744,10 @@ docs/performance.md.
   way to 1). Engine: `add_bond`; bond kernels kept when a system declares bond types but has no bonds yet.
   Bug found and fixed: the Andersen bath heated a gas under a free piston (it added the piston's jiggle as
   if it were a flow); research.md §18.8.
+- [ ] Tracks A4 and A5, new page `relativity`: a relativistic hard-disk gas (c = 1; collisions reverse the
+  momenta along the line of centres in the pair's centre-of-momentum frame, conserving energy and momentum
+  exactly). Part 1: heat it (buttons, or hold the mouse on it): speeds crowd below c (Maxwell's curve spills
+  past it), the energy follows Jüttner within 1% by the thermometer kT = ⟨p·v⟩/2, heat per degree goes from
+  1k to 2k. Part 2: push a cold and a hot gas alike (hold the button): the hot one lags; its inertia per
+  molecule is (E + pA)/c² (3.09 against 3.07), not E/c², because the gas has no walls; the page explains the
+  enthalpy and Laue's walls rather than hiding it.

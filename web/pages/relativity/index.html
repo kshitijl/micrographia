@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Hotter, Not Faster</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 16 16%22%3E%3Ccircle cx=%228%22 cy=%228%22 r=%226%22 fill=%22none%22 stroke=%22%23e5483a%22 stroke-width=%222%22/%3E%3Ccircle cx=%228%22 cy=%228%22 r=%222%22 fill=%22%234f7cc4%22/%3E%3C/svg%3E" />
+    <link rel="stylesheet" href="../../src/lib/style.css" />
+  </head>
+  <body>
+    <nav class="topbar"><div class="wrap"><a href="../../index.html">Micrographia</a></div></nav>
+    <main class="wrap">
+      <header class="question">
+        <div class="eyebrow">Einstein, 1905: special relativity, and E = mc²</div>
+        <h1>Can a gas get hotter without its molecules getting faster? And is a hot cup of tea heavier?</h1>
+        <p class="lede">
+          Nothing goes faster than light. So what happens when you keep heating a gas whose molecules are already nearly
+          that fast? They can't speed up much, but they keep taking the heat. Where does it go? Into their mass. This gas
+          lives in a world where light is slow (it crosses a molecule in one time unit), so you can see it happen.
+        </p>
+      </header>
+
+      <h2>1. Heat a gas near the speed of light</h2>
+      <section class="lab">
+        <div class="left">
+          <div class="stage" style="aspect-ratio: 1 / 1; cursor: crosshair">
+            <canvas id="gas" aria-label="A gas of hard disks, coloured by speed"></canvas>
+          </div>
+          <div class="legend"><span>Coloured by speed: <i style="background: var(--species-2)"></i>slow, <i style="background: var(--cream)"></i>half the speed of light, <i style="background: var(--highlight)"></i>nearly light speed. Hold the mouse down on the gas to heat it there.</span></div>
+          <canvas class="plot tall" id="speeds" aria-label="The distribution of speeds"></canvas>
+          <div class="legend"><span><i style="background: var(--accent)"></i>the molecules' speeds</span><span><i style="background: var(--muted)"></i>Maxwell–Jüttner (relativity)</span><span><i style="background: var(--highlight)"></i>Maxwell (Newton), at the same temperature</span><span><i style="background: var(--rule)"></i>the speed of light</span></div>
+        </div>
+        <aside class="panel">
+          <div class="buttons">
+            <button class="primary" id="run">Run</button>
+            <button id="heat">Add heat</button>
+            <button id="cool">Take heat out</button>
+            <button id="reset">Start again</button>
+          </div>
+          <div class="readouts">
+            <div class="readout"><div class="k">temperature kT (in mc²)</div><div class="v" id="kt">–</div></div>
+            <div class="readout"><div class="k">average speed (in c)</div><div class="v" id="v">–</div></div>
+            <div class="readout"><div class="k">energy per molecule (mc²)</div><div class="v" id="e">–</div></div>
+            <div class="readout"><div class="k">heat per degree, per molecule</div><div class="v" id="c">–</div></div>
+          </div>
+          <canvas class="plot" id="et" aria-label="Energy against temperature"></canvas>
+          <div class="legend"><span><i style="background: var(--accent)"></i>the gas</span><span><i style="background: var(--muted)"></i>relativity</span><span><i style="background: var(--highlight)"></i>Newton: kT</span></div>
+          <canvas class="plot" id="energy" aria-label="Total energy against time"></canvas>
+          <div class="legend"><span><i style="background: var(--accent)"></i>total energy per molecule: constant, except when you heat or cool it</span></div>
+          <div class="status" id="status">
+            Run, then keep adding heat. Watch the speeds: they crowd up against the speed of light, where Newton's
+            distribution would spill past it. The temperature and the energy keep rising all the same.
+          </div>
+        </aside>
+      </section>
+
+      <h2>2. Push a cold gas and a hot one</h2>
+      <section class="lab">
+        <div class="left">
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px">
+            <div class="stage" style="aspect-ratio: 1 / 1"><canvas id="cold" aria-label="A cold gas, pushed"></canvas></div>
+            <div class="stage" style="aspect-ratio: 1 / 1"><canvas id="hot" aria-label="A hot gas, pushed"></canvas></div>
+          </div>
+          <div class="legend"><span>Left: cold. Right: hot. The same number of molecules, the same push on each. The bar along the bottom of each shows how far its molecules have flowed, on average.</span></div>
+          <canvas class="plot tall" id="track" aria-label="How far each gas has gone"></canvas>
+          <div class="legend"><span><i style="background: var(--species-2)"></i>cold</span><span><i style="background: var(--highlight)"></i>hot</span></div>
+        </div>
+        <aside class="panel">
+          <div class="buttons">
+            <button class="primary" id="push">Push both (hold)</button>
+            <button id="heat2">Heat the hot one more</button>
+            <button id="reset2">Start again</button>
+          </div>
+          <div class="readouts">
+            <div class="readout"><div class="k">cold: inertia per molecule (m); its E/c² and (E + pA)/c² at rest</div><div class="v" id="mc">–</div></div>
+            <div class="readout"><div class="k">hot: inertia per molecule (m); its E/c² and (E + pA)/c² at rest</div><div class="v" id="mh">–</div></div>
+            <div class="readout"><div class="k">speeds now (in c): cold, hot</div><div class="v" id="vv">–</div></div>
+          </div>
+          <div class="status" id="status2">
+            Hold the button: every molecule in both gases gets the same steady push. The hot gas falls behind: it is harder to
+            get moving. Its inertia (the momentum given ÷ the speed its molecules have gained) comes out as its energy plus its
+            pressure × area, over c²: heat included. Heat it more and it gets heavier still.
+          </div>
+        </aside>
+      </section>
+
+      <article class="notes">
+        <h2>Hotter but not faster</h2>
+        <p>
+          In Newton's mechanics a molecule's energy is ½mv², so a hotter gas has faster molecules without limit. In Einstein's
+          (1905) it is E = γmc², with γ = 1/√(1 − v²/c²), which grows without limit as v approaches c while v itself never
+          gets there. So heating a gas whose molecules are near c mostly makes them heavier, not faster: the energy goes into
+          γ. Their speeds pile up just below c, in the distribution Jüttner worked out in 1911, and the gas takes twice as much
+          heat per degree as it did when cold (in 2D: from 1k per molecule to 2k).
+        </p>
+        <p>
+          How do you read a temperature off such a gas? Not from ½mv². The general form of equipartition says that each
+          direction of motion carries ⟨p·v⟩/2 = ½kT on average, whatever the relation between energy and momentum, so the
+          thermometer here is kT = ⟨p·v⟩/2. Its readings agree with Jüttner's formula for the energy.
+        </p>
+        <h2>Is a hot cup of tea heavier?</h2>
+        <p>
+          Yes. Push the two gases alike and the hot one gains speed more slowly: its molecules' heat has inertia, as their rest
+          mass does. E = mc², read the other way: m = E/c². In Einstein's September 1905 paper the example was a body giving off
+          light, which gets lighter by the light's energy over c². A cup of tea 80 degrees hotter (330 joules more per gram) is
+          heavier by about four millionths of a microgram per gram: real, and far too small to weigh.
+        </p>
+        <p>
+          Measured here, the gases' inertia per molecule is not quite E/c² but (E + pA)/c², energy plus pressure times area:
+          the enthalpy, which turned up on <a href="../enthalpy/index.html">another page</a> for a different reason. These
+          gases have no walls (the box is periodic), and a gas on its own, squeezed by its surroundings, moves its pressure's
+          energy along with it: in relativity a fluid's inertia per volume is (ε + p)/c². Put the gas in a closed box and the
+          box's walls, stretched by that pressure, carry −pA/c² of inertia, so the whole box weighs exactly its total energy
+          over c² (Laue, 1911). For tea, pV is a few thousandths of the heat, and the difference does not matter.
+        </p>
+        <div class="caveat">
+          <h3>Caveats</h3>
+          <ul>
+            <li>Hard disks that collide at contact: the collision rule (reverse the momenta along the line of centres, in the
+              pair's centre-of-momentum frame) conserves energy and momentum exactly, but a rigid disk is not itself a
+              relativistic object, and contact is judged at equal times in the lab frame.</li>
+            <li>The push acts on every molecule alike (like a uniform field), so no walls come into it; see above for what walls
+              would change. The inertia is fitted from how far the molecules have flowed on average against the momentum given;
+              the mean flow jiggles, so the reading settles only after a long push (the test averages eight pushes of 120 time
+              units: 1.03 against 1.025 cold, 3.09 against 3.07 hot).</li>
+            <li>2D, and a slow light, so that the effects are large; how temperature changes between moving frames is still
+              argued over, and this page does not need an answer.</li>
+          </ul>
+        </div>
+        <section class="about-sim" id="about-sim">
+          <h2>About this simulation</h2>
+          <ul>
+            <li>Method: relativistic hard-disk dynamics in 2D (JavaScript), in units with c = 1 and the molecules' rest mass m = 1:
+              each step moves every disk by its velocity p/E, then disks that touch and are approaching collide. A periodic box
+              (no walls).</li>
+            <li>Ensemble: microcanonical. Collisions conserve total energy and momentum exactly; the energy changes only when you
+              heat or cool (which scales every momentum by the same factor) or push.</li>
+            <li>Size: 600 disks of diameter 1 in a 50 × 50 box (part 1); 300 in a 35 × 35 box each (part 2). Time step 0.02 (a
+              disk crosses at most 2% of its diameter per step).</li>
+          </ul>
+        </section>
+      </article>
+    </main>
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>

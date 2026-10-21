@@ -48,6 +48,7 @@ M1 Pro (Metal) unless stated. Run everything with `cargo xtask all`.
 | `counting` (Monte Carlo) | How did anyone count atoms one at a time? | Counts per interval: mean 2.2, variance 2.1 (Poisson); half-life 61.7 s by maximum likelihood (set 60 s) |
 | `light` (Monte Carlo of modes, and a model) | Why does a hot stove glow red; is light made of grains? | Quantum modes within 1.2% of Planck near the peak at 3,000 K and orange; classical ones kT each (violet 1.04 kT) and blue; photoelectrons none at 650 nm ×10, at most hν − W = 1.83 eV at 300 nm whatever the brightness |
 | `avogadro` (reactions as bonds made and broken) | Why do gases combine in whole-number volumes? | 300 two-atom molecules and 300 atoms hold the same lid at 105 and 103 σ (natively); light-started H₂ + Cl₂ chain: 1.87 → 1.87 volumes with 256 of 300 HCl; Dalton's H + Cl → HCl: 2.01 → 1.14 |
+| `relativity` (relativistic hard disks, JavaScript) | Can a gas get hotter without getting faster? Is hot tea heavier? | Energy conserved to 1e-15 per molecule; E within 1% of Jüttner at kT 0.05, 0.73, 2.4 with every speed below c (mean 0.91 c at kT 2.4); pushed, inertia per molecule 1.03 (cold) and 3.09 (hot) against (E + pA)/c² = 1.025 and 3.07 |
 
 Plus `selftest`: the GPU primitive and engine checks, run under the browser's shader compiler.
 
