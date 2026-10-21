@@ -665,3 +665,7 @@ docs/performance.md.
   and the energy returned to the gas as heat), or the undamped bounce stores heat and the numbers
   drift. Notes: Q = ΔU at constant V, ΔH at constant p; −ΔG/T is the total entropy change at
   constant T and p (the sneeze), so G going down is the second law.
+- [ ] New page `sneeze` (original list: dQ = T dS and the sneeze; entropy rising with energy): a
+  cold and a hot thin gas, click to sneeze an exactly counted burst of heat into a spot, or into
+  everyone at once; entropy (N × Boltzmann's H of the energies) against Q/T, and S against E
+  (slope 1/T, flattening). The same 300 ε adds 569 k to the cold box and 146 k to the hot one.
