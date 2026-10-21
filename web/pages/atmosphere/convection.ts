@@ -10,6 +10,13 @@
 //  - buoyancy: Dω/Dt = (g/θ̄) ∂θ/∂x + ν∇²ω;
 //  - pressure from hydrostatic balance with the average temperature at each height, and the
 //    temperature itself from θ: T = θ (p/p₀)^(R/cp).
+//  - optionally ("Make it humid"), water: vapour q and cloud water c (kg per kg of air), carried
+//    by the wind. Moist ground in sunshine evaporates into the lowest air; where air is
+//    supersaturated the excess condenses into cloud, releasing its latent heat into θ; cloud in
+//    unsaturated air evaporates again, taking the heat back; buoyancy uses the virtual
+//    potential temperature θ(1 + 0.61q − c) (vapour is lighter than air, cloud water heavier).
+//    Cloud water beyond 1 g/kg rains out; the vapour relaxes towards its starting profile on the
+//    radiation's time scale (large-scale drying by sinking air, which a 2D slice cannot hold).
 // Advection is semi-Lagrangian; the Poisson equation is solved exactly (FFT across, tridiagonal
 // up).
 import { $, cssVar } from "../../src/lib/host";
@@ -51,6 +58,20 @@ let seconds = 0;
 let sky: "still" | "day" | "night" = "still";
 let running = false;
 let tracers: Float64Array = new Float64Array(0); // x, z pairs
+// Water: vapour and cloud (kg/kg), and whether it is on.
+let q = new Float64Array(NX * ROWS);
+let cloud = new Float64Array(NX * ROWS);
+/** The vapour's starting profile (per row), which the air relaxes back towards. */
+let qStart = new Float64Array(ROWS);
+let humid = false;
+const LV = 2.5e6; // J/kg, latent heat of vaporisation
+const RV = 461.5; // J/(kg K), water vapour
+/** The moist ground's relative humidity for the air touching it. */
+const GROUND_RH = 0.8;
+/** Saturation vapour pressure (hPa) at T (K), Bolton's formula. */
+const esat = (t: number) => 6.112 * Math.exp((17.67 * (t - 273.15)) / (t - 29.65));
+/** Saturation mixing ratio (kg/kg) at T (K) and p (hPa). */
+const qsat = (t: number, p: number) => (0.622 * esat(t)) / (p - esat(t));
 
 // Row averages, refreshed after each frame.
 const thetaBar = new Float64Array(ROWS);
@@ -82,7 +103,21 @@ function reset() {
   seconds = 0;
   u.fill(0);
   w.fill(0);
+  q = new Float64Array(NX * ROWS);
+  cloud = new Float64Array(NX * ROWS);
+  if (humid) moisten();
   averages();
+}
+
+/** Humid air: vapour at 70% of saturation near the ground, falling off with height (a scale
+ * height of 2.5 km), nowhere saturated at the start. */
+function moisten() {
+  for (let j = 0; j < ROWS; j++) {
+    const t = thetaStart[j] * (pStart[j] / P0) ** KAPPA;
+    const qs = qsat(t, pStart[j]);
+    qStart[j] = Math.min(0.7 * qsat(T0, P0) * Math.exp((-j * D) / 2500), 0.9 * qs);
+    for (let i = 0; i < NX; i++) q[at(i, j)] = qStart[j];
+  }
 }
 
 // ---- The Poisson solve: FFT along x, then a tridiagonal solve up each column of modes. ----
@@ -232,12 +267,14 @@ function step() {
     theta[at(i, NZ)] = theta[at(i, NZ - 1)];
   }
   for (let k = 0; k < theta.length; k++) theta[k] += thetaStart[Math.floor(k / NX)];
-  // Buoyancy turns sideways differences in θ into spin.
+  if (humid) water(flux > 0);
+  // Buoyancy turns sideways differences in θ (θ_v, with water) into spin.
+  const tv = humid ? theta.map((th, k) => th * (1 + 0.61 * q[k] - cloud[k])) : theta;
   for (let j = 1; j < NZ; j++) {
     let mean = 0;
-    for (let i = 0; i < NX; i++) mean += theta[at(i, j)];
+    for (let i = 0; i < NX; i++) mean += tv[at(i, j)];
     mean /= NX;
-    for (let i = 0; i < NX; i++) omega[at(i, j)] += ((DT * G) / mean) * ((theta[at(i + 1, j)] - theta[at(i - 1, j)]) / (2 * D));
+    for (let i = 0; i < NX; i++) omega[at(i, j)] += ((DT * G) / mean) * ((tv[at(i + 1, j)] - tv[at(i - 1, j)]) / (2 * D));
   }
   for (let i = 0; i < NX; i++) omega[at(i, 0)] = omega[at(i, NZ)] = 0;
   // No mean wind: 2D convection between slippery plates feeds energy into a horizontal mean wind
@@ -269,6 +306,66 @@ function step() {
     tracers[k + 1] = Math.max(1, Math.min(LZ - 1, z + DT * sample(w, x, z)));
   }
   seconds += DT;
+}
+
+/** Water: carry vapour and cloud with the wind, evaporate from moist ground in sunshine, and
+ * condense or evaporate cloud so no air is supersaturated, moving the latent heat in or out of θ. */
+function water(sunny: boolean) {
+  q = diffuse(advect(q));
+  cloud = diffuse(advect(cloud));
+  for (let j = 0; j < ROWS; j++) {
+    const p = pBar[j];
+    for (let i = 0; i < NX; i++) {
+      const k = at(i, j);
+      if (j <= 1 && sunny) {
+        // The ground evaporates towards GROUND_RH of saturation at the air's temperature.
+        const t = theta[k] * (p / P0) ** KAPPA;
+        const target = GROUND_RH * qsat(t, p);
+        if (q[k] < target) q[k] += 0.01 * (target - q[k]);
+      }
+      // Large-scale drying (subsiding air between the plumes, which this 2D slice cannot hold),
+      // on the same time scale as the radiation; and rain: cloud water beyond 1 g/kg falls out
+      // within ~20 minutes.
+      q[k] -= (DT / RADIATE) * (q[k] - qStart[j]);
+      if (cloud[k] > 1e-3) cloud[k] -= (DT / 1200) * (cloud[k] - 1e-3);
+      // Saturation adjustment, linearised: condensing dq warms the air, which raises qsat.
+      const exner = (p / P0) ** KAPPA;
+      const t = theta[k] * exner;
+      const qs = qsat(t, p);
+      let dq = (q[k] - qs) / (1 + (LV * LV * qs) / (CP * RV * t * t));
+      if (dq < 0) dq = Math.max(dq, -cloud[k]); // evaporate only cloud that is there
+      if (dq !== 0) {
+        q[k] -= dq;
+        cloud[k] += dq;
+        theta[k] += (LV / CP) * (dq / exner);
+      }
+    }
+  }
+  for (let i = 0; i < NX; i++) {
+    for (const f of [q, cloud]) {
+      f[at(i, NZ)] = f[at(i, NZ - 1)];
+    }
+    cloud[at(i, 0)] = 0;
+  }
+}
+
+/** Cloud bases: in each column with cloud, the height of its lowest cloudy cell (cloud water
+ * above 0.05 g/kg); and the lifting condensation level predicted for the air at the ground:
+ * about 125 m per kelvin of difference between its temperature and its dew point. */
+function cloudBases() {
+  const bases: number[] = [];
+  for (let i = 0; i < NX; i++)
+    for (let j = 1; j < NZ; j++)
+      if (cloud[at(i, j)] > 5e-5) {
+        bases.push(j * D);
+        break;
+      }
+  let qg = 0;
+  for (let i = 0; i < NX; i++) qg += q[at(i, 1)] / NX;
+  const e = (qg * pBar[1]) / (0.622 + qg);
+  const lnr = Math.log(e / 6.112);
+  const dew = 273.15 + (243.5 * lnr) / (17.67 - lnr);
+  return { bases, lcl: 125 * (tBar[1] - dew) };
 }
 
 /** Row averages of θ, and from them the hydrostatic pressure, the temperature and the density. */
@@ -336,6 +433,30 @@ function draw() {
   ctx.globalAlpha = 0.75;
   for (let k = 0; k < tracers.length; k += 2) ctx.fillRect((tracers[k] / LX) * W - 1, H - (tracers[k + 1] / LZ) * H - 1, 2, 2);
   ctx.globalAlpha = 1;
+  if (humid) {
+    // Clouds: white, thicker where there is more cloud water.
+    const cimg = fctx.createImageData(NX, ROWS);
+    for (let j = 0; j < ROWS; j++)
+      for (let i = 0; i < NX; i++) {
+        const o = 4 * ((NZ - j) * NX + i);
+        cimg.data[o] = cimg.data[o + 1] = cimg.data[o + 2] = 245;
+        cimg.data[o + 3] = Math.min(255, (cloud[at(i, j)] / 4e-4) * 255);
+      }
+    fctx.putImageData(cimg, 0, 0);
+    ctx.drawImage(field, 0, 0, W, H);
+    const { bases, lcl } = cloudBases();
+    if (bases.length) {
+      const mean = bases.reduce((a, b) => a + b, 0) / bases.length;
+      $("fbase").textContent = `${(mean / 1000).toFixed(2)} km (predicted ${(lcl / 1000).toFixed(2)} km)`;
+    } else $("fbase").textContent = `none yet (predicted ${(lcl / 1000).toFixed(2)} km)`;
+    ctx.strokeStyle = "rgba(255,255,255,0.6)";
+    ctx.setLineDash([4, 4]);
+    ctx.beginPath();
+    ctx.moveTo(0, H - (lcl / LZ) * H);
+    ctx.lineTo(W, H - (lcl / LZ) * H);
+    ctx.stroke();
+    ctx.setLineDash([]);
+  }
   if (sky === "day") {
     ctx.fillStyle = "rgba(255, 210, 90, 0.9)";
     ctx.fillRect(0, H - 3, W, 3);
@@ -395,6 +516,17 @@ $("freset").onclick = () => {
   setRunning(false);
   draw();
 };
+$("humid").onclick = () => {
+  humid = !humid;
+  $("humid").textContent = humid ? "Make it dry" : "Make it humid";
+  if (humid) moisten();
+  else {
+    q.fill(0);
+    cloud.fill(0);
+    $("fbase").textContent = "–";
+  }
+  draw();
+};
 $("bubble").onclick = () => {
   // A blob of air 3 K warmer than its surroundings, near the ground in the middle.
   for (let j = 1; j < NZ; j++)
@@ -441,7 +573,12 @@ requestAnimationFrame(frame);
 
 declare global {
   interface Window {
-    convectionTest?: { run(hours: number, s: "still" | "day" | "night"): { depth: number; lapse: number; ground: number; maxSpeed: number } };
+    convectionTest?: {
+      run(hours: number, s: "still" | "day" | "night"): { depth: number; lapse: number; ground: number; maxSpeed: number };
+      /** Humid air in sunshine for `hours`: the cloud bases (each column's lowest cloud, m) and
+       * the predicted lifting condensation level. */
+      clouds(hours: number): { bases: number[]; lcl: number };
+    };
   }
 }
 
@@ -456,5 +593,15 @@ window.convectionTest = {
     let maxSpeed = 0;
     for (let k = 0; k < u.length; k++) maxSpeed = Math.max(maxSpeed, Math.hypot(u[k], w[k]));
     return { depth, lapse: lapse(depth), ground: tBar[0], maxSpeed };
+  },
+  clouds(hours: number) {
+    setRunning(false);
+    humid = true;
+    $("humid").textContent = "Make it dry";
+    reset();
+    setSky("day");
+    while (seconds < hours * 3600) step();
+    draw();
+    return cloudBases();
   },
 };

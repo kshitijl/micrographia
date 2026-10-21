@@ -27,3 +27,18 @@ test("the fluid panel: still air stays still; sunshine stirs a layer that cools 
   expect(night.ground).toBeLessThan(287);
   expect(night.maxSpeed).toBeLessThan(0.01);
 });
+
+// Humid air in sunshine: plumes reach their dew point at about the same height, so the cloud
+// bases are flat and near the predicted lifting condensation level.
+test("cumulus clouds form with flat bases near the condensation level", async ({ page }) => {
+  await page.goto("pages/atmosphere/index.html");
+  await page.waitForTimeout(1000);
+  const r = await page.evaluate(() => window.convectionTest!.clouds(3));
+  const b = r.bases;
+  const mean = b.reduce((a, x) => a + x, 0) / Math.max(1, b.length);
+  const sd = Math.sqrt(b.reduce((a, x) => a + (x - mean) ** 2, 0) / Math.max(1, b.length));
+  console.log(`clouds: ${b.length} cloudy columns, bases ${mean.toFixed(0)} ± ${sd.toFixed(0)} m; predicted ${r.lcl.toFixed(0)} m`);
+  expect(b.length).toBeGreaterThan(10);
+  expect(sd).toBeLessThan(400);
+  expect(Math.abs(mean - r.lcl)).toBeLessThan(0.4 * r.lcl);
+});

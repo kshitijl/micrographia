@@ -110,6 +110,7 @@
             <button class="primary" id="frun">Run</button>
             <button class="primary" id="sun">Sunshine</button>
             <button id="bubble">Warm bubble</button>
+            <button id="humid">Make it humid</button>
             <button id="freset">Reset</button>
           </div>
           <div class="readouts">
@@ -117,6 +118,7 @@
             <div class="readout"><div class="k">air at the ground</div><div class="v" id="fground">–</div></div>
             <div class="readout"><div class="k">stirred layer</div><div class="v" id="fdepth">–</div></div>
             <div class="readout"><div class="k">cooling with height in it</div><div class="v" id="flapse">–</div></div>
+            <div class="readout"><div class="k">cloud bases, on average</div><div class="v" id="fbase">–</div></div>
           </div>
           <div class="status">
             The air starts at 15 °C at every height, at rest: the equilibrium of part 1, which stays put.
@@ -153,6 +155,22 @@
           density chart is on a log scale, so exponentials are straight lines. Heavier molecules have
           a steeper line: each kind follows its own exponential, with its own “scale height” kT/(mg).
           On Earth that is about 8 km for air.
+        </p>
+        <h2>Why cumulus clouds have flat bases</h2>
+        <p>
+          Press "Make it humid" and then Sunshine. The ground is now moist, and the sun evaporates water into
+          the air touching it. The warm, moist air rises in plumes, and as it rises it expands into lower
+          pressure and cools, about 10 °C for every kilometre (the dry adiabat: the dashed guide on the
+          temperature profile). The water in it stays invisible vapour until the air has cooled to its dew
+          point; there it is saturated, and from there up the extra vapour condenses into droplets: cloud.
+        </p>
+        <p>
+          Every plume starts from the same ground, with about the same temperature and the same moisture, so
+          every plume reaches its dew point at about the same height: the lifting condensation level, roughly
+          125 m for every degree between the ground air's temperature and its dew point (the dashed white line).
+          That height is the same across the whole sky, so all the clouds start there: flat bottoms, at one
+          level, with lumpy tops wherever each plume happened to carry its water. Condensing also gives back the
+          water's latent heat, which warms the cloudy air and keeps it rising: why cumulus tower upward.
         </p>
         <h2>So why is it colder on a mountain?</h2>
         <p>

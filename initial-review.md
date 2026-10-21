@@ -679,3 +679,8 @@ docs/performance.md.
   vapour), relative humidity and dew point against the saturation curve (the Gibbs-ensemble fit),
   and fog: cooled, the extra water forms droplets in the air first. New scenario `humid` and
   `scenarios::saturated_vapour_density`.
+- [ ] Flat cloud bases (original list): the atmosphere page's convection model gets water ("Make
+  it humid"): vapour and cloud carried by the wind, evaporation from moist ground in sunshine,
+  condensation with latent heating, virtual-temperature buoyancy, rain-out, and large-scale drying.
+  After 3 hours of sun the clouds' bases sit at 1.63 ± 0.25 km against a predicted lifting
+  condensation level of 1.41 km (drawn as a dashed line); notes on why they are flat.
