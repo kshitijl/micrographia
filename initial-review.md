@@ -781,3 +781,8 @@ docs/performance.md.
   lopsided sawtooth tracks whose grip switches on and off; they walk only when it flashes, not with it always
   on or off, and not without thermal noise; temperature, load and off-time sliders; click a lane to kick a
   motor; fuel burnt per step against kinesin's 20 kT.
+- [ ] Brainstorm (depletion force), new page `depletion`: two big disks held still in a crowd of ideal small
+  ones; the page adds up the crowd's knocks into the push, which matches Asakura and Oosawa; hold buttons pull
+  them apart or push them together (force against gap), heat makes the push stronger (entropic; a little less
+  than ∝ T, as hot soft molecules squash closer, said on the page), and "Let go" frees them to stick. Rings
+  show the depleted zones. New scenario `depletion`.

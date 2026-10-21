@@ -82,7 +82,7 @@ pub struct Scenario {
     pub radii: Vec<f64>,
 }
 
-pub const NAMES: &[&str] = &["cream", "corner", "boltzmann", "heavy", "oilwater", "heatflow", "osmosis", "compress", "rubber", "atmosphere", "carnot", "boiling", "lipids", "balloon", "smell", "binding", "fep", "cell", "buffer", "mask", "dna", "demon", "ensemble", "osmosis_free", "osmometer", "flask", "emulsion", "enthalpy", "humid", "solubility", "perrin", "avogadro", "heatcap", "cloud"];
+pub const NAMES: &[&str] = &["cream", "corner", "boltzmann", "heavy", "oilwater", "heatflow", "osmosis", "compress", "rubber", "atmosphere", "carnot", "boiling", "lipids", "balloon", "smell", "binding", "fep", "cell", "buffer", "mask", "dna", "demon", "ensemble", "osmosis_free", "osmometer", "flask", "emulsion", "enthalpy", "humid", "solubility", "perrin", "avogadro", "heatcap", "cloud", "depletion"];
 
 pub fn build(name: &str, o: &Options) -> Result<Scenario, String> {
     let sc = build_unchecked(name, o)?;
@@ -134,6 +134,7 @@ fn build_unchecked(name: &str, o: &Options) -> Result<Scenario, String> {
         "avogadro" => Ok(avogadro(o)),
         "heatcap" => Ok(heatcap(o)),
         "cloud" => Ok(cloud(o)),
+        "depletion" => Ok(depletion(o)),
         _ => Err(format!("unknown scenario {name}")),
     }
 }
@@ -1924,4 +1925,51 @@ pub fn cloud(o: &Options) -> Scenario {
     }
     let state = State { pos: pos.iter().map(|p| [fixed::to_fixed(p[0]), fixed::to_fixed(p[1])]).collect(), vel, species };
     Scenario { warmup: 0, finish: Finish::None, marked: 0, grid: [4, 4], radii: vec![0.5, 0.35, 0.5, 0.35], sys, state }
+}
+
+/// The depletion force (Asakura–Oosawa): two big disks (diameter `big`) held still (pinned:
+/// species 2, left, and 3, right; a page moves them with set_species_velocity, or lets them go by
+/// making them species 1, free, with the mass of their area) in a periodic bath of small disks
+/// (species 0) that, if `ideal`, pass through one another (an ideal gas, as in the theory).
+/// Constant energy. Options: width, height, density (small disks per σ² of the free area), big,
+/// separation (of the big disks' centres), ideal, temperature, seed.
+pub fn depletion(o: &Options) -> Scenario {
+    let (w, h) = (o.get("width", 80.0), o.get("height", 60.0));
+    let big = o.get("big", 6.0);
+    let sep = o.get("separation", big + 0.5);
+    let t = o.get("temperature", 1.0);
+    let seed = o.get("seed", 1.0) as u64;
+    let wca = |sigma: f64| Pair { eps: 1.0, sigma, rc: sigma * 2f64.powf(1.0 / 6.0) };
+    let mut sys = System::new([fixed::to_fixed(w), fixed::to_fixed(h)], init::DT, wca(big), vec![1.0, big * big, big * big, big * big])
+        .with_pair(0, 0, Pair::wca())
+        .with_pinned(2)
+        .with_pinned(3);
+    for b in 1..4 {
+        sys = sys.with_pair(0, b, wca(0.5 * (big + 1.0)));
+    }
+    if o.get("ideal", 1.0) > 0.0 {
+        sys = sys.with_pair(0, 0, Pair::none());
+    }
+    let (cx, cy) = (0.5 * w, 0.5 * h);
+    let centres = [[cx - 0.5 * sep, cy], [cx + 0.5 * sep, cy]];
+    let mut pos: Vec<[f64; 2]> = centres.to_vec();
+    let mut species = vec![2, 3];
+    let free = w * h - 2.0 * std::f64::consts::PI * (0.5 * (big + 1.0)).powi(2);
+    let n = (o.get("density", 0.3) * free) as usize;
+    let mut k = 0u32;
+    let r2 = (0.5 * (big + 1.0) * 1.05).powi(2);
+    while pos.len() < 2 + n && k < 100 * n as u32 + 100 {
+        let x = gpu_prims::threefry::uniform(seed, 101, 2 * k) * w;
+        let y = gpu_prims::threefry::uniform(seed, 101, 2 * k + 1) * h;
+        k += 1;
+        if centres.iter().all(|a| (a[0] - x).powi(2) + (a[1] - y).powi(2) > r2) {
+            pos.push([x, y]);
+            species.push(0);
+        }
+    }
+    let mut vel = init::maxwell(&sys, &species, t, seed + 1);
+    vel[0] = [0, 0];
+    vel[1] = [0, 0];
+    let state = State { pos: pos.iter().map(|p| [fixed::to_fixed(p[0]), fixed::to_fixed(p[1])]).collect(), vel, species };
+    Scenario { warmup: 0, finish: Finish::None, marked: 0, grid: [4, 4], radii: vec![0.5, 0.5 * big, 0.5 * big, 0.5 * big], sys, state }
 }

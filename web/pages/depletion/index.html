@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Pushed Together by Crowds</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 16 16%22%3E%3Ccircle cx=%225%22 cy=%228%22 r=%224%22 fill=%22%234f7cc4%22/%3E%3Ccircle cx=%2211.5%22 cy=%228%22 r=%224%22 fill=%22%234f7cc4%22/%3E%3Ccircle cx=%222%22 cy=%222%22 r=%221%22 fill=%22%23e5483a%22/%3E%3Ccircle cx=%2214%22 cy=%2214%22 r=%221%22 fill=%22%23e5483a%22/%3E%3C/svg%3E" />
+    <link rel="stylesheet" href="../../src/lib/style.css" />
+  </head>
+  <body>
+    <nav class="topbar"><div class="wrap"><a href="../../index.html">Micrographia</a></div></nav>
+    <main class="wrap">
+      <header class="question">
+        <div class="eyebrow">The depletion force (Asakura and Oosawa, 1954)</div>
+        <h1>Can a crowd push two things together, with no attraction at all?</h1>
+        <p class="lede">
+          Two big disks sit in a crowd of small ones. Nothing attracts anything: every collision is a pure push. Yet the big disks
+          are pushed together, and held together. It is the crowd's entropy: when the big ones touch, there is more room for the
+          small ones. This is how the inside of a cell, packed with proteins, presses molecules together, and why adding a
+          polymer makes paint or milk proteins clump.
+        </p>
+      </header>
+
+      <section class="lab">
+        <div class="left">
+          <div class="stage" id="stage" style="aspect-ratio: 4 / 3">
+            <canvas id="canvas" aria-label="Two big disks among small ones"></canvas>
+            <div class="overlay" id="overlay">Starting the GPU…</div>
+          </div>
+          <div class="legend"><span><i style="background: var(--species-2)"></i>big disks</span><span><i style="background: var(--species-3)"></i>small disks</span><span><i style="background: var(--cream)"></i>where no small disk's centre can go (the depleted zone), and the overlap that frees up room</span><span><i style="background: var(--highlight)"></i>the crowd's net push on each</span></div>
+          <canvas class="plot tall" id="curve" aria-label="Force against gap"></canvas>
+          <div class="legend"><span><i style="background: var(--accent)"></i>the push measured at each gap you hold them at</span><span><i style="background: var(--muted)"></i>Asakura and Oosawa: 2 n kT × the overlap's width</span></div>
+        </div>
+        <aside class="panel">
+          <div class="buttons">
+            <button class="primary" id="run">Run</button>
+            <button id="apart">Pull apart (hold)</button>
+            <button id="together">Push together (hold)</button>
+            <button id="hotter">Heat it</button>
+            <button id="colder">Cool it</button>
+            <button id="letgo">Let go</button>
+          </div>
+          <div class="readouts">
+            <div class="readout"><div class="k">gap between the big disks (σ)</div><div class="v" id="gap">–</div></div>
+            <div class="readout"><div class="k">the crowd's push, together (ε/σ), averaged while held here</div><div class="v" id="f">–</div></div>
+            <div class="readout"><div class="k">Asakura and Oosawa say</div><div class="v" id="ao">–</div></div>
+            <div class="readout"><div class="k">temperature kT</div><div class="v" id="t">–</div></div>
+          </div>
+          <div class="status" id="status">
+            Run, and watch the push build up (it is the average of thousands of tiny knocks; give it a minute). The big disks are
+            held still, half a molecule apart. Pull them apart past one small disk's width and the push goes. Heat the crowd and
+            it pushes harder. Then let go of them.
+          </div>
+        </aside>
+      </section>
+
+      <article class="notes">
+        <h2>Where the push comes from</h2>
+        <p>
+          A small disk's centre cannot come closer to a big one than the sum of their radii: around each big disk there is a
+          zone it can't enter (drawn here as a ring). When the big disks are close, their zones overlap, and the small disks lose
+          less room in all: the overlap is room they get back. More room is more ways to arrange themselves, more entropy, so
+          the crowd's free energy is lower with the big disks together, and the difference is a force. Seen as collisions: in
+          the narrow gap between the big disks there are few small ones knocking them apart, while the crowd outside knocks
+          them together at full pressure. The force is the crowd's pressure, n kT, times the width of the overlap: Asakura and
+          Oosawa (1954). Measured with a crowd of 0.3 per σ², at a gap of 0.3 σ: 1.01 ± 0.07 ε/σ, against their 0.90; this
+          page's crowd is four times as dense, and pushes four times as hard (3.9 against 3.6).
+        </p>
+        <p>
+          Let go, the big disks stay stuck together for a while, wander apart, and find each other again: they spend about a
+          quarter of their time touching, where at random they would touch 1.5% of the time. The well is a few kT deep, so
+          thermal knocks can still pull them apart.
+        </p>
+        <h2>An entropic force gets stronger with heat</h2>
+        <p>
+          The push is the crowd's pressure, nkT, so at a fixed arrangement it grows in proportion to the temperature, the mark of
+          a force made by entropy, not energy (like <a href="../rubber/index.html">a rubber band's pull</a>). A glue would do the
+          opposite: it holds best when cold, and lets go when shaken hard. (These small disks are a little soft: hot ones squash
+          closer to the big ones, which shrinks the overlap a little, so here the push grows somewhat less than in proportion:
+          1.33 ± 0.16 at twice the temperature, against 1.49 predicted with that squashing.)
+        </p>
+        <div class="caveat">
+          <h3>Caveats</h3>
+          <ul>
+            <li>The small disks pass through one another (an ideal gas, as Asakura and Oosawa assumed); real crowders also push
+              on each other, which makes the force stronger and gives it ripples.</li>
+            <li>The push is added up by the page from the small disks' forces on the held big ones (each knock exactly as the
+              simulation computes it), and averaged while you hold them still; it is noisy, and settles over a minute or so.</li>
+            <li>While held, the big disks are pinned; moving them does work on the crowd. Let go, they become free disks with the
+              mass of their area.</li>
+          </ul>
+        </div>
+      </article>
+    </main>
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>
