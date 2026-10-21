@@ -422,6 +422,21 @@ Open questions (third round):
    both). Read the 2006 paper and Perrin's *Atoms* in `books/`; write up each 1905 paper (what the
    page and simulation should be) and propose a page for each line of evidence in *Atoms*.
 19. `oilwater`: a panel underneath with another simulation, showing emulsification and/or soap.
+20. The pressure-cooker page is really a phase-transitions page: make it about phase transitions.
+   Besides the boiling simulation, show visually and interactively why different phases win at
+   different temperatures: dG/dT = −S at fixed P, so the G of high-entropy phases falls faster;
+   the sneeze picture (at low T taking a bit of heat from the surroundings costs them a lot of
+   entropy, so order wins; at high T it costs little, so the system takes heat to become a gas);
+   both maximise the entropy of system plus surroundings.
+21. Is there a faster or better method for showing a liquid–gas transition (continuum, fluid
+   dynamics, something else)?
+22. Performance: can MD go faster or bigger? How fast are we, in simulated time per wall time?
+   Do we gain from the GPU, and below what size is the CPU better? Does the CPU path use SIMD, and
+   can Rust SIMD run in the browser? Is the GPU code bound by memory bandwidth, compute, latency or
+   kernel launches? Write down for later: careful benchmarks; CPU SIMD in the browser; choosing CPU
+   or GPU by machine and box size; a simplified performance model of the GPU simulator that names
+   the bottlenecks; whether WebGPU leaves performance on the table (rather than a CUDA version for
+   recording explainer videos on the desktop; better if everything runs in the browser).
 
 ### Fourth round: done (to confirm)
 
