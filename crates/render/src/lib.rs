@@ -1,5 +1,6 @@
 //! Draw particles as instanced discs straight from the engine's GPU buffers, plus overlay
-//! rectangles (box outlines, highlights) supplied by the page.
+//! rectangles (box outlines, highlights) supplied by the page: into a canvas's surface (pages),
+//! or into a texture that can be read back (the native recorder, `xtask record`).
 
 use bytemuck::{Pod, Zeroable};
 use gpu_prims::Gpu;
@@ -30,10 +31,26 @@ pub const NO_HIGHLIGHT: u32 = u32::MAX;
 /// Floats per overlay rectangle: x0, y0, x1, y1 (σ), r, g, b, a.
 pub const RECT_FLOATS: usize = 8;
 
+/// Where a renderer draws.
+pub enum Target {
+    /// A canvas (or window): drawn and presented.
+    Surface { surface: wgpu::Surface<'static>, config: wgpu::SurfaceConfiguration },
+    /// An offscreen texture (RGBA8), to read back.
+    Texture { texture: wgpu::Texture, width: u32, height: u32 },
+}
+
+impl Target {
+    fn size(&self) -> (u32, u32) {
+        match self {
+            Target::Surface { config, .. } => (config.width, config.height),
+            Target::Texture { width, height, .. } => (*width, *height),
+        }
+    }
+}
+
 pub struct Renderer {
     gpu: Gpu,
-    surface: wgpu::Surface<'static>,
-    config: wgpu::SurfaceConfiguration,
+    target: Target,
     discs: wgpu::RenderPipeline,
     highlight: wgpu::RenderPipeline,
     rects: wgpu::RenderPipeline,
@@ -53,6 +70,7 @@ pub struct Renderer {
 }
 
 impl Renderer {
+    /// Draw into a canvas's (or window's) surface.
     pub fn new(gpu: &Gpu, surface: wgpu::Surface<'static>, engine: &GpuEngine, radii: &[f64], width: u32, height: u32) -> Self {
         let caps = surface.get_capabilities(&gpu.adapter);
         // Colours are given in sRGB, so prefer a non-sRGB target and write them unchanged.
@@ -69,6 +87,26 @@ impl Renderer {
             color_space: wgpu::SurfaceColorSpace::Auto,
         };
         surface.configure(&gpu.device, &config);
+        Self::build(gpu, Target::Surface { surface, config }, format, engine, radii)
+    }
+
+    /// Draw into an offscreen RGBA8 texture of this size, for [`Renderer::read_frame`].
+    pub fn offscreen(gpu: &Gpu, engine: &GpuEngine, radii: &[f64], width: u32, height: u32) -> Self {
+        let format = wgpu::TextureFormat::Rgba8Unorm;
+        let texture = gpu.device.create_texture(&wgpu::TextureDescriptor {
+            label: Some("frame"),
+            size: wgpu::Extent3d { width, height, depth_or_array_layers: 1 },
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format,
+            usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::COPY_SRC,
+            view_formats: &[],
+        });
+        Self::build(gpu, Target::Texture { texture, width, height }, format, engine, radii)
+    }
+
+    fn build(gpu: &Gpu, target: Target, format: wgpu::TextureFormat, engine: &GpuEngine, radii: &[f64]) -> Self {
         let module = gpu_prims::util::shader(gpu, "discs", include_str!("../shaders/discs.wgsl"));
         let pipeline = |vs: &str, fs: &str, blend: Option<wgpu::BlendState>, highlight: bool| {
             let constants: &[(&str, f64)] = if highlight { &[("highlight_only", 1.0)] } else { &[] };
@@ -151,8 +189,7 @@ impl Renderer {
         let highlight_group = group_for(&highlight);
         let mut me = Self {
             gpu: gpu.clone(),
-            surface,
-            config,
+            target,
             discs,
             highlight,
             rects,
@@ -187,10 +224,13 @@ impl Renderer {
         self.heat_fresh = true;
     }
 
+    /// A new size for a surface (an offscreen target keeps its own).
     pub fn resize(&mut self, width: u32, height: u32) {
-        self.config.width = width.max(1);
-        self.config.height = height.max(1);
-        self.surface.configure(&self.gpu.device, &self.config);
+        if let Target::Surface { surface, config } = &mut self.target {
+            config.width = width.max(1);
+            config.height = height.max(1);
+            surface.configure(&self.gpu.device, config);
+        }
         if let Some((lo, hi)) = self.requested_view {
             self.set_view(lo, hi);
         }
@@ -199,7 +239,7 @@ impl Renderer {
 
     /// Keep discs at least about 0.7 px in radius.
     fn update_min_radius(&mut self) {
-        let px_per_sigma = self.config.width as f32 / (self.params.view_hi[0] - self.params.view_lo[0]);
+        let px_per_sigma = self.target.size().0 as f32 / (self.params.view_hi[0] - self.params.view_lo[0]);
         self.params.min_radius = 0.7 / px_per_sigma;
     }
 
@@ -208,7 +248,8 @@ impl Renderer {
     pub fn set_view(&mut self, lo: [f32; 2], hi: [f32; 2]) {
         self.requested_view = Some((lo, hi));
         let (w, h) = (hi[0] - lo[0], hi[1] - lo[1]);
-        let canvas = self.config.width as f32 / self.config.height as f32;
+        let (w_px, h_px) = self.target.size();
+        let canvas = w_px as f32 / h_px as f32;
         let (mut lo, mut hi) = (lo, hi);
         if w / h < canvas {
             let extra = 0.5 * (h * canvas - w);
@@ -249,14 +290,19 @@ impl Renderer {
 
     pub fn render(&mut self) {
         self.gpu.queue.write_buffer(&self.params_buf, 0, bytemuck::bytes_of(&self.params));
-        let frame = match self.surface.get_current_texture() {
-            wgpu::CurrentSurfaceTexture::Success(f) | wgpu::CurrentSurfaceTexture::Suboptimal(f) => f,
-            _ => {
-                self.surface.configure(&self.gpu.device, &self.config);
-                return;
-            }
+        let (frame, view) = match &self.target {
+            Target::Surface { surface, config } => match surface.get_current_texture() {
+                wgpu::CurrentSurfaceTexture::Success(f) | wgpu::CurrentSurfaceTexture::Suboptimal(f) => {
+                    let v = f.texture.create_view(&Default::default());
+                    (Some(f), v)
+                }
+                _ => {
+                    surface.configure(&self.gpu.device, config);
+                    return;
+                }
+            },
+            Target::Texture { texture, .. } => (None, texture.create_view(&Default::default())),
         };
-        let view = frame.texture.create_view(&Default::default());
         let mut enc = self.gpu.device.create_command_encoder(&Default::default());
         {
             let mut pass = enc.begin_render_pass(&wgpu::RenderPassDescriptor {
@@ -284,6 +330,44 @@ impl Renderer {
             }
         }
         self.gpu.queue.submit([enc.finish()]);
-        self.gpu.queue.present(frame);
+        if let Some(f) = frame {
+            self.gpu.queue.present(f);
+        }
+    }
+
+    /// The last frame drawn offscreen, as RGBA8 rows top to bottom (empty for a surface).
+    pub fn read_frame(&self) -> impl std::future::Future<Output = Vec<u8>> + 'static {
+        let gpu = self.gpu.clone();
+        let copy = match &self.target {
+            Target::Texture { texture, width, height } => {
+                // Rows padded to 256 bytes for the copy, then trimmed.
+                let row = 4 * width;
+                let padded = row.div_ceil(256) * 256;
+                let buf = gpu.device.create_buffer(&wgpu::BufferDescriptor {
+                    label: Some("frame readback"),
+                    size: (padded * height) as u64,
+                    usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::COPY_SRC,
+                    mapped_at_creation: false,
+                });
+                let mut enc = gpu.device.create_command_encoder(&Default::default());
+                enc.copy_texture_to_buffer(
+                    texture.as_image_copy(),
+                    wgpu::TexelCopyBufferInfo { buffer: &buf, layout: wgpu::TexelCopyBufferLayout { offset: 0, bytes_per_row: Some(padded), rows_per_image: Some(*height) } },
+                    wgpu::Extent3d { width: *width, height: *height, depth_or_array_layers: 1 },
+                );
+                gpu.queue.submit([enc.finish()]);
+                Some((buf, row as usize, padded as usize, *height as usize))
+            }
+            Target::Surface { .. } => None,
+        };
+        async move {
+            let Some((buf, row, padded, height)) = copy else { return vec![] };
+            let bytes = gpu_prims::util::read_bytes(&gpu, &buf, 0, (padded * height) as u64).await;
+            let mut out = Vec::with_capacity(row * height);
+            for y in 0..height {
+                out.extend_from_slice(&bytes[y * padded..y * padded + row]);
+            }
+            out
+        }
     }
 }

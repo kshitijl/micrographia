@@ -738,12 +738,37 @@ dependencies = [
 ]
 
 [[package]]
+name = "record"
+version = "0.1.0"
+dependencies = [
+ "gpu-prims",
+ "md",
+ "md-core",
+ "pollster",
+ "render",
+ "scenarios",
+ "wgpu",
+]
+
+[[package]]
 name = "redox_syscall"
 version = "0.5.18"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ed2bf2547551a7053d6fdfafda3f938979645c44812fbfcda098faae3f1a362d"
 dependencies = [
  "bitflags",
+]
+
+[[package]]
+name = "render"
+version = "0.1.0"
+dependencies = [
+ "bytemuck",
+ "gpu-prims",
+ "md",
+ "md-core",
+ "pollster",
+ "wgpu",
 ]
 
 [[package]]
@@ -838,6 +863,7 @@ dependencies = [
  "md",
  "md-core",
  "md-ref",
+ "render",
  "scenarios",
  "wasm-bindgen",
  "wasm-bindgen-futures",

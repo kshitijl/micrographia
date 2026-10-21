@@ -816,3 +816,16 @@ docs/performance.md.
   the browser (they track to ~1e-7 σ; exactly where the GPU's division rounds as the CPU's) and times
   both. Correction made on the way: the f32 path was never bit-exact between CPU and GPU (the GPU can
   round a division differently); only the all-integer path is, and docs now say so.
+- [ ] Brainstorm (protein folding; pH and salt), new page `folding`: a 24-link HP lattice protein with six acidic
+  and six basic links (mean charges by Henderson–Hasselbalch, screened Coulomb with a Debye length set by a
+  salt slider), Metropolis Monte Carlo with end, corner, crankshaft and pivot moves. Temperature, pH and
+  salt sliders act on the running chain; "Cook it" heats it and lets it cool; drag a link to pull on it;
+  a melting curve fills in from the temperatures visited.
+- [ ] Brainstorm (haemoglobin and CO; oxygen at altitude), new page `blood`: 300 haemoglobins (MWC model:
+  T and R shapes, four sites each empty, O₂ or CO) circulating between lungs and body, Metropolis moves;
+  matches the MWC curve (94% and 75%); exercise unloads 3.5× as much; altitude; CO slider: 100 ppm takes 13%
+  of seats (Haldane's ratio) and cuts delivery by 30% (the left shift); "Breathe pure oxygen".
+- [ ] Performance (the plan's last item): the native recorder. The 2D renderer is now its own crate
+  (`crates/render`, a sum type for its target: a canvas surface or an offscreen texture read back);
+  `cargo xtask record <scenario> --size WxH --frames F --steps K [--speed v] [--view ...] [--colors ...]`
+  writes an H.264 video through ffmpeg (60 frames of a 6,859-molecule pot at 640×480 in 2 s).

@@ -4,7 +4,6 @@
 //! The browser API: simulations for pages, and the self-tests that run the native test suites'
 //! GPU checks under the browser's WebGPU implementation.
 
-mod render;
 mod render3;
 mod sims;
 mod sims3;

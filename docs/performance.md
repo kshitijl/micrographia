@@ -294,7 +294,14 @@ higher limits. The missing piece is a native recorder:
 - it renders each frame offscreen with the same renderer and pipes the frames to `ffmpeg`.
 
 Video becomes independent of real-time speed: a 10⁶-particle boiling movie at 4K can take as
-long as it takes. Everything stays one code base, and the browser stays the place anyone can run
+long as it takes.
+
+*Done (2026-10-21):* the 2D renderer moved to its own crate (`crates/render`, native and wasm),
+with a target that is either a canvas's surface or an offscreen texture read back as RGBA rows;
+`cargo xtask record <scenario> [--opt key=value]... [--size WxH] [--frames F] [--steps K] [--fps R]
+[--speed v_max] [--view x0,y0,x1,y1] [--out file.mp4]` runs a scenario as a page would start it
+(warm-up, finish), draws each frame with the pages' renderer and colours, and pipes the frames to
+ffmpeg (H.264). 3D (`BallSim`'s renderer) is still browser-only. Everything stays one code base, and the browser stays the place anyone can run
 it. A CUDA port would duplicate the engine and give up the cross-browser determinism.
 
 ## 6. Faster or better methods for phase transitions (question 21 of the review)

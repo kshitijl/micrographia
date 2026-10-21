@@ -13,6 +13,7 @@ gpu-prims = { path = "../gpu-prims" }
 md = { path = "../md" }
 md-core = { path = "../md-core" }
 md-ref = { path = "../md-ref" }
+render = { path = "../render" }
 lattice = { path = "../lattice" }
 mc = { path = "../mc" }
 scenarios = { path = "../scenarios" }

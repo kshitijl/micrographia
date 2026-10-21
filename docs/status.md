@@ -57,8 +57,10 @@ M1 Pro (Metal) unless stated. Run everything with `cargo xtask all`.
 | `depletion` | Can a crowd push two things together? | Held 0.3 σ apart in a crowd of 1.2 per σ²: push 3.9 against Asakura–Oosawa 3.6; let go, touching 25% of the time (1.5% at random); natively (0.3 per σ²) 1.01 ± 0.07 against 0.90, nothing beyond the range, and stronger when hotter (1.33 ± 0.16 at 2 kT, AO with the soft contact 1.49) |
 | `sweat` | Why does sweating cool you, and why not when humid? | Insulated water under a warm ceiling (kT 0.44): settles at 0.378 in dry air, 0.444 when the air is saturated (natively 0.375, 0.42 at 50%, 0.44) |
 | `soda` | Why does warm soda go flat faster? | The drink is 5.2× as crowded with CO₂ as the headspace at kT 0.40, 2.5× at 0.45 (natively, deeper pool: 5.6, 4.8, 2.8 at 0.40, 0.425, 0.45); opened, dissolved CO₂ 53 → 24 in 200k steps |
+| `folding` (lattice Monte Carlo, JavaScript) | How does a protein fold; why do heat, acid and salt undo it? | 24-link HP chain with charges: 8.0 oily contacts at kT 0.3, 3.9 at 0.7; at pH 1 it swells (Rg 2.75 against 2.21), and salt (Debye length 0.5) brings it back (2.40) |
+| `blood` (MWC Monte Carlo, JavaScript) | How does blood know where to drop oxygen; why is CO deadly? | 94.4% saturated leaving the lungs, 75.4% leaving the body (MWC: 94.4, 74.9), 0.74 O₂ delivered per trip; 2.6 exercising; 100 ppm CO takes 13.4% of seats (Haldane 0.157 of O₂'s: 0.164) and cuts delivery to 0.52 |
 
-Plus `selftest`: the GPU primitive and engine checks, run under the browser's shader compiler.
+Plus `selftest`: the GPU primitive and engine checks, run under the browser's shader compiler; and `selftest/engines.html`: the CPU engine (WebAssembly SIMD) against the GPU engine, and their speeds.
 
 ## Engine
 

@@ -1,7 +1,7 @@
 //! Simulations exposed to pages: one GPU engine running a named scenario, with a renderer, an
 //! observer and the saved initial state.
 
-use crate::render::{Renderer, NO_HIGHLIGHT, RECT_FLOATS};
+use render::{Renderer, NO_HIGHLIGHT, RECT_FLOATS};
 use crate::{browser_gpu, err, obj};
 use gpu_prims::Prims;
 use js_sys::{Float32Array, Float64Array, Object, Uint32Array};

@@ -6,6 +6,7 @@
 //!   dev            wasm + Vite dev server
 //!   test-browser   web + Playwright tests in headless Chrome
 //!   bench [args]   native benchmarks (results appended to bench/results.jsonl)
+//!   record [args]  record a scenario as a video, headless (see crates/record)
 //!   all            test + test-browser
 
 use std::path::{Path, PathBuf};
@@ -66,9 +67,10 @@ fn main() -> ExitCode {
         Some("dev") => wasm().and_then(|_| ensure_node_modules()).and_then(|_| run(&mut npx(&["vite"]))),
         Some("test-browser") => web().and_then(|_| run(npx(&["playwright", "test"]).args(&rest))),
         Some("bench") => run(cargo().args(["run", "--release", "-p", "bench", "--"]).args(&rest)),
+        Some("record") => run(cargo().args(["run", "--release", "-p", "record", "--"]).args(&rest)),
         Some("all") => run(cargo().args(["test", "--workspace"])).and_then(|_| web()).and_then(|_| run(&mut npx(&["playwright", "test"]))),
         _ => {
-            eprintln!("{}", include_str!("main.rs").lines().take(10).map(|l| l.trim_start_matches("//!")).collect::<Vec<_>>().join("\n"));
+            eprintln!("{}", include_str!("main.rs").lines().take(11).map(|l| l.trim_start_matches("//!")).collect::<Vec<_>>().join("\n"));
             return ExitCode::FAILURE;
         }
     };

@@ -14,10 +14,13 @@ WebGPU (Chrome, Edge, or Safari 26+).
 ```
 crates/gpu-prims   GPU primitives (scan, sort, reduce, 64-bit atomics, Threefry) + self-checks
 crates/md-core     units, fixed-point state, initial conditions, pair potentials
-crates/md-ref      CPU reference engines (integer positions with f32/f64 forces; float MD)
+crates/md-ref      CPU engines (integer positions with f32/f64 forces, with a fast SIMD pair path;
+                   float MD); in the browser as CpuDiscSim, the fallback without WebGPU
 crates/md          GPU engine (integer positions, f32 forces) and GPU instruments
 crates/scenarios   the systems behind the pages (pure data, runnable on any engine)
-crates/wasm        browser API (wasm-bindgen): simulations for pages, renderer, self-tests
+crates/render      the 2D renderer: discs from the GPU buffers, to a canvas or an offscreen texture
+crates/wasm        browser API (wasm-bindgen): simulations for pages, 3D renderer, self-tests
+crates/record      headless video recorder (cargo xtask record)
 crates/bench       native benchmarks
 xtask              project commands
 web/               Vite + TypeScript pages and Playwright tests
@@ -34,7 +37,8 @@ web/               Vite + TypeScript pages and Playwright tests
 | `web` | wasm + production build of the pages into `web/dist` |
 | `dev` | wasm + Vite dev server at http://localhost:5173 |
 | `test-browser` | web + Playwright tests in headless Chrome |
-| `bench` | native benchmarks |
+| `bench` | native benchmarks (`--cpu` for the CPU engine too) |
+| `record` | record a scenario as a video, headless, at any size (`record boiling --size 1920x1080 --frames 600`); needs ffmpeg |
 | `all` | `test` + `test-browser` |
 
 Requirements: Rust with the `wasm32-unknown-unknown` target, `wasm-bindgen-cli` matching the

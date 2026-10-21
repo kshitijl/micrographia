@@ -1,0 +1,15 @@
+[package]
+name = "record"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+gpu-prims = { path = "../gpu-prims" }
+md = { path = "../md" }
+md-core = { path = "../md-core" }
+render = { path = "../render" }
+scenarios = { path = "../scenarios" }
+pollster.workspace = true
+wgpu.workspace = true

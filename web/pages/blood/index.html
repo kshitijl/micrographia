@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Carrying Oxygen</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 16 16%22%3E%3Ccircle cx=%225%22 cy=%225%22 r=%223%22 fill=%22%23c9503c%22/%3E%3Ccircle cx=%2211%22 cy=%225%22 r=%223%22 fill=%22%23c9503c%22/%3E%3Ccircle cx=%225%22 cy=%2211%22 r=%223%22 fill=%22%235a1e2a%22/%3E%3Ccircle cx=%2211%22 cy=%2211%22 r=%223%22 fill=%22%23ff6f91%22/%3E%3C/svg%3E" />
+    <link rel="stylesheet" href="../../src/lib/style.css" />
+  </head>
+  <body>
+    <nav class="topbar"><div class="wrap"><a href="../../index.html">Micrographia</a></div></nav>
+    <main class="wrap">
+      <header class="question">
+        <div class="eyebrow">Haemoglobin: cooperative binding, and carbon monoxide</div>
+        <h1>How does blood know where to drop its oxygen? And why is carbon monoxide so deadly?</h1>
+        <p class="lede">
+          Each haemoglobin molecule carries four oxygen molecules, and the four help each other: once one is on, the rest
+          grip harder; once one leaves, the rest let go more easily. So blood loads up fully in the lungs and unloads a big
+          share in the tissues, over a small difference in oxygen pressure. Carbon monoxide grips 220 times harder than
+          oxygen: a whiff of it takes seats, and it also makes the remaining oxygen cling instead of being delivered.
+        </p>
+      </header>
+
+      <section class="lab">
+        <div class="left">
+          <canvas id="loop" style="width: 100%; aspect-ratio: 2 / 1; border-radius: 10px" aria-label="Haemoglobin molecules circulating between lungs and tissues"></canvas>
+          <div class="legend"><span>Each four-dot square is one haemoglobin, going round from the lungs (left) to the body (right) and back. <i style="background: #e0453a"></i>oxygen, <i style="background: #ff8fb0"></i>carbon monoxide, <i style="background: #4a1820"></i>empty. Rounded: the gripping (R) shape; sharp: the letting-go (T) shape.</span></div>
+          <canvas class="plot tall" id="curve" aria-label="Oxygen saturation against oxygen pressure"></canvas>
+          <div class="legend"><span><i style="background: var(--accent)"></i>haemoglobin (now, with this much CO)</span><span><i style="background: var(--muted)"></i>without CO</span><span><i style="background: var(--species-2)"></i>myoglobin (one site, no teamwork)</span><span><i style="background: var(--highlight)"></i>measured: in the lungs, in the body</span></div>
+        </div>
+        <aside class="panel">
+          <div class="buttons">
+            <button class="primary" id="run">Run</button>
+            <button id="exercise">Exercise</button>
+            <button id="pure">Breathe pure oxygen</button>
+          </div>
+          <label class="row">Altitude <span id="altv">–</span>
+            <input type="range" id="alt" min="0" max="8848" step="100" value="0" />
+          </label>
+          <label class="row">Carbon monoxide in the air <span id="cov">–</span>
+            <input type="range" id="co" min="0" max="400" step="5" value="0" />
+          </label>
+          <div class="readouts">
+            <div class="readout"><div class="k">oxygen pressure: lungs, body (mmHg)</div><div class="v" id="p">–</div></div>
+            <div class="readout"><div class="k">haemoglobin carrying O₂: leaving the lungs, leaving the body</div><div class="v" id="sat">–</div></div>
+            <div class="readout"><div class="k">oxygen delivered per haemoglobin per trip (of 4)</div><div class="v" id="del">–</div></div>
+            <div class="readout"><div class="k">seats taken by CO</div><div class="v" id="cohb">–</div></div>
+          </div>
+          <div class="status" id="status">
+            Run: the molecules fill with oxygen in the lungs and give a quarter of it up in the body. Exercise (the muscles' oxygen
+            drops): they give up far more, for the same lungs. Climb a mountain. Then let in some carbon monoxide: 100 parts per
+            million, a badly vented heater's worth.
+          </div>
+        </aside>
+      </section>
+
+      <article class="notes">
+        <h2>Teamwork: the S-shaped curve</h2>
+        <p>
+          A haemoglobin molecule has two shapes: a tense one (T) that grips oxygen weakly and a relaxed one (R) that grips it a
+          hundred times harder. Empty, it is almost always tense; each oxygen that binds tips the balance towards relaxed,
+          which makes the other three sites grip harder (Monod, Wyman and Changeux, 1965). So the fraction carrying oxygen
+          rises steeply, in an S, between the body's 20–40 mmHg and the lungs' 100: it is nearly full leaving the lungs and
+          gives up a large share where the oxygen pressure is low. Myoglobin, the single-site store in muscle, has no
+          teamwork: its curve is a plain hyperbola, full long before 20 mmHg, good for holding oxygen and bad for delivering it.
+        </p>
+        <h2>Why a little CO does so much</h2>
+        <p>
+          Carbon monoxide binds the same sites, with a free energy about 3.3 kcal/mol (5.4 kT at body temperature) more
+          favourable than oxygen, and e<sup>5.4</sup> ≈ 220: a Boltzmann factor. So in air with 1/2,000 as much CO as oxygen
+          (100 ppm against 21%), CO wins about one seat in eight (Haldane: CO seats / O₂ seats = 220 × p<sub>CO</sub> /
+          p<sub>O₂</sub>; measured here: 13%, and the oxygen delivered per trip falls by 30%). Worse, a CO on one site tips the molecule towards the relaxed, gripping shape, so the oxygen still on
+          board clings in the tissues instead of being let go: the curve shifts left, and the delivery falls further than the
+          seats lost. Pure oxygen (or a hyperbaric chamber) is the treatment: crowding the sites with oxygen pushes the CO off
+          faster.
+        </p>
+        <div class="caveat">
+          <h3>Caveats</h3>
+          <ul>
+            <li>Not molecules in water: a Monte Carlo of the MWC model's states (each site empty, O₂ or CO; each molecule T or
+              R), each molecule in equilibrium with the oxygen pressure where it is; real binding takes milliseconds and the build
+              up of CO in the blood hours.</li>
+            <li>Parameters: L = 1,000 (T over R, empty), dissociation constants 5 mmHg (R) and 500 mmHg (T), CO 220 times
+              tighter; giving P50 = 27 mmHg and a Hill coefficient of 2.8, as for human blood. The Bohr effect (acid and CO₂
+              loosening the grip in the tissues) is left out.</li>
+            <li>The body's oxygen pressure is set (40 mmHg at rest, 20 exercising, less at altitude), rather than following from
+              the delivery.</li>
+            <li>CO comes and goes only in the lungs, and twenty times more slowly than oxygen here (really far more slowly, over
+              hours), so a molecule keeps its CO round the body, as real blood does.</li>
+          </ul>
+        </div>
+        <section class="about-sim" id="about-sim">
+          <h2>About this simulation</h2>
+          <ul>
+            <li>Method: Monte Carlo (Metropolis, JavaScript) of 300 haemoglobin molecules: each step offers each site a change
+              of occupant and each molecule a change of shape, accepted by the ratio of their Boltzmann weights.</li>
+            <li>Ensemble: grand canonical for the ligands: each molecule exchanges O₂ and CO with a reservoir at the local
+              partial pressures (lungs or body), at body temperature.</li>
+          </ul>
+        </section>
+      </article>
+    </main>
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>

@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>A Protein Folds</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 16 16%22%3E%3Cpath d=%22M2 2 H8 V6 H4 V10 H10 V14%22 stroke=%22%239a4a1e%22 stroke-width=%222%22 fill=%22none%22/%3E%3C/svg%3E" />
+    <link rel="stylesheet" href="../../src/lib/style.css" />
+  </head>
+  <body>
+    <nav class="topbar"><div class="wrap"><a href="../../index.html">Micrographia</a></div></nav>
+    <main class="wrap">
+      <header class="question">
+        <div class="eyebrow">Protein folding, and what heat, acid and salt do to it</div>
+        <h1>How does a protein fold itself up? And why do heat, vinegar or salt undo it?</h1>
+        <p class="lede">
+          A protein is a chain of amino acids that folds, by itself, into one compact shape. Some of its links are oily
+          (hydrophobic): water pushes them together into a core. Others carry charges, which pair up on the outside. Heat it,
+          and the jiggling wins: the chain opens out (an egg white turns opaque as its proteins unfold and tangle). Acid or
+          alkali charge up the outside until it repels itself apart; salt screens the charges.
+        </p>
+      </header>
+
+      <section class="lab">
+        <div class="left">
+          <canvas id="chain" style="width: 100%; aspect-ratio: 4 / 3; border-radius: 10px; cursor: grab" aria-label="A lattice protein"></canvas>
+          <div class="legend"><span><i style="background: var(--accent)"></i>oily (hydrophobic)</span><span><i style="background: var(--highlight)"></i>acidic (−, when charged)</span><span><i style="background: var(--species-2)"></i>basic (+, when charged)</span><span>Dashed: oily links touching. Drag a link to pull on it.</span></div>
+          <canvas class="plot tall" id="melt" aria-label="Oily contacts against temperature"></canvas>
+          <div class="legend"><span><i style="background: var(--accent)"></i>oily contacts, averaged at each temperature you have tried (the melting curve)</span></div>
+          <canvas class="plot" id="time" aria-label="Contacts and energy against time"></canvas>
+          <div class="legend"><span><i style="background: var(--accent)"></i>oily contacts</span><span><i style="background: var(--muted)"></i>energy (ε)</span></div>
+        </div>
+        <aside class="panel">
+          <div class="buttons">
+            <button class="primary" id="run">Run</button>
+            <button id="cook">Cook it (then let it cool)</button>
+            <button id="reset">Stretch it out</button>
+          </div>
+          <label class="row">Temperature <span id="tv">–</span>
+            <input type="range" id="t" min="0.15" max="1.2" step="0.01" value="0.3" />
+          </label>
+          <label class="row">pH <span id="phv">7</span>
+            <input type="range" id="ph" min="0" max="14" step="0.1" value="7" />
+          </label>
+          <label class="row">Salt <span id="sv">–</span>
+            <input type="range" id="salt" min="0" max="1" step="0.01" value="0.2" />
+          </label>
+          <div class="readouts">
+            <div class="readout"><div class="k">oily contacts (out of about 10 packed)</div><div class="v" id="c">–</div></div>
+            <div class="readout"><div class="k">size (radius of gyration, sites)</div><div class="v" id="rg">–</div></div>
+            <div class="readout"><div class="k">net charge</div><div class="v" id="q">–</div></div>
+            <div class="readout"><div class="k">state</div><div class="v" id="state">–</div></div>
+          </div>
+          <div class="status" id="status">
+            Run: the stretched chain folds up, its oily links packing into a core. Raise the temperature slowly and watch the
+            contacts melt away; the melting curve fills in. Then, back at body temperature, slide the pH to vinegar (3) or to
+            soap (12): the chain swells. Add salt and it comes back together.
+          </div>
+        </aside>
+      </section>
+
+      <article class="notes">
+        <h2>Folded by water, undone by entropy</h2>
+        <p>
+          An oily link in contact with water forces the water molecules around it into a cage, which costs them entropy; tucked
+          against another oily link, it frees some of that water. So oily links attract, in effect (here, each touching pair
+          gains 1 ε), and a chain with the right pattern of them has one compact shape with its oil inside. But there is only a
+          handful of compact shapes, against billions of open ones. The free energy of the folded state is lower in energy
+          (the contacts) but also in entropy (it is one shape); at a temperature where TΔS overtakes ΔH, the open coil wins.
+          The melting curve shows where. Notice how the coil gains as the temperature rises: the story of this whole site,
+          entropy mattering more when hotter.
+        </p>
+        <h2>Acid, alkali and salt</h2>
+        <p>
+          Its acidic links carry a negative charge unless the water is acid enough to put a proton back on them (below their
+          pKa, about 4); the basic links carry a positive one unless the water is alkaline enough to take theirs off (above
+          about 10.5). At neutral pH both are charged and pair up, + with −, helping to hold the shape. In vinegar only the
+          positive charges are left, and they push each other apart: the chain swells (which is how acid "cooks" fish in
+          ceviche). Salt's ions crowd around every charge and screen it (the Debye length, the reach of a charge, shrinks):
+          the repulsion fades and the oil can pull the chain together again. That is also why proteins are stored in buffered,
+          slightly salty solutions, and why a fever's few degrees are dangerous only for the proteins already close to their
+          melting point.
+        </p>
+        <div class="caveat">
+          <h3>Caveats</h3>
+          <ul>
+            <li>The HP lattice model (Lau and Dill, 1989), with charges: each link is one site on a square grid; real proteins
+              are 3D chains of 20 kinds of amino acid, and their folding is far more cooperative (sharper melting) than this
+              short chain's.</li>
+            <li>Water is implicit: the oily attraction stands for its entropy, and is held fixed here, though really it grows with
+              temperature; the charges are mean charges at the pH (Henderson–Hasselbalch), with a screened (Debye–Hückel)
+              interaction.</li>
+            <li>Cooked egg white does not refold on cooling, because its unfolded proteins tangle and stick to each other; a
+              single chain alone, like this one, can refold.</li>
+          </ul>
+        </div>
+        <section class="about-sim" id="about-sim">
+          <h2>About this simulation</h2>
+          <ul>
+            <li>Method: Monte Carlo (Metropolis) of a 24-link lattice chain in 2D (JavaScript): end moves, corner flips,
+              crankshafts and pivots, each accepted with probability min(1, e<sup>−ΔE/kT</sup>).</li>
+            <li>Ensemble: canonical: the water is a heat bath at the temperature you set.</li>
+            <li>Energy: −1 ε per touching pair of oily links, plus a screened Coulomb energy 2 ε q<sub>i</sub>q<sub>j</sub>
+              e<sup>−r/λ</sup>/r between charged links, λ from 5 sites (pure water) to 0.5 (very salty).</li>
+          </ul>
+        </section>
+      </article>
+    </main>
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>
