@@ -55,6 +55,7 @@ M1 Pro (Metal) unless stated. Run everything with `cargo xtask all`.
 | `cloud` | Can you see the path of a single atom? | An α at 10 σ/τ leaves a 154 σ track of 240 ions, 45 in its first third and 137 in its last (the Bragg peak); hard-core collisions conserve energy at dt 0.001 (natively 1118.57 → 1118.76) |
 | `motor` (Brownian dynamics, JavaScript) | How does a molecule walk through random shaking? | Flashing ratchet walks at 0.42 steps per unit time (about 64 kT of fuel a step); grip always on −0.005, always off 0.06, cold 0.000; a load of 2 kT per step drives it backwards |
 | `depletion` | Can a crowd push two things together? | Held 0.3 σ apart in a crowd of 1.2 per σ²: push 3.9 against Asakura–Oosawa 3.6; let go, touching 25% of the time (1.5% at random); natively (0.3 per σ²) 1.01 ± 0.07 against 0.90, nothing beyond the range, and stronger when hotter (1.33 ± 0.16 at 2 kT, AO with the soft contact 1.49) |
+| `sweat` | Why does sweating cool you, and why not when humid? | Insulated water under a warm ceiling (kT 0.44): settles at 0.378 in dry air, 0.444 when the air is saturated (natively 0.375, 0.42 at 50%, 0.44) |
 
 Plus `selftest`: the GPU primitive and engine checks, run under the browser's shader compiler.
 

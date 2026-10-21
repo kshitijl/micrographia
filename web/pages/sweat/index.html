@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Why Sweat Cools You</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 16 16%22%3E%3Cpath d=%22M8 2 C5 7 4 9 4 11 A4 4 0 0 0 12 11 C12 9 11 7 8 2 Z%22 fill=%22%234f7cc4%22/%3E%3C/svg%3E" />
+    <link rel="stylesheet" href="../../src/lib/style.css" />
+  </head>
+  <body>
+    <nav class="topbar"><div class="wrap"><a href="../../index.html">Micrographia</a></div></nav>
+    <main class="wrap">
+      <header class="question">
+        <div class="eyebrow">Evaporative cooling, and the wet-bulb limit</div>
+        <h1>Why does sweating cool you down, and why does it stop working when the air is humid?</h1>
+        <p class="lede">
+          A film of water on hot skin, in hot air, ends up colder than the air. Nothing cold touched it. The molecules that
+          escape from the water are the fastest ones, and they take their energy with them, leaving the slower ones behind. But
+          that only works if they can escape: in air already full of water vapour, as many come back as leave, and the cooling
+          stops. That is why a heatwave at 35 °C and 80% humidity can kill, and the same heat in a desert need not.
+        </p>
+      </header>
+
+      <section class="lab">
+        <div class="left">
+          <div class="stage" id="stage" style="aspect-ratio: 6 / 5">
+            <canvas id="canvas" aria-label="A pool of water under warm air"></canvas>
+            <div class="overlay" id="overlay">Starting the GPU…</div>
+          </div>
+          <div class="legend"><span>Coloured by speed: <i style="background: var(--species-2)"></i>slow (cold) to <i style="background: var(--highlight)"></i>fast (hot). The water's film is at the bottom; the hot day's air is above, kept warm by the ceiling. The band near the top is where the wind brings fresh air at the humidity you set.</span></div>
+          <canvas class="plot tall" id="temps" aria-label="The water's and the air's temperatures"></canvas>
+          <div class="legend"><span><i style="background: var(--species-2)"></i>the water</span><span><i style="background: var(--highlight)"></i>the air (a little above the water)</span><span><i style="background: var(--muted)"></i>the warm day (the ceiling)</span></div>
+        </div>
+        <aside class="panel">
+          <div class="buttons">
+            <button class="primary" id="run">Run</button>
+            <button id="fan">Turn the fan on</button>
+          </div>
+          <label class="row">Humidity of the fresh air <span id="hv">0%</span>
+            <input type="range" id="hum" min="0" max="1" step="0.05" value="0" />
+          </label>
+          <div class="readouts">
+            <div class="readout"><div class="k">the water's temperature</div><div class="v" id="tw">–</div></div>
+            <div class="readout"><div class="k">the air's</div><div class="v" id="ta">–</div></div>
+            <div class="readout"><div class="k">cooler than the day by</div><div class="v" id="dt">–</div></div>
+            <div class="readout"><div class="k">molecules evaporating, net (per 100 τ)</div><div class="v" id="ev">–</div></div>
+          </div>
+          <div class="status" id="status">
+            Run, with dry air. The water cools below the air above it, and stays there: the heat flowing in from the warm air
+            just pays for the evaporation (the wet-bulb temperature). Turn the fan on: the dry air comes closer, and it cools
+            more. Now raise the humidity: the cooling fades, and at 100% it is gone.
+          </div>
+        </aside>
+      </section>
+
+      <article class="notes">
+        <h2>The fastest leave first</h2>
+        <p>
+          To leave the liquid a molecule must climb out of its neighbours' pull, which takes much more energy than an average
+          molecule has (the latent heat: about 4 ε a molecule here, ten times kT). Only the fast tail of the speed distribution
+          makes it; every one that escapes takes more than its share of the energy, and the rest re-share what is left: a
+          lower temperature. (The same tail is why <a href="../humidity/index.html">warm air holds more water</a>.) Here nothing
+          heats or cools the water except the air above it and its own evaporation, so its temperature is the balance between
+          the two: the wet-bulb temperature, which meteorologists measure with a thermometer wrapped in a wet cloth.
+        </p>
+        <h2>Why humidity matters, and wind</h2>
+        <p>
+          Molecules also come back: vapour in the air lands on the water and is caught. In saturated air (100% humidity) as many
+          land as leave, the net evaporation is zero, and the water stays at the air's temperature. Your body makes heat all the
+          time and sheds much of it this way; when the wet-bulb temperature reaches about 35 °C, it cannot shed it at all, and
+          a person in the shade, wet and fanned, still overheats. A fan helps for the other reason: it sweeps away the damp
+          layer of air next to the skin, so the air the water sees is drier.
+        </p>
+        <div class="caveat">
+          <h3>Caveats</h3>
+          <ul>
+            <li>2D Lennard-Jones "water" (it evaporates far more readily than real water, so the cooling is bigger and faster than
+              real sweat's), under purely repulsive "air".</li>
+            <li>The wind is a rule of the page: in the band near the ceiling (deeper with the fan on), water molecules are turned
+              into air molecules, or air into water, every 5 τ, to hold the vapour there at the set humidity. Energy is kept
+              (the molecules keep their speeds; in the thin air their pull on each other is negligible).</li>
+            <li>No body heat: the water has no heater under it.</li>
+          </ul>
+        </div>
+      </article>
+    </main>
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>

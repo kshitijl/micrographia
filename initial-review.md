@@ -786,3 +786,8 @@ docs/performance.md.
   them apart or push them together (force against gap), heat makes the push stronger (entropic; a little less
   than ∝ T, as hot soft molecules squash closer, said on the page), and "Let go" frees them to stick. Rings
   show the depleted zones. New scenario `depletion`.
+- [ ] Brainstorm (evaporative cooling, sweating in the wind, humidity), new page `sweat`: an insulated film of
+  water under warm air (heat-bath ceiling); a "wind" band near the ceiling holds the vapour at the humidity
+  slider's value (a live control); a fan brings that band down close to the water. Dry air: the water cools
+  15% below the day (the wet-bulb temperature); saturated: no cooling. Coloured by speed. New scenario
+  `sweat`.

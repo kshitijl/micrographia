@@ -82,7 +82,7 @@ pub struct Scenario {
     pub radii: Vec<f64>,
 }
 
-pub const NAMES: &[&str] = &["cream", "corner", "boltzmann", "heavy", "oilwater", "heatflow", "osmosis", "compress", "rubber", "atmosphere", "carnot", "boiling", "lipids", "balloon", "smell", "binding", "fep", "cell", "buffer", "mask", "dna", "demon", "ensemble", "osmosis_free", "osmometer", "flask", "emulsion", "enthalpy", "humid", "solubility", "perrin", "avogadro", "heatcap", "cloud", "depletion"];
+pub const NAMES: &[&str] = &["cream", "corner", "boltzmann", "heavy", "oilwater", "heatflow", "osmosis", "compress", "rubber", "atmosphere", "carnot", "boiling", "lipids", "balloon", "smell", "binding", "fep", "cell", "buffer", "mask", "dna", "demon", "ensemble", "osmosis_free", "osmometer", "flask", "emulsion", "enthalpy", "humid", "solubility", "perrin", "avogadro", "heatcap", "cloud", "depletion", "sweat"];
 
 pub fn build(name: &str, o: &Options) -> Result<Scenario, String> {
     let sc = build_unchecked(name, o)?;
@@ -135,6 +135,7 @@ fn build_unchecked(name: &str, o: &Options) -> Result<Scenario, String> {
         "heatcap" => Ok(heatcap(o)),
         "cloud" => Ok(cloud(o)),
         "depletion" => Ok(depletion(o)),
+        "sweat" => Ok(sweat(o)),
         _ => Err(format!("unknown scenario {name}")),
     }
 }
@@ -1972,4 +1973,48 @@ pub fn depletion(o: &Options) -> Scenario {
     vel[1] = [0, 0];
     let state = State { pos: pos.iter().map(|p| [fixed::to_fixed(p[0]), fixed::to_fixed(p[1])]).collect(), vel, species };
     Scenario { warmup: 0, finish: Finish::None, marked: 0, grid: [4, 4], radii: vec![0.5, 0.5 * big, 0.5 * big, 0.5 * big], sys, state }
+}
+
+/// Sweat: a pool of LJ "water" (species 0) on an insulating floor under "air" (species 1, purely
+/// repulsive), with the water's vapour in the air at `humidity` × its saturated density, and a
+/// heat-bath ceiling at the air's temperature (the warm day). No bulk bath: the pool's temperature
+/// is its own, so evaporating cools it. Weak gravity keeps the pool down; periodic sideways.
+/// Options: width, height, depth (of the pool, σ), air (density), humidity, temperature, seed.
+pub fn sweat(o: &Options) -> Scenario {
+    let (w, h) = (o.get("width", 120.0), o.get("height", 100.0));
+    let depth = o.get("depth", 14.0);
+    let t = o.get("temperature", 0.44);
+    let seed = o.get("seed", 1.0) as u64;
+    let wca = Pair::wca();
+    let sys = System::new([fixed::to_fixed(w), fixed::to_fixed(h)], init::DT, Pair::lj(2.5), vec![1.0, 1.0])
+        .with_pair(0, 1, wca)
+        .with_pair(1, 1, wca)
+        .with_walls(1, Wall::Soft, Wall::Thermal(t))
+        .with_gravity([0.0, -0.002]);
+    let n_pool = (0.75 * w * depth) as usize;
+    let pool = System::new([fixed::to_fixed(w), fixed::to_fixed(depth + 2.0)], init::DT, Pair::lj(2.5), vec![1.0]).with_walls(1, Wall::Soft, Wall::Soft);
+    let mut state = init::fluid(&pool, n_pool, t, seed);
+    let (y0, y1) = (depth + 3.0, h - 1.5);
+    let area = w * (y1 - y0);
+    let nv = (o.get("humidity", 0.3) * saturated_vapour_density(t) * area).round() as usize;
+    let na = (o.get("air", 0.05) * area).round() as usize;
+    let mut placed: Vec<[f64; 2]> = vec![];
+    let mut k = 0u32;
+    while placed.len() < nv + na && k < 200 * (nv + na) as u32 + 100 {
+        let x = gpu_prims::threefry::uniform(seed, 111, 2 * k) * w;
+        let y = y0 + gpu_prims::threefry::uniform(seed, 111, 2 * k + 1) * (y1 - y0);
+        k += 1;
+        if placed.iter().any(|q| (q[0] - x).powi(2) + (q[1] - y).powi(2) < 1.44) {
+            continue;
+        }
+        placed.push([x, y]);
+    }
+    let species: Vec<u32> = (0..placed.len()).map(|i| (i >= nv) as u32).collect();
+    let vel = init::maxwell(&sys, &species, t, seed + 3);
+    for ((q, v), s) in placed.iter().zip(vel).zip(species) {
+        state.pos.push([fixed::to_fixed(q[0]), fixed::to_fixed(q[1])]);
+        state.vel.push(v);
+        state.species.push(s);
+    }
+    Scenario { warmup: 0, finish: Finish::None, marked: 0, grid: [1, 50], radii: vec![0.5, 0.5], sys, state }
 }
