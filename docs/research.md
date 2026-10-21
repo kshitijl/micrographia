@@ -1288,6 +1288,8 @@ claim below comes from memory rather than these pages, it is tagged [memory].
 | A denser start (0.76) nearly froze the 2D LJ liquid | U-tube test failure | stay clear of the 2D LJ melting line; check ρ(z) and mobility before measuring |
 | 2D convection built a mean wind | the user | damp large scales; caveat ([FA] §3.3) |
 | Thresholds tuned on one run made tests flaky | test failures | seeds, block errors ([FS] §5.3.3) |
+| Verlet lists sized from the box's average density overflowed under a dense pool with a big vapour space; neighbours were dropped silently and kT went to ~3,000 | the boiling page at 24k molecules | sized for at least a dense liquid; regression test. To add: act on the overflow flag (rebuild with a bigger list) instead of only recording it ([JAX MD] pattern, §7) |
+| A heat-bath floor barely heats a liquid that does not wet it: a vapour gap insulates | the hot plate | a bath layer (`with_bath_layer`) as the alternative; say so on the page |
 
 ### 18.9 Ideas, from the reading, mapped to the questions
 
