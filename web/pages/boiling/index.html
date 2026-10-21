@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Boiling Point and Pressure</title>
+    <title>Phase Transitions</title>
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 16 16%22%3E%3Ccircle cx=%228%22 cy=%228%22 r=%227%22 fill=%22%239a4a1e%22/%3E%3C/svg%3E" />
     <link rel="stylesheet" href="../../src/lib/style.css" />
   </head>
@@ -11,12 +11,14 @@
     <nav class="topbar"><div class="wrap"><a href="../../index.html">Micrographia</a></div></nav>
     <main class="wrap">
       <header class="question">
-        <div class="eyebrow">Evaporation and boiling</div>
-        <h1>Why does the boiling point rise with pressure? (And why does a pressure cooker cook faster?)</h1>
+        <div class="eyebrow">Phase transitions</div>
+        <h1>Why does a liquid boil when it gets hot enough? Why do different phases win at different temperatures?</h1>
         <p class="lede">
-          A pool of liquid with empty space above it. The molecules attract each other, which holds the
-          liquid together, but now and then one at the surface is moving fast enough to break free. Watch
-          a vapour form, measure its pressure at different temperatures, and the boiling point follows.
+          Molecules attract each other, which holds a liquid together; heat makes them jostle, and now and
+          then one at the surface breaks free. Below: a pot of liquid on a hot plate, where you can watch
+          the vapour form and measure its pressure; a droplet you can heat in counted amounts, to see
+          where the heat goes; and the reason, in entropy, why cold favours order and heat favours the
+          gas. (And why a pressure cooker cooks faster.)
         </p>
       </header>
 
@@ -141,6 +143,35 @@
         </aside>
       </section>
 
+      <h2>3. Why the gas wins when it's hot</h2>
+      <section class="lab">
+        <div class="left">
+          <canvas class="plot" id="gplot" style="height: 420px; cursor: ew-resize" aria-label="Free energy of solid, liquid and gas against temperature; the lowest wins"></canvas>
+          <div class="legend"><span><i style="background: var(--species-2)"></i>solid</span><span><i style="background: var(--plot-back)"></i>liquid</span><span><i style="background: var(--highlight)"></i>gas</span><span>thick: the phase that wins (the lowest G)</span></div>
+          <div class="sub" style="font-size: 13px; color: var(--muted); margin-top: 6px">
+            G = H − T S for each phase, per molecule, in the simulation's units: the energies of the 2D
+            Lennard-Jones substance above, with a wider liquid range (like water's) so you can see it;
+            H and S are taken as constant. Each line falls with temperature at a rate equal to its
+            entropy (dG/dT = −S at fixed pressure), so the high-entropy gas falls fastest. Drag across the
+            plot to set the temperature.
+          </div>
+        </div>
+        <aside class="panel">
+          <label class="row">Temperature kT <span id="gTv">0.30</span>
+            <input type="range" id="gT" min="0.1" max="0.7" step="0.005" value="0.3" />
+          </label>
+          <label class="row">Pressure <span id="gPv">1× (the pot's)</span>
+            <input type="range" id="gP" min="-1.5" max="1.5" step="0.05" value="0" />
+          </label>
+          <div class="readouts">
+            <div class="readout"><div class="k">the phase that wins</div><div class="v" id="gPhase">–</div></div>
+            <div class="readout"><div class="k">melts at / boils at</div><div class="v" id="gPoints">–</div></div>
+          </div>
+          <canvas class="plot tall" id="gbars" aria-label="Entropy change of system, surroundings and universe when one molecule melts or evaporates at this temperature"></canvas>
+          <div class="status" id="gStatus"></div>
+        </aside>
+      </section>
+
       <article class="notes">
         <h2>Escaping and returning</h2>
         <p>
@@ -165,6 +196,36 @@
           for water moves the boiling point from 100 °C to about 120 °C, and chemical reactions in food
           run several times faster at 120 °C. In Leh, at 3,500 m, the air pressure is about two thirds
           of sea level and water boils near 88 °C, which is why dal takes so long to cook there.
+        </p>
+        <h2>Why different phases win at different temperatures</h2>
+        <p>
+          At a fixed pressure and temperature, the phase that wins is the one with the lowest Gibbs free
+          energy, G = H − TS. That is just the second law in disguise: changing phase takes heat ΔH from
+          the surroundings (or gives it to them), which changes their entropy by −ΔH/T, while the
+          system's own entropy changes by ΔS. The total, ΔS − ΔH/T, is −ΔG/T. The universe's entropy
+          rises exactly when G falls.
+        </p>
+        <p>
+          Now watch how G changes with temperature: dG/dT = −S. Every phase's G falls as it warms, and
+          the higher its entropy, the faster. The gas, with by far the most entropy (its molecules can be
+          anywhere), falls fastest; the solid, the most ordered, slowest. So there is a temperature above
+          which the liquid's line dips below the solid's (melting) and another above which the gas's
+          dips below the liquid's (boiling).
+        </p>
+        <p>
+          The same thing in the language of the sneeze (see <a href="../../index.html">dS = dQ/T</a>): to
+          evaporate, a molecule must take heat L from its surroundings, which costs them L/T of entropy.
+          When it is cold, that is a sneeze in a quiet library: a small amount of heat costs the
+          surroundings a lot of entropy, more than the molecule gains by flying free, so the ordered
+          liquid (or solid) wins. When it is hot, it is a sneeze at a rock concert: the same heat costs
+          the surroundings little, and the gas's huge gain wins. Both are the same rule: maximise the
+          entropy of system plus surroundings. The bars in part 3 do the bookkeeping at whatever
+          temperature you choose.
+        </p>
+        <p>
+          Pressure enters through the gas's entropy. Squeeze a gas and each molecule has less room, so
+          less entropy (by k ln of the pressure ratio, per molecule); its line moves up and crosses the
+          liquid's later: the boiling point rises. That is the pressure cooker.
         </p>
         <h2>Why the temperature stops rising while it boils</h2>
         <p>

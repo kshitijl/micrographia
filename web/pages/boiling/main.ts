@@ -3,6 +3,7 @@ import { LinesPlot } from "../../src/lib/plot";
 import { side, warmth } from "../../src/lib/profiles";
 import { cssColor } from "../../src/lib/theme";
 import type { DiscSim } from "../../src/lib/wasm";
+import "./freeenergy";
 
 const BINS = 80;
 const tIn = $<HTMLInputElement>("t");
