@@ -3,9 +3,11 @@
 
 pub mod checks;
 pub mod engine;
+pub mod engine3;
 pub mod observe;
 
 pub use engine::{Arith, ForceMode, GpuEngine};
+pub use engine3::GpuEngine3;
 
 pub const FIXED64_WGSL: &str = gpu_prims::prims::FIXED64_WGSL;
 pub const THREEFRY_WGSL: &str = gpu_prims::prims::THREEFRY_WGSL;
@@ -16,6 +18,7 @@ pub const MD_WGSL: &str = include_str!("../shaders/md.wgsl");
 pub const REORDER_WGSL: &str = include_str!("../shaders/reorder.wgsl");
 pub const NEIGHBORS_WGSL: &str = include_str!("../shaders/neighbors.wgsl");
 pub const OBSERVE_WGSL: &str = include_str!("../shaders/observe.wgsl");
+pub const MD3_WGSL: &str = include_str!("../shaders/md3.wgsl");
 
 pub fn md_source() -> String {
     format!("{FIXED64_WGSL}\n{THREEFRY_WGSL}\n{PARAMS_WGSL}\n{BOUNDARY_WGSL}\n{INTFORCE_WGSL}\n{MD_WGSL}")
@@ -29,11 +32,15 @@ pub fn neighbors_source() -> String {
     format!("{FIXED64_WGSL}\n{THREEFRY_WGSL}\n{PARAMS_WGSL}\n{BOUNDARY_WGSL}\n{INTFORCE_WGSL}\n{NEIGHBORS_WGSL}")
 }
 
+pub fn md3_source() -> String {
+    format!("{FIXED64_WGSL}\n{THREEFRY_WGSL}\n{MD3_WGSL}")
+}
+
 pub fn observe_source() -> String {
     format!("{FIXED64_WGSL}\n{OBSERVE_WGSL}")
 }
 
 /// Every shader source in this crate, for offline validation.
 pub fn shader_sources() -> Vec<(&'static str, String)> {
-    vec![("md", md_source()), ("reorder", reorder_source()), ("neighbors", neighbors_source()), ("observe", observe_source())]
+    vec![("md", md_source()), ("reorder", reorder_source()), ("neighbors", neighbors_source()), ("observe", observe_source()), ("md3", md3_source())]
 }

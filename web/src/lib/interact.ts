@@ -1,7 +1,7 @@
 // Reach-in tools for simulation pages: drag a box on the simulation to select the molecules in
 // it, then kick, freeze or shove them; and a panel plotting total energy and entropy over time.
 
-import { cssVar, type SimHost } from "./host";
+import { cssVar, type AnySim, type SimHost } from "./host";
 import { LinesPlot } from "./plot";
 import type { DiscSim } from "./wasm";
 
@@ -167,6 +167,15 @@ export function entropy(ke: ArrayLike<number>, de = 0.05): number {
   return s + (counts.size - 1) / (2 * n);
 }
 
+/** The same in 3D, where the density of states in kinetic energy grows as √E (three velocity
+ * components): −Σ p ln(p / (√E ΔE)). Its maximum at a given mean energy is the Maxwell
+ * (Gamma(3/2)) distribution, 0.7710 + 1.5 ln(mean). */
+export function entropy3(ke: ArrayLike<number>, de = 0.05): number {
+  let w = 0;
+  for (let i = 0; i < ke.length; i++) w += 0.5 * Math.log(Math.max(ke[i], 1e-6));
+  return entropy(ke, de) + w / ke.length;
+}
+
 /**
  * Total energy and entropy over time, on two small plots added to `container`. Call `sample`
  * from the page's readout (it reads kinetic and potential energies from the GPU); SimHost does
@@ -184,7 +193,7 @@ export class EnergyPanel {
   private note: HTMLSpanElement;
 
   /** `work`, if given, returns the work done on the system so far (ε), e.g. by a piston. */
-  constructor(container: HTMLElement, private opts: { work?: (sim: DiscSim) => Promise<number>; workLabel?: string } = {}) {
+  constructor(container: HTMLElement, private opts: { work?: (sim: AnySim) => Promise<number>; workLabel?: string } = {}) {
     const mk = (label: string, items: [string, string][]) => {
       const c = document.createElement("canvas");
       c.className = "plot";
@@ -226,7 +235,7 @@ export class EnergyPanel {
     this.draw();
   }
 
-  async sample(sim: DiscSim) {
+  async sample(sim: AnySim) {
     const [{ ke }, pe, work] = (await Promise.all([sim.kinetic_energies(), sim.potential_energy(), this.opts.work?.(sim) ?? 0])) as [{ ke: Float32Array }, number, number];
     let kin = 0;
     for (let i = 0; i < ke.length; i++) kin += ke[i];
@@ -234,8 +243,11 @@ export class EnergyPanel {
     this.t.push(sim.steps() * sim.dt());
     this.total.push(kin + pe);
     this.balance.push(kin + pe - work);
-    this.s.push(entropy(ke));
-    this.smax.push(1 + Math.log(kin / n));
+    // The entropy, and the most it can be at this mean energy (the equilibrium: exponential
+    // energies in 2D, Maxwell's in 3D).
+    const three = sim.dims() === 3;
+    this.s.push(three ? entropy3(ke) : entropy(ke));
+    this.smax.push(three ? 0.771 + 1.5 * Math.log(kin / n) : 1 + Math.log(kin / n));
     // Keep the plots light.
     if (this.t.length > 2000) for (const a of [this.t, this.total, this.balance, this.s, this.smax]) a.splice(0, 1);
     this.draw();

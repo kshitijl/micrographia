@@ -3,7 +3,10 @@
 //! commits and devices.
 //!
 //! Usage: `cargo xtask bench [--quick] [--sizes 4000,64000] [--density 0.7] [--pair wca|lj]
-//!                           [--no-save] [--cpu]`
+//!                           [--no-save] [--cpu] [--3d]`
+//!
+//! `--3d` benchmarks the 3D engine (cell list) instead, on an LJ or WCA fluid (density 0.8
+//! unless given).
 
 use gpu_prims::timing::PassTimer;
 use gpu_prims::util::{self, Dispatch, WG};
@@ -28,6 +31,8 @@ struct Args {
     /// All-integer forces (gpu-int-int).
     int: bool,
     skin: Option<f64>,
+    three: bool,
+    density_given: bool,
 }
 
 fn parse() -> Args {
@@ -43,6 +48,8 @@ fn parse() -> Args {
         cells: false,
         int: false,
         skin: None,
+        three: false,
+        density_given: false,
     };
     let argv: Vec<String> = std::env::args().skip(1).collect();
     let mut i = 0;
@@ -59,6 +66,7 @@ fn parse() -> Args {
             "--density" => {
                 i += 1;
                 a.density = argv[i].parse().expect("density");
+                a.density_given = true;
             }
             "--pair" => {
                 i += 1;
@@ -78,6 +86,7 @@ fn parse() -> Args {
             "--shuffle" => a.shuffle = true,
             "--cells" => a.cells = true,
             "--int" => a.int = true,
+            "--3d" => a.three = true,
             "--skin" => {
                 i += 1;
                 a.skin = Some(argv[i].parse().expect("skin"));
@@ -192,8 +201,28 @@ fn md_case(prims: &Prims, args: &Args, n: usize) -> CaseResult {
     CaseResult { n, steps_per_s, ns_per_particle_step: 1e9 / (steps_per_s * n as f64), phase_ns, rebuilds }
 }
 
+/// The 3D engine on a fluid melted from an FCC lattice.
+fn md3_case(prims: &Prims, args: &Args, n: usize) -> CaseResult {
+    use md_core::three;
+    let gpu = &prims.gpu;
+    let sys = three::System3::new(three::cube_for(n, args.density), init::DT, args.pair, vec![1.0]);
+    let species = vec![0; n];
+    let s0 = three::State3 { pos: three::fcc(n, sys.box_len, three::fcc_cells(n, sys.box_len), 0.05, 1), vel: three::maxwell(&sys, &species, 1.0, 1), species };
+    let mut e = md::GpuEngine3::new(prims, sys, &s0);
+    e.step(300);
+    gpu.wait();
+    let t = Instant::now();
+    e.step(args.steps);
+    gpu.wait();
+    let steps_per_s = args.steps as f64 / t.elapsed().as_secs_f64();
+    CaseResult { n, steps_per_s, ns_per_particle_step: 1e9 / (steps_per_s * n as f64), phase_ns: vec![], rebuilds: 0 }
+}
+
 fn main() {
-    let args = parse();
+    let mut args = parse();
+    if args.three && !args.density_given {
+        args.density = 0.8;
+    }
     let gpu = pollster::block_on(Gpu::new()).expect("GPU");
     let prims = Prims::new(&gpu);
     let device = gpu.describe();
@@ -202,19 +231,20 @@ fn main() {
     println!("device: {device}   commit: {commit}");
     let bw = copy_bandwidth(&gpu);
     println!("copy bandwidth: {bw:.0} GB/s (read + write)");
-    let mode_name = if args.cells { "cells" } else { "verlet" };
+    let mode_name = if args.cells || args.three { "cells" } else { "verlet" };
     println!(
-        "\n{}, 2D {} fluid, density {}, {} initial storage order, {}",
+        "\n{}, {} {} fluid, density {}, {} initial storage order, {}",
         if args.int { "gpu-int-int" } else { "gpu-int-f32" },
+        if args.three { "3D" } else { "2D" },
         args.pair_name,
         args.density,
         if args.shuffle { "shuffled" } else { "lattice" },
-        if args.cells { "cell list every step" } else { "Verlet lists (skin 0.3)" }
+        if args.cells || args.three { "cell list every step" } else { "Verlet lists (skin 0.3)" }
     );
     let mut lines = Vec::new();
     let mut header = false;
     for &n in &args.sizes {
-        let r = md_case(&prims, &args, n);
+        let r = if args.three { md3_case(&prims, &args, n) } else { md_case(&prims, &args, n) };
         if !header {
             let cols: String = r.phase_ns.iter().map(|(k, _)| format!(" {:>10}", k)).collect();
             println!("{:>9} {:>11} {:>12} {:>9}{cols}", "N", "steps/s", "ns/(N·step)", "rebuilds");
@@ -224,13 +254,14 @@ fn main() {
         println!("{:>9} {:>11.0} {:>12.2} {:>9}{cols}", r.n, r.steps_per_s, r.ns_per_particle_step, r.rebuilds);
         let phases = r.phase_ns.iter().map(|(k, v)| format!("{}:{:.0}", json_str(k), v)).collect::<Vec<_>>().join(",");
         lines.push(format!(
-            "{{\"time\":{when},\"commit\":{},\"device\":{},\"engine\":{},\"mode\":{},\"order\":{},\"dim\":2,\"pair\":{},\"density\":{},\"n\":{},\
+            "{{\"time\":{when},\"commit\":{},\"device\":{},\"engine\":{},\"mode\":{},\"order\":{},\"dim\":{},\"pair\":{},\"density\":{},\"n\":{},\
              \"steps_per_s\":{:.1},\"ns_per_particle_step\":{:.3},\"phase_ns\":{{{phases}}},\"copy_gbps\":{bw:.1}}}",
             json_str(&commit),
             json_str(&device),
             json_str(if args.int { "gpu-int-int" } else { "gpu-int-f32" }),
             json_str(mode_name),
             json_str(if args.shuffle { "shuffled" } else { "lattice" }),
+            if args.three { 3 } else { 2 },
             json_str(&args.pair_name),
             args.density,
             r.n,

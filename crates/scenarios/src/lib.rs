@@ -4,6 +4,8 @@
 use md_core::{fixed, init, Pair, State, System, Wall};
 use std::collections::HashMap;
 
+pub mod three;
+
 /// Numeric options with defaults.
 #[derive(Clone, Debug, Default)]
 pub struct Options(pub HashMap<String, f64>);

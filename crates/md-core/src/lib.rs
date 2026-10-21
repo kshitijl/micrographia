@@ -8,9 +8,11 @@
 pub mod describe;
 pub mod fixed;
 pub mod init;
+pub mod order;
 pub mod pair;
 pub mod system;
 pub mod table;
+pub mod three;
 pub mod walls;
 
 pub use fixed::{FRAC_BITS, ONE};

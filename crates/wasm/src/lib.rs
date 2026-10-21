@@ -5,9 +5,12 @@
 //! GPU checks under the browser's WebGPU implementation.
 
 mod render;
+mod render3;
 mod sims;
+mod sims3;
 
 pub use sims::*;
+pub use sims3::*;
 
 use gpu_prims::{Gpu, Prims};
 use js_sys::{Array, Object, Reflect};

@@ -12,7 +12,7 @@ use scenarios::{Finish, Options};
 use wasm_bindgen::prelude::*;
 use wasm_bindgen_futures::future_to_promise;
 
-fn options(o: &JsValue) -> Options {
+pub(crate) fn options(o: &JsValue) -> Options {
     let mut out = Options::default();
     if let Some(obj) = o.dyn_ref::<Object>() {
         for entry in Object::entries(obj).iter() {
@@ -57,6 +57,11 @@ impl DiscSim {
         let observer = Observer::new(&engine, sc.grid, sc.marked);
         let renderer = Renderer::new(&gpu, surface.expect("surface"), &engine, &sc.radii, w, h);
         Ok(DiscSim { engine, observer, renderer, initial: state, smooth_window: 0.0 })
+    }
+
+    /// Spatial dimensions (2; `BallSim` has 3).
+    pub fn dims(&self) -> u32 {
+        2
     }
 
     pub fn step(&mut self, k: u32) {

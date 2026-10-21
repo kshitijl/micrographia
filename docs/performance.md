@@ -33,6 +33,14 @@ Before the rest of this plan:
 2. **3D in the GPU engine**, for the demos that need it (Stokes–Einstein Brownian motion, the 3D
    dissertation page, real melting and crystallisation), with no 2D performance regression:
    dimension as a compile-time choice in the shaders, not a runtime branch in the hot loops.
+   *Done (first version):* `GpuEngine3` with its own kernels (`md3.wgsl`), so 2D is unchanged:
+   the 2D benchmark at the commit before and with 3D, run alternately twice, agreed within 2%
+   (4k: 9.7–10.1k steps/s; 16k: 8.7–8.9k; 64k: 6.4–6.5k; 256k: 2.8k). 3D cell list, density
+   0.8: LJ 1,810 steps/s at 4k, 1,090 at 16k, 351 at 64k, 99 at 256k (40–140 ns per
+   particle-step); WCA 6,810 at 4k, 1,280 at 64k, 344 at 256k. In the browser the 8,788-atom
+   crystal page runs ~2,100 steps/s at full speed. A 3D cell list scans 27 cells of side ≥ rc, ~4.6×
+   the volume of a Verlet sphere (rc + skin), so Verlet lists in 3D should give 3–4× for LJ:
+   next.
 3. **Phase transitions, three ways, all on the GPU:** a lattice gas (checkerboard or Kawasaki
    Monte Carlo), Gibbs-ensemble Monte Carlo, and Shan–Chen lattice Boltzmann. They will be
    compared for explaining and understanding.

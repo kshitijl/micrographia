@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Melting and Freezing</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 16 16%22%3E%3Ccircle cx=%228%22 cy=%228%22 r=%227%22 fill=%22%234f7cc4%22/%3E%3C/svg%3E" />
+    <link rel="stylesheet" href="../../src/lib/style.css" />
+  </head>
+  <body>
+    <nav class="topbar"><div class="wrap"><a href="../../index.html">Micrographia</a></div></nav>
+    <main class="wrap">
+      <header class="question">
+        <div class="eyebrow">Phase transitions, in 3D</div>
+        <h1>What happens, atom by atom, when a crystal melts? And why does a cooled liquid wait before it freezes?</h1>
+        <p class="lede">
+          A small crystal of argon-like atoms, in three dimensions. Heat it and watch the order go,
+          from the surface inwards, while the temperature stalls; cool the drop it becomes and watch it
+          stay liquid well below its freezing point, until a crystal appears somewhere inside it and
+          spreads.
+        </p>
+      </header>
+
+      <section class="lab">
+        <div class="stage" id="stage" style="aspect-ratio: 1 / 1; cursor: grab">
+          <canvas id="canvas" aria-label="A crystal of atoms in 3D; drag to turn it"></canvas>
+          <div class="overlay" id="overlay">Starting the GPU…</div>
+        </div>
+        <aside class="panel">
+          <div class="buttons">
+            <button class="primary" id="run">Run</button>
+            <button id="reset">Start again</button>
+          </div>
+          <label class="row">Heater <span id="powerv">off</span>
+            <input type="range" id="power" min="-20" max="20" step="1" value="0" />
+          </label>
+          <label class="row">Cut away the front <span id="cutv">none</span>
+            <input type="range" id="cut" min="0" max="0.6" step="0.02" value="0" />
+          </label>
+          <label class="row">Colour <span></span>
+            <select id="colorby">
+              <option value="crystal" selected>crystal or liquid</option>
+              <option value="speed">by speed</option>
+              <option value="plain">plain</option>
+            </select>
+          </label>
+          <label class="row"><span><input type="checkbox" id="onlycrystal" /> show only the crystal</span><span></span></label>
+          <label class="row">Atoms <span></span>
+            <select id="nmol">
+              <option value="2048">2,048</option>
+              <option value="4000">4,000</option>
+              <option value="8788" selected>8,788</option>
+              <option value="16384">16,384</option>
+              <option value="32000">32,000</option>
+            </select>
+          </label>
+          <div class="readouts">
+            <div class="readout"><div class="k">temperature kT</div><div class="v" id="t">–</div></div>
+            <div class="readout"><div class="k">in a crystal</div><div class="v" id="xtal">–</div></div>
+            <div class="readout"><div class="k">heat added (per atom)</div><div class="v" id="heat">–</div></div>
+            <div class="readout"><div class="k">time</div><div class="v" id="time">–</div></div>
+          </div>
+          <canvas class="plot tall" id="plotT" aria-label="Temperature against the heat added"></canvas>
+          <div class="legend"><span><i style="background: var(--accent)"></i>temperature against heat added (per atom)</span></div>
+          <canvas class="plot" id="plotX" aria-label="Fraction of atoms in a crystal over time"></canvas>
+          <div class="legend"><span><i style="background: var(--species-2)"></i>fraction in a crystal, over time</span></div>
+          <div class="status" id="status">
+            Drag the crystal to turn it; scroll to zoom. Turn the heater up to melt it, down (below zero)
+            to cool it. Blue atoms sit in a crystal; orange ones are liquid.
+          </div>
+        </aside>
+      </section>
+
+      <article class="notes">
+        <h2>What you are seeing</h2>
+        <p>
+          The atoms attract each other at a distance and repel up close (the Lennard-Jones force, a good
+          model of argon). Cold, they settle into the arrangement that packs them best: the face-centred
+          cubic crystal, each atom with twelve neighbours in the same pattern. The colour asks each atom
+          whether its neighbours are arranged around it the way they are arranged around them (Steinhardt's
+          bond-order test): in a crystal they all agree; in a liquid they do not.
+        </p>
+        <h2>Melting: where the heat goes</h2>
+        <p>
+          The heater adds heat in exactly counted amounts (it speeds every atom up by the same factor). At
+          first the heat goes into speed, and the temperature rises. Then the crystal starts to melt, from
+          its surface, where atoms have fewer neighbours holding them, and the temperature stalls: the heat
+          now goes into pulling atoms out of the crystal's tight, low-energy arrangement into the looser
+          liquid. That is the latent heat of melting. The temperature climbs again once the crystal is
+          gone.
+        </p>
+        <h2>Freezing: why the liquid waits</h2>
+        <p>
+          Cool the drop below its melting point and it does not freeze at once. A crystal has to start
+          somewhere, as a tiny cluster of ordered atoms, and a tiny cluster is mostly surface: its surface
+          costs more than its ordered inside gains, so small clusters keep forming and dissolving. Only
+          when one, by chance, grows past a critical size does growing become downhill, and then the whole
+          drop freezes from it. The colder the liquid, the smaller that critical size and the sooner it
+          happens. Run natively, a drop of 8,788 atoms held at kT = 0.42 stayed liquid for about 320 τ, then
+          froze in the next 250 τ. Supercooled water does the same: clouds hold liquid droplets far below
+          0 °C, and a bottle of very pure water can stay liquid in a freezer until a knock sets it off.
+        </p>
+        <h2>Entropy</h2>
+        <p>
+          The liquid has more entropy than the crystal (its atoms can be arranged in far more ways), so the
+          higher the temperature, the more that counts in G = H − TS, and above the melting point it wins.
+          The heat you put in while it melts is what the liquid's extra entropy costs: L = T ΔS. (See
+          <a href="../boiling/index.html">phase transitions</a> for the same argument for boiling.)
+        </p>
+        <div class="caveat">
+          <h3>Caveats</h3>
+          <ul>
+            <li>A small crystal: a few thousand atoms, so a fair fraction sit on its surface, which melts
+              first and at a lower temperature than the inside would.</li>
+            <li>The crystal sits in an empty periodic box (three times its volume). A little of it
+              evaporates when it is hot.</li>
+            <li>Lennard-Jones atoms cut off at 2.5 σ. For argon, σ ≈ 0.34 nm, ε/k ≈ 120 K and τ ≈ 2 ps: the
+              crystal is about 7 nm across.</li>
+          </ul>
+        </div>
+      </article>
+    </main>
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>

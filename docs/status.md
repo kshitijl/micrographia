@@ -30,6 +30,7 @@ M1 Pro (Metal) unless stated. Run everything with `cargo xtask all`.
 | `buffer` | How does a buffer hold blood's pH steady? | [H][A]/[HA] constant within 1.8× up to equivalence; at 24 protons per box <25% as many free as in water (2.5 vs 24); Henderson–Hasselbalch from K within 0.15 |
 | `mask` | How can a mask stop particles smaller than its holes? | Particles 3–27× smaller than the gaps caught on >20% of passes (~40%); the largest ≥0.2 more often (0.76) |
 | `dna` | How does PCR copy DNA; why do strands melt? | 8-bead strands melt ≥0.12 kT/ε above 4-bead ones (0.94 vs 0.73); single beads <20% paired at every temperature |
+| `crystal` (3D) | What happens when a crystal melts; why does a cooled liquid wait? | Cold FCC crystal stays >85% crystalline (96%, kT 0.33); 1.6 ε per atom of heat leaves kT stalled below 0.7 (0.62) with the crystal melting (35% left) |
 
 Plus `selftest`: the GPU primitive and engine checks, run under the browser's shader compiler.
 
@@ -46,6 +47,14 @@ Plus `selftest`: the GPU primitive and engine checks, run under the browser's sh
   thermal bath); compartments (many independent replicas in one run); a semi-permeable
   membrane; a piston (fixed speed or free under a load); an Andersen bulk thermostat; a ledger
   of energy, impulse and hits per wall and compartment, in exact fixed point.
+- **3D** (`GpuEngine3`, `md3.wgsl`; `md_core::three`): the same integer leapfrog in 3D, with a
+  cell list over 3×3×3 cells, LJ/WCA pairs, hard, soft or heat-bath walls per axis, gravity,
+  an Andersen bath, pinned species, region kicks and exact reversal. Its own kernels and buffers,
+  so 2D is untouched (an A/B benchmark against the commit before showed no change). CPU twin
+  `IntEngine3<F>`. Speed: LJ (rc 2.5) at density 0.8: 1,800 steps/s at 4k, 350 at 64k; WCA:
+  6,800 at 4k, 1,300 at 64k (M1 Pro, native). Verlet lists for 3D are next. Renderer: lit
+  sphere impostors with exact depth, an orbit camera and a cut-away. Crystal test
+  (`md_core::order`): Steinhardt q6 bonds (ten Wolde–Frenkel).
 - **CPU twins** (crate `md-ref`): `IntEngine<F>` (same integer scheme, f32 or f64 forces) and
   `FloatEngine<F>` (ordinary float MD). The GPU's kicks agree with the f32 twin bit for bit
   for ~70% of particles (the rest differ by a few units: different f32 rounding/fusion) and

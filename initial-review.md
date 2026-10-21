@@ -578,3 +578,14 @@ Still to do: a molecule-count control on the other pages.
   second, with the steps paused briefly for each so page actions never race them. Measured on the
   pot (6,000 molecules): 3,400 → 8,000 steps/s; at 48,000, 2,000 → 4,000. At 6,000 that is the
   GPU's per-dispatch limit (~10 dispatches a step at ~9 µs each), not the page's any more.
+- [ ] 3D (item 24): a 3D engine (`GpuEngine3`, cell list, the same exact integer leapfrog,
+  walls, baths, kicks, reversal), with a CPU twin and native tests (kicks agree with the twin
+  to f32 precision, reversal restores every bit, energy conserved to 10⁻⁴ per atom, baths reach
+  their temperatures). Its own kernels, so 2D is unchanged (A/B benchmark: within 2%). A 3D
+  renderer (lit spheres with exact depth, drag to turn, scroll to zoom, cut away the front),
+  `SimHost` runs 2D or 3D, and the energy panel's entropy uses the 3D density of states.
+- [ ] New page `crystal` (3D): a Lennard-Jones crystal heated or cooled in counted amounts, each
+  atom coloured crystal or liquid (Steinhardt q6 bonds), "show only the crystal", temperature
+  against heat added (the melting plateau) and crystal fraction against time. Natively: melts in
+  ~60 τ at kT 0.9; held at 0.42 the drop stays liquid ~320 τ (supercooled), then freezes. Next
+  for it: Verlet lists in 3D (3–4× faster), and dropping in a seed crystal by hand.

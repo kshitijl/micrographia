@@ -124,6 +124,23 @@ impl<F: Real> PairConsts<F> {
     }
 }
 
+impl<F: Real> PairConsts<F> {
+    /// The 3D version of [`PairConsts::eval`]: same operations as `md3.wgsl`.
+    #[inline(always)]
+    pub fn eval3(&self, fx: F, fy: F, fz: F) -> Option<(F, F)> {
+        let r2 = fx * fx + fy * fy + fz * fz;
+        if !(r2 < self.rc2) {
+            return None;
+        }
+        let one = F::from_f64(1.0);
+        let s2 = self.sigma2 / r2;
+        let s6 = s2 * s2 * s2;
+        let fr = F::from_f64(6.0) * self.eps4 * s6 * (F::from_f64(2.0) * s6 - one) / r2;
+        let u = self.eps4 * s6 * (s6 - one) - self.shift;
+        Some((fr, u))
+    }
+}
+
 /// Bond constants in the engine's float type: (kind 0 harmonic / 1 FENE, k, r0).
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct BondConsts<F> {

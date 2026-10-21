@@ -4,7 +4,7 @@ use crate::system::{BondType, CompartmentWalls, PistonDrive, System, Wall};
 use crate::{fixed, Pair};
 
 /// One phrase for a pair potential.
-fn pair_phrase(p: &Pair) -> String {
+pub(crate) fn pair_phrase(p: &Pair) -> String {
     if p.eps == 0.0 || p.rc == 0.0 {
         return "no interaction".into();
     }
@@ -16,7 +16,7 @@ fn pair_phrase(p: &Pair) -> String {
     }
 }
 
-fn num(x: f64) -> String {
+pub(crate) fn num(x: f64) -> String {
     let s = format!("{x:.3}");
     let s = s.trim_end_matches('0').trim_end_matches('.');
     s.to_string()
@@ -27,7 +27,7 @@ fn capitalise(s: &str) -> String {
     c.next().map(|f| f.to_uppercase().collect::<String>() + c.as_str()).unwrap_or_default()
 }
 
-fn wall_phrase(w: &Wall) -> String {
+pub(crate) fn wall_phrase(w: &Wall) -> String {
     match w {
         Wall::Hard => "hard (molecules bounce off exactly)".into(),
         Wall::Soft => "soft (a smooth repulsion)".into(),
